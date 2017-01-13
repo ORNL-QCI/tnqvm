@@ -1,4 +1,4 @@
-project(TNQVM CXX)
+project(TNQVM C CXX Fortran)
 cmake_minimum_required(VERSION 2.8)
 set(CMAKE_DISABLE_IN_SOURCE_BUILDS ON)
 set(CMAKE_DISABLE_SOURCE_CHANGES ON)
@@ -17,6 +17,20 @@ endif()
 find_package(MPI REQUIRED)
 find_package(Boost COMPONENTS system REQUIRED)
 
+find_package(OpenMP)
+if (OPENMP_FOUND)
+  set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+endif()
+
+find_package(CUDA)
+find_package(BLAS REQUIRED)
+message (STATUS ${BLAS_LIBRARIES})
+
+if (NOT CUDA_FOUND) 
+   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DNO_GPU") 
+endif()
+
 message(STATUS "Found Boost Headers = ${Boost_INCLUDE_DIRS}")
 message(STATUS "Found Boost Libraries = ${Boost_LIBRARIES}")
 
@@ -27,9 +41,13 @@ endif()
 
 include_directories(${MPI_INCLUDE_PATH})
 include_directories(${Boost_INCLUDE_DIRS})
+include_directories("${CMAKE_SOURCE_DIR}/tpls/common/exception")
 include_directories("${CMAKE_SOURCE_DIR}/tpls/common/factory")
 include_directories("${CMAKE_SOURCE_DIR}/tpls/common/graph")
+include_directories("${CMAKE_SOURCE_DIR}/tpls/common/tpls/fire/tensors")
 include_directories("${CMAKE_SOURCE_DIR}/tensor")
+include_directories("${CMAKE_SOURCE_DIR}/tpls/talsh")
+include_directories("${CMAKE_SOURCE_DIR}/tpls/hyper_array")
 
 add_subdirectory(tpls)
 add_subdirectory(tensor)
