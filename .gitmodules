@@ -1,6 +1,6 @@
 [submodule "tpls/common"]
 	path = tpls/common
-	url = git@code.ornl.gov:qci/common.git
+	url = https://github.com/ORNL-QCI/common.git
 [submodule "tpls/talsh"]
 	path = tpls/talsh
 	url = https://github.com/DmitryLyakh/TAL_SH.git
