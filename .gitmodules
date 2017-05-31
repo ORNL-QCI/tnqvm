@@ -1,6 +1,6 @@
-[submodule "tpls/common"]
-	path = tpls/common
-	url = https://github.com/ORNL-QCI/common
 [submodule "tpls/talsh"]
 	path = tpls/talsh
 	url = https://github.com/DmitryLyakh/TAL_SH
+[submodule "tpls/fire"]
+	path = tpls/fire
+	url = https://github.com/jayjaybillings/fire

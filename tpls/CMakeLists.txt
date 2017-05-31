@@ -1,7 +1,6 @@
-add_subdirectory(common)
 
 set(PACKAGE_NAME "talsh")
-set(PACKAGE_DESCRIPTION "Talsh C/Forgran Tensor Library")
+set(PACKAGE_DESCRIPTION "Talsh C/Fortran Tensor Library")
 set(LIBRARY_NAME "talsh")
 set (GPU_FILE ${CMAKE_CURRENT_SOURCE_DIR}/talsh/tensor_algebra_gpu_nvidia.cu)
 set (GPU_AS_CPP_FILE ${CMAKE_CURRENT_SOURCE_DIR}/talsh/tensor_algebra_gpu_nvidia.cpp)

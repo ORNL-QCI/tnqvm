@@ -37,6 +37,7 @@
 #endif
 
 #include "TensorProvider.hpp"
+#include "TensorUtils.hpp"
 #include "talsh.h"
 #include <array>
 #include <hyper_array.hpp>
@@ -72,7 +73,7 @@ private:
 
 	int dataType = R8;
 
-	void getTalshTensorByReference(TensorReference& reference, talsh_tens_t * ten) {
+	void getTalshTensorByReference(TensorReference<Scalar>& reference, talsh_tens_t * ten) {
 		// Get the data and shape
 		auto shape = reference.second;
 		auto tensorData = reference.first.data();
@@ -169,7 +170,7 @@ public:
 	 * Initialize the Talsh Tensor from an existing TensorReference
 	 * @param reference
 	 */
-	void initializeTensorBackendWithReference(TensorReference& reference) {
+	void initializeTensorBackendWithReference(TensorReference<Scalar>& reference) {
 
 		getTalshTensorByReference(reference, tensor);
 
@@ -209,7 +210,7 @@ public:
 	 * @param other TensorReference view of the other Tensor
 	 * @return equal A boolean indicating if these Tensors are equal
 	 */
-	bool checkEquality(TensorReference& other) {
+	bool checkEquality(TensorReference<Scalar>& other) {
 		return false;
 	}
 
@@ -222,7 +223,7 @@ public:
 	 * @return result The contraction result as a TensorReference
 	 */
 	template<typename OtherDerived, typename ContractionDims>
-	TensorReference executeContraction(OtherDerived& t2,
+	TensorReference<Scalar> executeContraction(OtherDerived& t2,
 			ContractionDims& cIndices) {
 
 		// Compute new Tensor rank
@@ -258,7 +259,7 @@ public:
 	 * @param other TensorReference view of the other Tensor
 	 * @return result A new TensorReference representing the sum of this and other.
 	 */
-	TensorReference add(TensorReference& other) {
+	TensorReference<Scalar> add(TensorReference<Scalar>& other) {
 
 //		talsh_tens_t * otherTensor, * resultTensor;
 //		talsh_task_t * task;
@@ -311,7 +312,7 @@ public:
 	 * @param val Scalar to multiply this tensor by.
 	 * @return result A TensorReference representing the result
 	 */
-	TensorReference scalarProduct(Scalar& val) {
+	TensorReference<Scalar> scalarProduct(Scalar& val) {
 	}
 
 	/**
@@ -321,15 +322,15 @@ public:
 	 * @return reshapedTensor A TensorReference representing new reshaped tensor.
 	 */
 	template<typename DimArray>
-	TensorReference reshapeTensor(DimArray& array) {
+	TensorReference<Scalar> reshapeTensor(DimArray& array) {
 
 	}
 
 	template<typename DimArray>
-	TensorReference shuffleTensor(DimArray& array) {
+	TensorReference<Scalar> shuffleTensor(DimArray& array) {
 	}
 
-	std::pair<TensorReference, TensorReference> computeSvd(TensorReference& ref,
+	std::pair<TensorReference<Scalar>, TensorReference<Scalar>> computeSvd(TensorReference<Scalar>& ref,
 			double cutoff) {
 
 	}

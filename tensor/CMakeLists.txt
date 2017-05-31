@@ -39,6 +39,10 @@ SET(PACKAGE_DESCRIPTION "Talsh C++ Tensor Library")
 #Set the library name
 SET(LIBRARY_NAME "talshTensors")
 
+include_directories(${CMAKE_SOURCE_DIR}/tpls/fire/tensors)
+include_directories(${CMAKE_SOURCE_DIR}/tpls/fire/tensors/impl)
+include_directories(${CMAKE_SOURCE_DIR}/tpls/fire/tpls/eigen)
+
 # Collect all header filenames in this project 
 # and glob them in HEADERS
 file(GLOB HEADERS *.hpp)
@@ -46,11 +50,9 @@ file(GLOB HEADERS *.hpp)
 # Get the test files
 file(GLOB test_files tests/*Test.cpp)
 
-#link_directories("${CMAKE_BINARY_DIR}/tpls")
-
 # Add the tests
 add_tests("${test_files}" 
-   "${CMAKE_CURRENT_SOURCE_DIR};${CMAKE_SOURCE_DIR}/tpls/common/tpls/fire/tensors;${CMAKE_SOURCE_DIR}/tpls/common/tpls/fire/tensors/impl;${CMAKE_SOURCE_DIR}/tpls/common/tpls/fire/tpls/eigen;${CMAKE_SOURCE_DIR}/tpls/talsh" 
+   "${CMAKE_CURRENT_SOURCE_DIR};${CMAKE_SOURCE_DIR}/tpls/talsh" 
    "talsh;blas;lapack")
 
 #Install the Fire header files
