@@ -34,8 +34,33 @@
 #include <memory>
 #include <boost/test/included/unit_test.hpp>
 #include "TNQVM.hpp"
+#include "GateFunction.hpp"
+#include "Hadamard.hpp"
+#include "CNOT.hpp"
+#include "X.hpp"
 
 BOOST_AUTO_TEST_CASE(checkKernelExecution) {
 
+	using namespace tnqvm;
+	using namespace xacc::quantum;
+
+	TNQVM acc;
+	auto qreg1 = acc.createBuffer("qreg", 3);
+	auto f = std::make_shared<GateFunction>("foo");
+
+	auto x = std::make_shared<X>(0);
+	auto h = std::make_shared<Hadamard>(1);
+	auto cn1 = std::make_shared<CNOT>(1, 2);
+	auto cn2 = std::make_shared<CNOT>(0, 1);
+	auto h2 = std::make_shared<Hadamard>(0);
+
+
+	f->addInstruction(x);
+	f->addInstruction(h);
+	f->addInstruction(cn1);
+	f->addInstruction(cn2);
+	f->addInstruction(h2);
+
+	acc.execute(qreg1, f);
 
 }

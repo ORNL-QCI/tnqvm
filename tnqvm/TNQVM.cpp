@@ -29,6 +29,7 @@
  *
  **********************************************************************************/
 #include "TNQVM.hpp"
+#include "ExaTensorAdapter.hpp"
 
 namespace tnqvm {
 
@@ -74,6 +75,9 @@ void TNQVM::execute(std::shared_ptr<AcceleratorBuffer> buffer,
 		}
 	}
 
+	ExaTensorAdapter adapter;
+
+	adapter.execute(flatQasmString);
 
 }
 

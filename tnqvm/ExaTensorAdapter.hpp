@@ -36,6 +36,10 @@
 #include "Tensor.hpp"
 #include <string>
 
+extern "C" {
+extern void __exatensor_MOD_exa_tensor();
+}
+
 namespace tnqvm {
 
 using ComplexRankTwoTensor = fire::Tensor<2, fire::EigenProvider, std::complex<double>>;
