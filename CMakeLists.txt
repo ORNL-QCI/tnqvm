@@ -14,38 +14,38 @@ if (EXISTS ${CMAKE_SOURCE_DIR}/tpls/fire)
   include(tests)
 endif() 
 
-find_package(MPI REQUIRED)
-find_package(Boost COMPONENTS system REQUIRED)
+find_package(XACC REQUIRED)
 
-find_package(OpenMP)
-if (OPENMP_FOUND)
-  set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
-  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+if (XACC_FOUND) 
+   message(STATUS "XACC Support Found")
+
+   find_package(MPI REQUIRED)
+   find_package(Boost COMPONENTS system REQUIRED)
+
+   find_package(OpenMP)
+   if (OPENMP_FOUND)
+     set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+     set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+   endif()
+
+   find_package(CUDA)
+   find_package(BLAS REQUIRED)
+   message (STATUS ${BLAS_LIBRARIES})
+
+   if (NOT CUDA_FOUND) 
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DNO_GPU") 
+   endif()
+
+
+   include_directories(${MPI_INCLUDE_PATH})
+   include_directories(${Boost_INCLUDE_DIRS})
+   include_directories("${CMAKE_SOURCE_DIR}/tpls/fire/tensors")
+   include_directories("${CMAKE_SOURCE_DIR}/tensor")
+   include_directories("${CMAKE_SOURCE_DIR}/tpls/talsh")
+   include_directories("${CMAKE_SOURCE_DIR}/tpls/hyper_array")
+   include_directories(${XACC_INCLUDE_DIRS})
+
+   add_subdirectory(tpls)
+   add_subdirectory(tensor)
+   add_subdirectory(tnqvm)
 endif()
-
-find_package(CUDA)
-find_package(BLAS REQUIRED)
-message (STATUS ${BLAS_LIBRARIES})
-
-if (NOT CUDA_FOUND) 
-   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DNO_GPU") 
-endif()
-
-message(STATUS "Found Boost Headers = ${Boost_INCLUDE_DIRS}")
-message(STATUS "Found Boost Libraries = ${Boost_LIBRARIES}")
-
-find_package(OpenMP)
-if (OPENMP_FOUND)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-endif()
-
-include_directories(${MPI_INCLUDE_PATH})
-include_directories(${Boost_INCLUDE_DIRS})
-include_directories("${CMAKE_SOURCE_DIR}/tpls/fire/tensors")
-include_directories("${CMAKE_SOURCE_DIR}/tensor")
-include_directories("${CMAKE_SOURCE_DIR}/tpls/talsh")
-include_directories("${CMAKE_SOURCE_DIR}/tpls/hyper_array")
-
-add_subdirectory(tpls)
-add_subdirectory(tensor)
-add_subdirectory(tnqvm)
