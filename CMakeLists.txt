@@ -20,7 +20,7 @@ if (XACC_FOUND)
    message(STATUS "XACC Support Found")
 
    find_package(MPI REQUIRED)
-   find_package(Boost COMPONENTS system REQUIRED)
+   find_package(Boost COMPONENTS system program_options REQUIRED)
 
    find_package(OpenMP)
    if (OPENMP_FOUND)
@@ -44,6 +44,8 @@ if (XACC_FOUND)
    include_directories("${CMAKE_SOURCE_DIR}/tpls/talsh")
    include_directories("${CMAKE_SOURCE_DIR}/tpls/hyper_array")
    include_directories(${XACC_INCLUDE_DIRS})
+   include_directories("/allacc/itensor")
+
 
    add_subdirectory(tpls)
    add_subdirectory(tensor)

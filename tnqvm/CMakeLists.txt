@@ -29,19 +29,20 @@
 #
 #**********************************************************************************/
 
-if (NOT EXATENSOR_ROOT)
-   message(FATAL_ERROR " - Must have install path of ExaTensor")
-endif()
+# if (NOT EXATENSOR_ROOT)
+#    message(FATAL_ERROR " - Must have install path of ExaTensor")
+# endif()
 
-if (NOT EXISTS ${EXATENSOR_ROOT}/libExaTensor.a) 
-   message(FATAL_ERROR " - Invalid ExaTensor installation")
-endif()
+# if (NOT EXISTS ${EXATENSOR_ROOT}/libExaTensor.a) 
+#    message(FATAL_ERROR " - Invalid ExaTensor installation")
+# endif()
 
 include_directories(${CMAKE_SOURCE_DIR}/tpls/fire/tensors)
 include_directories(${CMAKE_SOURCE_DIR}/tpls/fire/tensors/impl)
 include_directories(${CMAKE_SOURCE_DIR}/tpls/fire/tpls/eigen)
 include_directories(${EXATENSOR_ROOT})
 include_directories(${EXATENSOR_ROOT}/INTERVIRT)
+include_directories(/allacc/itensor)
 
 set (PACKAGE_NAME "TNQVM Tensor Network XACC Accelerator")
 set (PACKAGE_DESCIPTION "TNQVM Tensor Network XACC Accelerator Framework")
@@ -70,5 +71,15 @@ install(TARGETS ${LIBRARY_NAME} DESTINATION ${XACC_LIBRARY_DIR})
 message(STATUS ${MPI_Fortran_LIBRARIES})
 # Gather tests
 file (GLOB test_files tests/*.cpp)
-add_tests("${test_files}" "${CMAKE_CURRENT_SOURCE_DIR}" "${Boost_LIBRARIES};${MPI_Fortran_LIBRARIES};${XACC_LIBRARIES};tnqvm;dsvp;talsh;ExaTensor;ddss;intravirt;gfc;utility")
+# add_tests("${test_files}" 
+# "${CMAKE_CURRENT_SOURCE_DIR}" 
+# "${Boost_LIBRARIES};${MPI_Fortran_LIBRARIES};${XACC_LIBRARIES};tnqvm"
+# "/allacc/itensor/lib/libitensor.a"
+# "/allacc/itensor/lib/libitensor-g.a")#;dsvp;talsh;ExaTensor;ddss;intravirt;gfc;utility")
 
+add_executable(it it.cpp)
+target_link_libraries(it "/allacc/itensor/lib/libitensor.a"
+"${CMAKE_CURRENT_SOURCE_DIR}"
+"${Boost_LIBRARIES}"
+"${XACC_LIBRARIES};tnqvm"
+"blas;lapack")

@@ -2,7 +2,7 @@
 namespace tnqvm {
 void ExaTensorAdapter::execute(const std::string& qasmString) {
 
-	__exatensor_MOD_exa_tensor();
+	//__exatensor_MOD_exa_tensor();
 
 }
 
