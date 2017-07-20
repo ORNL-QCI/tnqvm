@@ -65,7 +65,15 @@ private:
         itensor::PrintData(wavefunc);
     }
 
+    void print_iqbit2iind() const{
+        for(int i=0; i<iqbit2iind.size()-1; ++i){
+            std::cout<<iqbit2iind[i]<<", ";
+        }
+        std::cout<<*(iqbit2iind.end()-1)<<std::endl;
+    }
+
     Index getIndIn(int iqbit_in) const {
+        print_iqbit2iind();
         auto wf_inds = wavefunc.inds();
         auto iind_in = iqbit2iind[iqbit_in];
         auto ind_in = wf_inds[iind_in];
@@ -73,8 +81,16 @@ private:
     }
 
     void endVisit(int iqbit_in) {
-        iqbit2iind.insert(iqbit2iind.begin()+iqbit_in, iqbit2iind.size()-1);
-        iqbit2iind.pop_back();
+        auto iind = iqbit2iind[iqbit_in];
+        for(int iqbit=0; iqbit<iqbit2iind.size(); ++iqbit){
+            if (iqbit2iind[iqbit]>iind){
+                iqbit2iind[iqbit]--;
+            }
+        }
+        iqbit2iind[iqbit_in] = iqbit2iind.size()-1;
+        // iqbit2iind.insert(iqbit2iind.begin()+iqbit_in, iqbit2iind.size()-1);
+        // iqbit2iind.pop_back();
+        print_iqbit2iind();
     }
 
 public:
@@ -86,12 +102,9 @@ public:
     }
 
 
-	/**
-	 * Visit Hadamard gates
-	 */
 	void visit(Hadamard& gate) {
-        std::cout<<"applying "<<gate.getName()<<std::endl;
         auto iqbit_in = gate.bits()[0];
+        std::cout<<"applying "<<gate.getName()<<" @ "<<iqbit_in<<std::endl;
         auto ind_in = getIndIn(iqbit_in);
         auto ind_out = itensor::Index(gate.getName(), 2);
         auto tGate = itensor::ITensor(ind_in, ind_out);
@@ -102,67 +115,70 @@ public:
         tGate.set(ind_in(2), ind_out(1), 1.);
         tGate.set(ind_in(2), ind_out(2), -1.);
         wavefunc *= tGate;
-        itensor::PrintData(wavefunc);
         endVisit(iqbit_in);
+        itensor::PrintData(wavefunc);
 	}
 
-	/**
-	 * Visit CNOT gates
-	 */
-	void visit(CNOT& cn) {
-		// quilStr += "CNOT " + std::to_string(cn.bits()[0]) + " " + std::to_string(cn.bits()[1]) + "\n";
+	void visit(CNOT& gate) {
+        auto iqbit_in0 = gate.bits()[0];
+        auto iqbit_in1 = gate.bits()[1];
+        std::cout<<"applying "<<gate.getName()<<" @ "<<iqbit_in0<<" , "<<iqbit_in1<<std::endl;
+        auto ind_in0 = getIndIn(iqbit_in0); // control
+        auto ind_in1 = getIndIn(iqbit_in1);
+        auto ind_out0 = itensor::Index(gate.getName(), 2);
+        auto ind_out1 = itensor::Index(gate.getName(), 2);
+        auto tGate = itensor::ITensor(ind_in0, ind_in1, ind_out0, ind_out1);
+        tGate.set(ind_in0(1), ind_in1(1), ind_out0(1), ind_out1(1), 1.);
+        tGate.set(ind_in0(1), ind_in1(2), ind_out0(1), ind_out1(2), 1.);
+        tGate.set(ind_in0(2), ind_in1(2), ind_out0(2), ind_out1(1), 1.);
+        tGate.set(ind_in0(2), ind_in1(1), ind_out0(2), ind_out1(2), 1.);
+        wavefunc *= tGate;
+        endVisit(iqbit_in0);
+        endVisit(iqbit_in1);
+        itensor::PrintData(wavefunc);
 	}
-	/**
-	 * Visit X gates
-	 */
+
+
 	void visit(X& gate) {
-        std::cout<<"applying "<<gate.getName()<<std::endl;
         auto iqbit_in = gate.bits()[0];
+        std::cout<<"applying "<<gate.getName()<<" @ "<<iqbit_in<<std::endl;
         auto ind_in = getIndIn(iqbit_in);
         auto ind_out = itensor::Index(gate.getName(), 2);
         auto tGate = itensor::ITensor(ind_in, ind_out);
         tGate.set(ind_in(1), ind_out(2), 1.);
         tGate.set(ind_in(2), ind_out(1), 1.);
         wavefunc *= tGate;
-        itensor::PrintData(wavefunc);
         endVisit(iqbit_in);
+        itensor::PrintData(wavefunc);
 	}
 
-	/**
-	 *
-	 */
 	void visit(Y& gate) {
-        std::cout<<"applying "<<gate.getName()<<std::endl;
         auto iqbit_in = gate.bits()[0];
+        std::cout<<"applying "<<gate.getName()<<" @ "<<iqbit_in<<std::endl;
         auto ind_in = getIndIn(iqbit_in);
         auto ind_out = itensor::Index(gate.getName(), 2);
         auto tGate = itensor::ITensor(ind_in, ind_out);
         tGate.set(ind_in(1), ind_out(2), std::complex<double>(0,1.));
         tGate.set(ind_in(2), ind_out(1), std::complex<double>(0,-1.));
         wavefunc *= tGate;
-        itensor::PrintData(wavefunc);
         endVisit(iqbit_in);
+        itensor::PrintData(wavefunc);
 	}
 
-	/**
-	 * Visit Z gates
-	 */
+
 	void visit(Z& gate) {
-        std::cout<<"applying "<<gate.getName()<<std::endl;
         auto iqbit_in = gate.bits()[0];
+        std::cout<<"applying "<<gate.getName()<<" @ "<<iqbit_in<<std::endl;
         auto ind_in = getIndIn(iqbit_in);
         auto ind_out = itensor::Index(gate.getName(), 2);
         auto tGate = itensor::ITensor(ind_in, ind_out);
         tGate.set(ind_in(1), ind_out(1), 1.);
         tGate.set(ind_in(2), ind_out(2), -1.);
         wavefunc *= tGate;
-        itensor::PrintData(wavefunc);
         endVisit(iqbit_in);
+        itensor::PrintData(wavefunc);
 	}
 
-	/**
-	 * Visit Measurement gates
-	 */
 	void visit(Measure& m) {
 		// int classicalBitIdx = m.getClassicalBitIndex();
 		// quilStr += "MEASURE " + std::to_string(m.bits()[0]) + " [" + std::to_string(classicalBitIdx) + "]\n";
@@ -171,9 +187,6 @@ public:
 		// qubitToClassicalBitIndex.insert(std::make_pair(m.bits()[0], classicalBitIdx));
 	}
 
-	/**
-	 * Visit Conditional functions
-	 */
 	void visit(ConditionalFunction& c) {
 		// auto visitor = std::make_shared<QuilVisitor>();
 		// auto classicalBitIdx = qubitToClassicalBitIndex[c.getConditionalQubit()];
