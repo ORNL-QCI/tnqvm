@@ -29,15 +29,14 @@
  *
  **********************************************************************************/
 #include "TNQVM.hpp"
-#include "ExaTensorAdapter.hpp"
 
 namespace tnqvm {
 
 std::shared_ptr<AcceleratorBuffer> TNQVM::createBuffer(
 		const std::string& varId) {
-//	auto buffer = std::make_shared<SimulatedQubits<10>>(varId);
-//	storeBuffer(varId, buffer);
-//	return buffer;
+	auto buffer = std::make_shared<AcceleratorBuffer>(varId, 100);
+	storeBuffer(varId, buffer);
+	return buffer;
 }
 
 std::shared_ptr<AcceleratorBuffer> TNQVM::createBuffer(
@@ -45,9 +44,9 @@ std::shared_ptr<AcceleratorBuffer> TNQVM::createBuffer(
 	if (!isValidBufferSize(size)) {
 		XACCError("Invalid buffer size.");
 	}
-//	auto buffer = std::make_shared<SimulatedQubits<10>>(varId, size);
-//	storeBuffer(varId, buffer);
-//	return buffer;
+	auto buffer = std::make_shared<AcceleratorBuffer>(varId, size);
+	storeBuffer(varId, buffer);
+	return buffer;
 }
 
 bool TNQVM::isValidBufferSize(const int NBits) {
@@ -75,10 +74,8 @@ void TNQVM::execute(std::shared_ptr<AcceleratorBuffer> buffer,
 		}
 	}
 
-	ExaTensorAdapter adapter;
-
-	adapter.execute(flatQasmString);
-
+	std::cout << "TNQVM Does not do anything yet - "
+			"heres the qasm string:\n" << flatQasmString << "\n";
 }
 
 }
