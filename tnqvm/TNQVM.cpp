@@ -29,20 +29,14 @@
  *
  **********************************************************************************/
 #include "TNQVM.hpp"
-#include "ExaTensorAdapter.hpp"
-#include "tensor_expression.hpp"
 #include "TensorVisitor.hpp"
-#include "FunctionalGateInstructionVisitor.hpp"
-#include "Hadamard.hpp"
-#include "CNOT.hpp"
 
-using namespace xacc::quantum;
 
 namespace tnqvm {
 
 std::shared_ptr<AcceleratorBuffer> TNQVM::createBuffer(
 		const std::string& varId) {
-	auto buffer = std::make_shared<AcceleratorBuffer>(varId, 10);
+	auto buffer = std::make_shared<AcceleratorBuffer>(varId, 100);
 	storeBuffer(varId, buffer);
 	return buffer;
 }
@@ -62,11 +56,12 @@ bool TNQVM::isValidBufferSize(const int NBits) {
 }
 
 void TNQVM::execute(std::shared_ptr<AcceleratorBuffer> buffer,
-			  const std::shared_ptr<xacc::Function> kernel) {
+		const std::shared_ptr<xacc::Function> kernel) {
 
-	auto visitor = std::make_shared<TensorVisitor>();
-	
+	auto visitor = std::make_shared<xacc::quantum::TensorVisitor>();
+
 	std::string flatQasmString = "";
+
 	// Our QIR is really a tree structure
 	// so create a pre-order tree traversal
 	// InstructionIterator to walk it
@@ -78,15 +73,10 @@ void TNQVM::execute(std::shared_ptr<AcceleratorBuffer> buffer,
 		// If enabled, invoke the accept
 		// method which kicks off the visitor
 		// to execute the appropriate lambda.
-
 		if (nextInst->isEnabled() && !nextInst->isComposite()) {
-			flatQasmString += nextInst->toString(buffer->name()) + "\n";
 			nextInst->accept(visitor);
+			// flatQasmString += nextInst->toString(buffer->name()) + "\n";
 		}
 	}
-	std::cout<<flatQasmString<<std::endl;
-	ExaTensorAdapter adapter;
-	adapter.execute(flatQasmString);
 }
-
-} // end name space
+}

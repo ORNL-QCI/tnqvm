@@ -42,6 +42,8 @@ class TNQVM: public Accelerator {
 
 public:
 
+	virtual void initialize() {}
+
 	/**
 	 * Create, store, and return an AcceleratorBuffer with the given
 	 * variable id string. This string serves as a unique identifier

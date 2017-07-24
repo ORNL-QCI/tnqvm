@@ -46,6 +46,7 @@ class TensorVisitor: public AllGateVisitor {
 private:
     itensor::ITensor wavefunc;
     std::vector<int> iqbit2iind;
+    std::vector<int> cbits;
 
     /// init the wave function tensor
     void initWavefunc(int n_qbits){
@@ -179,7 +180,11 @@ public:
         itensor::PrintData(wavefunc);
 	}
 
-	void visit(Measure& m) {
+	void visit(Measure& gate) {
+        auto tmp = wavefunc.conj() * wavefunc;
+        // auto iqbit_measured = gate.bits()[0];
+        // auto ind_measured = getIndIn(iqbit_in);
+        // auto tMeasurer0 = itensor::ITensor()
 		// int classicalBitIdx = m.getClassicalBitIndex();
 		// quilStr += "MEASURE " + std::to_string(m.bits()[0]) + " [" + std::to_string(classicalBitIdx) + "]\n";
 		// classicalAddresses += std::to_string(classicalBitIdx) + ", ";

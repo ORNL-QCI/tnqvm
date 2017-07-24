@@ -38,8 +38,6 @@
 #include "Hadamard.hpp"
 #include "CNOT.hpp"
 #include "X.hpp"
-#include "itensor/all.h"
-
 
 BOOST_AUTO_TEST_CASE(checkKernelExecution) {
 
