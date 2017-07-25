@@ -62,6 +62,7 @@ void TNQVM::execute(std::shared_ptr<AcceleratorBuffer> buffer,
 
 	std::string flatQasmString = "";
 
+    std::cout << "HELLO WORLD:\n" << kernel->toString("qreg") << "\n";
 	// Our QIR is really a tree structure
 	// so create a pre-order tree traversal
 	// InstructionIterator to walk it
@@ -73,7 +74,7 @@ void TNQVM::execute(std::shared_ptr<AcceleratorBuffer> buffer,
 		// If enabled, invoke the accept
 		// method which kicks off the visitor
 		// to execute the appropriate lambda.
-		if (nextInst->isEnabled() && !nextInst->isComposite()) {
+		if (nextInst->isEnabled()) {
 			nextInst->accept(visitor);
 			// flatQasmString += nextInst->toString(buffer->name()) + "\n";
 		}

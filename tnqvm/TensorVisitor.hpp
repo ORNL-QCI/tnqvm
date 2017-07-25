@@ -35,6 +35,8 @@
 #include "tensor_expression.hpp"
 #include "itensor/all.h"
 #include <complex>
+#include <cstdlib>
+#include <ctime>
 
 namespace xacc{
 namespace quantum{
@@ -81,6 +83,25 @@ private:
         return ind_in;       
     }
 
+    void printWavefunc() const {
+        std::cout<<"----wf--->>\n";
+        unsigned long giind = 0;
+        const int n_qbits = iqbit2iind.size();
+        auto print_nz = [&giind, n_qbits, this](itensor::Cplx c){
+            if(std::norm(c)>0){
+                for(int iqbit=0; iqbit<n_qbits; ++iqbit){
+                    auto iind = this->iqbit2iind[iqbit];
+                    auto spin = (giind>>iind) & 1UL;
+                    std::cout<<spin;
+                }
+                std::cout<<std::endl;
+            }
+            ++giind;
+        };        
+        wavefunc.visit(print_nz);
+        std::cout<<"<<---wf----\n\n"<<std::endl;
+    }
+
     void endVisit(int iqbit_in) {
         auto iind = iqbit2iind[iqbit_in];
         for(int iqbit=0; iqbit<iqbit2iind.size(); ++iqbit){
@@ -94,12 +115,15 @@ private:
         print_iqbit2iind();
     }
 
+
 public:
 
     /// Constructor
     TensorVisitor(){
         int n_qbits = 3;
         initWavefunc(n_qbits);
+        std::srand(std::time(0));
+        cbits.resize(n_qbits);
     }
 
 
@@ -118,6 +142,7 @@ public:
         wavefunc *= tGate;
         endVisit(iqbit_in);
         itensor::PrintData(wavefunc);
+        printWavefunc();
 	}
 
 	void visit(CNOT& gate) {
@@ -137,6 +162,7 @@ public:
         endVisit(iqbit_in0);
         endVisit(iqbit_in1);
         itensor::PrintData(wavefunc);
+        printWavefunc();
 	}
 
 
@@ -151,6 +177,7 @@ public:
         wavefunc *= tGate;
         endVisit(iqbit_in);
         itensor::PrintData(wavefunc);
+        printWavefunc();
 	}
 
 	void visit(Y& gate) {
@@ -164,6 +191,7 @@ public:
         wavefunc *= tGate;
         endVisit(iqbit_in);
         itensor::PrintData(wavefunc);
+        printWavefunc();
 	}
 
 
@@ -178,29 +206,50 @@ public:
         wavefunc *= tGate;
         endVisit(iqbit_in);
         itensor::PrintData(wavefunc);
+        printWavefunc();
 	}
 
 	void visit(Measure& gate) {
-        auto tmp = wavefunc.conj() * wavefunc;
-        // auto iqbit_measured = gate.bits()[0];
-        // auto ind_measured = getIndIn(iqbit_in);
-        // auto tMeasurer0 = itensor::ITensor()
-		// int classicalBitIdx = m.getClassicalBitIndex();
-		// quilStr += "MEASURE " + std::to_string(m.bits()[0]) + " [" + std::to_string(classicalBitIdx) + "]\n";
-		// classicalAddresses += std::to_string(classicalBitIdx) + ", ";
-		// numAddresses++;
-		// qubitToClassicalBitIndex.insert(std::make_pair(m.bits()[0], classicalBitIdx));
+        double rv = (std::rand()%1000000)/1000000.;
+        auto iqbit_measured = gate.bits()[0];
+        std::cout<<"applying "<<gate.getName()<<" @ "<<iqbit_measured<<std::endl;
+        auto ind_measured = getIndIn(iqbit_measured);
+        auto ind_measured_p = getIndIn(iqbit_measured);
+        ind_measured_p.prime();
+
+        auto tMeasure0 = itensor::ITensor(ind_measured, ind_measured_p);
+        tMeasure0.set(ind_measured_p(1), ind_measured(1), 1.);
+        wavefunc /= itensor::norm(wavefunc);
+        auto collapsed =  wavefunc * tMeasure0;
+        collapsed.prime(ind_measured_p,-1);
+        auto tmp = wavefunc.conj() * collapsed;
+        double p0 = itensor::norm(tmp);
+
+        std::cout<<"rv= "<<rv<<"   p0= "<<p0<<std::endl;
+
+        if(rv<p0){
+            cbits[iqbit_measured] = 0;
+        }else{
+            cbits[iqbit_measured] = 1;
+            tMeasure0.fill(0.);
+            tMeasure0.set(ind_measured_p(2), ind_measured(2), 1.);
+            collapsed = wavefunc * tMeasure0;
+            collapsed.prime(ind_measured_p,-1);
+        }
+        wavefunc = collapsed;
+        endVisit(iqbit_measured);
+        itensor::PrintData(wavefunc);
+        printWavefunc();
 	}
 
 	void visit(ConditionalFunction& c) {
-		// auto visitor = std::make_shared<QuilVisitor>();
-		// auto classicalBitIdx = qubitToClassicalBitIndex[c.getConditionalQubit()];
-		// quilStr += "JUMP-UNLESS @" + c.getName() + " [" + std::to_string(classicalBitIdx) + "]\n";
-		// for (auto inst : c.getInstructions()) {
-		// 	inst->accept(visitor);
-		// }
-		// quilStr += visitor->getQuilString();
-		// quilStr += "LABEL @" + c.getName() + "\n";
+		auto classicalBitIdx = c.getConditionalQubit();
+        std::cout<<"applying "<<c.getName()<<" @ "<<classicalBitIdx<<std::endl;
+        if (cbits[classicalBitIdx]==1){ // TODO: add else
+    		for (auto inst : c.getInstructions()) {
+	    		inst->accept(this);
+		    }
+        }
 	}
 
 	void visit(Rx& rx) {
