@@ -238,7 +238,6 @@ public:
         }
         wavefunc = collapsed;
         endVisit(iqbit_measured);
-        itensor::PrintData(wavefunc);
         printWavefunc();
 	}
 
@@ -266,11 +265,18 @@ public:
 		// 		+ ") " + std::to_string(ry.bits()[0]) + "\n";
 	}
 
-	void visit(Rz& rz) {
-		// auto angleStr = boost::lexical_cast<std::string>(rz.getParameter(0));
-		// quilStr += "RZ("
-		// 		+ angleStr
-		// 		+ ") " + std::to_string(rz.bits()[0]) + "\n";
+	void visit(Rz& gate) {
+        auto iqbit_in = gate.bits()[0];
+        std::cout<<"applying "<<gate.getName()<<" @ "<<iqbit_in<<std::endl;
+        auto ind_in = getIndIn(iqbit_in);
+        auto ind_out = itensor::Index(gate.getName(), 2);
+        auto tGate = itensor::ITensor(ind_in, ind_out);
+        double theta = gate.getParameter(0);
+        tGate.set(ind_in(1), ind_out(1), std::complex<double>(0,1.));
+        tGate.set(ind_in(2), ind_out(2), std::complex<double>(0,-1.));
+        wavefunc *= tGate;
+        endVisit(iqbit_in);
+        printWavefunc();
 	}
 
 	void visit(CPhase& cp) {
