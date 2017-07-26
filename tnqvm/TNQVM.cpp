@@ -29,8 +29,8 @@
  *
  **********************************************************************************/
 #include "TNQVM.hpp"
-#include "TensorVisitor.hpp"
-
+#include "ITensorVisitor.hpp"
+#include "ExaTensorVisitor.hpp"
 
 namespace tnqvm {
 
@@ -58,25 +58,13 @@ bool TNQVM::isValidBufferSize(const int NBits) {
 void TNQVM::execute(std::shared_ptr<AcceleratorBuffer> buffer,
 		const std::shared_ptr<xacc::Function> kernel) {
 
-	auto visitor = std::make_shared<xacc::quantum::TensorVisitor>();
+	auto visitor = std::make_shared<xacc::quantum::ITensorVisitor>();
 
-	std::string flatQasmString = "";
-
-    std::cout << "HELLO WORLD:\n" << kernel->toString("qreg") << "\n";
-	// Our QIR is really a tree structure
-	// so create a pre-order tree traversal
-	// InstructionIterator to walk it
 	InstructionIterator it(kernel);
 	while (it.hasNext()) {
-		// Get the next node in the tree
 		auto nextInst = it.next();
-
-		// If enabled, invoke the accept
-		// method which kicks off the visitor
-		// to execute the appropriate lambda.
 		if (nextInst->isEnabled()) {
 			nextInst->accept(visitor);
-			// flatQasmString += nextInst->toString(buffer->name()) + "\n";
 		}
 	}
 }

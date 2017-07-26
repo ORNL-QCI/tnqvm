@@ -28,11 +28,10 @@
  *   Initial implementation - Mengsu Chen 2017/7/17
  *
  **********************************************************************************/
-#ifndef QUANTUM_GATE_ACCELERATORS_TNQVM_TENSORVISITOR_HPP_
-#define QUANTUM_GATE_ACCELERATORS_TNQVM_TENSORVISITOR_HPP_
+#ifndef QUANTUM_GATE_ACCELERATORS_TNQVM_ITENSORVISITOR_HPP_
+#define QUANTUM_GATE_ACCELERATORS_TNQVM_ITENSORVISITOR_HPP_
 
 #include "AllGateVisitor.hpp"
-#include "tensor_expression.hpp"
 #include "itensor/all.h"
 #include <complex>
 #include <cstdlib>
@@ -41,7 +40,7 @@
 namespace xacc{
 namespace quantum{
 
-class TensorVisitor: public AllGateVisitor {
+class ITensorVisitor: public AllGateVisitor {
     using ITensor = itensor::ITensor;
     using Index = itensor::Index;
     using IndexVal = itensor::IndexVal;
@@ -119,7 +118,7 @@ private:
 public:
 
     /// Constructor
-    TensorVisitor(){
+    ITensorVisitor(){
         int n_qbits = 3;
         initWavefunc(n_qbits);
         std::srand(std::time(0));
@@ -153,10 +152,10 @@ public:
         auto ind_out0 = itensor::Index(gate.getName(), 2);
         auto ind_out1 = itensor::Index(gate.getName(), 2);
         auto tGate = itensor::ITensor(ind_in0, ind_in1, ind_out0, ind_out1);
-        tGate.set(ind_in0(1), ind_in1(1), ind_out0(1), ind_out1(1), 1.);
-        tGate.set(ind_in0(1), ind_in1(2), ind_out0(1), ind_out1(2), 1.);
-        tGate.set(ind_in0(2), ind_in1(2), ind_out0(2), ind_out1(1), 1.);
-        tGate.set(ind_in0(2), ind_in1(1), ind_out0(2), ind_out1(2), 1.);
+        tGate.set(ind_out0(1), ind_out1(1), ind_in0(1), ind_in1(1), 1.);
+        tGate.set(ind_out0(1), ind_out1(2), ind_in0(1), ind_in1(2), 1.);
+        tGate.set(ind_out0(2), ind_out1(1), ind_in0(2), ind_in1(2), 1.);
+        tGate.set(ind_out0(2), ind_out1(2), ind_in0(2), ind_in1(1), 1.);
         wavefunc *= tGate;
         endVisit(iqbit_in0);
         endVisit(iqbit_in1);
@@ -293,21 +292,37 @@ public:
 	}
 
 	void visit(CPhase& cp) {
+        std::cerr<<"UNIMPLEMENTED!"<<std::endl;
 		// auto angleStr = boost::lexical_cast<std::string>(cp.getParameter(0));
 		// quilStr += "CPHASE("
 		// 		+ angleStr
 		// 		+ ") " + std::to_string(cp.bits()[0]) + " " + std::to_string(cp.bits()[1]) + "\n";
 	}
 
-	void visit(Swap& s) {
-		// quilStr += "SWAP " + std::to_string(s.bits()[0]) + " " + std::to_string(s.bits()[1]) + "\n";
+	void visit(Swap& gate) {
+        auto iqbit_in0 = gate.bits()[0];
+        auto iqbit_in1 = gate.bits()[1];
+        std::cout<<"applying "<<gate.getName()<<" @ "<<iqbit_in0<<" , "<<iqbit_in1<<std::endl;
+        auto ind_in0 = getIndIn(iqbit_in0); // control
+        auto ind_in1 = getIndIn(iqbit_in1);
+        auto ind_out0 = itensor::Index(gate.getName(), 2);
+        auto ind_out1 = itensor::Index(gate.getName(), 2);
+        auto tGate = itensor::ITensor(ind_in0, ind_in1, ind_out0, ind_out1);
+        tGate.set(ind_out0(1), ind_out1(1), ind_in0(1), ind_in1(1), 1.);
+        tGate.set(ind_out0(1), ind_out1(2), ind_in0(2), ind_in1(1), 1.);
+        tGate.set(ind_out0(2), ind_out1(1), ind_in0(1), ind_in1(2), 1.);
+        tGate.set(ind_out0(2), ind_out1(2), ind_in0(2), ind_in1(2), 1.);
+        wavefunc *= tGate;
+        endVisit(iqbit_in0);
+        endVisit(iqbit_in1);
+        printWavefunc();
 	}
 
 	void visit(GateFunction& f) {
 		return;
 	}
 
-	virtual ~TensorVisitor() {}
+	virtual ~ITensorVisitor() {}
 };
 
 } // end namespace quantum
