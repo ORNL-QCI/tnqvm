@@ -28,8 +28,8 @@
  *   Initial implementation - Mengsu Chen 2017/7/17
  *
  **********************************************************************************/
-#ifndef QUANTUM_GATE_ACCELERATORS_TNQVM_ITENSORVISITOR_HPP_
-#define QUANTUM_GATE_ACCELERATORS_TNQVM_ITENSORVISITOR_HPP_
+#ifndef QUANTUM_GATE_ACCELERATORS_TNQVM_ITensorMPSVisitor_HPP_
+#define QUANTUM_GATE_ACCELERATORS_TNQVM_ITensorMPSVisitor_HPP_
 
 #include "AllGateVisitor.hpp"
 #include "itensor/all.h"
@@ -40,7 +40,7 @@
 namespace xacc{
 namespace quantum{
 
-class ITensorVisitor: public AllGateVisitor {
+class ITensorMPSVisitor: public AllGateVisitor {
     using ITensor = itensor::ITensor;
     using Index = itensor::Index;
     using IndexVal = itensor::IndexVal;
@@ -48,6 +48,9 @@ private:
     itensor::ITensor wavefunc;
     std::vector<int> iqbit2iind;
     std::vector<int> cbits;
+    std::vector<ITensor> bondMats;    // singular matricies
+    std::vector<ITensor> legMats;    // matricies with phycial legs
+    int n_qbits;
 
     /// init the wave function tensor
     void initWavefunc(int n_qbits){
@@ -63,6 +66,7 @@ private:
         for(int i=1; i<n_qbits; ++i){
             wavefunc = wavefunc / tInitQbits[i];
         }
+        reduce_to_MPS();
         itensor::println("wavefunc=%s", wavefunc);
         itensor::PrintData(wavefunc);
     }
@@ -75,11 +79,12 @@ private:
     }
 
     Index ind_for_qbit(int iqbit) const {
-        print_iqbit2iind();
-        auto wf_inds = wavefunc.inds();
-        auto iind = iqbit2iind[iqbit];
-        auto ind = wf_inds[iind];
-        return ind;       
+        // print_iqbit2iind();
+        // auto wf_inds = wavefunc.inds();
+        // auto iind = iqbit2iind[iqbit];
+        // auto ind = wf_inds[iind];
+        // return ind;       
+        return legMats[iqbit].inds()[0];
     }
 
     void printWavefunc() const {
@@ -114,11 +119,53 @@ private:
         //print_iqbit2iind();
     }
 
+    /** The process of SVD is to decompose a tensor,
+     *  for example, a rank 3 tensor T
+     *  |                    |
+     *  |                    |
+     *  T====  becomes    legMat---bondMat---restTensor===
+     
+     *                       |                  |
+     *                       |                  |
+     *         becomes    legMat---bondMat---legMat---bondMat---restTensor---
+     
+    */      
+    void reduce_to_MPS(){
+        ITensor tobe_svd = wavefunc;
+        ITensor legMat(ind_for_qbit(0)), bondMat, restTensor;
+        itensor::svd(tobe_svd, legMat, bondMat, restTensor, {"Cutoff", 1E-4});
+        legMats.push_back(legMat);
+        itensor::PrintData(legMat);
+        bondMats.push_back(bondMat);
+        itensor::PrintData(bondMat);
+        itensor::PrintData(restTensor);
+        Index last_rbond = bondMat.inds()[1];  // rbond: the bond on the right of bondMat
+        tobe_svd = restTensor;
+        for(int i=1; i<n_qbits-1; ++i){
+            std::cout<<"i= "<<i<<std::endl;
+            ITensor legMat(last_rbond, ind_for_qbit(i));
+            itensor::svd(tobe_svd, legMat, bondMat, restTensor, {"Cutoff", 1E-4});
+            legMats.push_back(legMat); // the indeces of legMat in order: leg, last_rbond, lbond
+            itensor::PrintData(legMat);
+            bondMats.push_back(bondMat);
+            itensor::PrintData(bondMat);
+            itensor::PrintData(restTensor);
+            tobe_svd = restTensor;
+            last_rbond = bondMat.inds()[1];
+        }
+        legMats.push_back(restTensor);
+    }
+
+    void append_gate_tensor(ITensor& tGate){
+        
+    }
+
+
 public:
 
     /// Constructor
-    ITensorVisitor(){
-        int n_qbits = 3;
+    ITensorMPSVisitor(int n_qbits_in)
+        : n_qbits (n_qbits_in) {
         initWavefunc(n_qbits);
         printWavefunc();
         std::srand(std::time(0));
@@ -138,6 +185,7 @@ public:
         // 1 -> 0-1
         tGate.set(ind_in(2), ind_out(1), 1.);
         tGate.set(ind_in(2), ind_out(2), -1.);
+        legMats[iqbit_in] *= 
         wavefunc *= tGate;
         endVisit(iqbit_in);
         printWavefunc();
@@ -322,7 +370,7 @@ public:
 		return;
 	}
 
-	virtual ~ITensorVisitor() {}
+	virtual ~ITensorMPSVisitor() {}
 };
 
 } // end namespace quantum

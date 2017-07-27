@@ -54,7 +54,6 @@ BOOST_AUTO_TEST_CASE(checkKernelExecution) {
 	auto cn2 = std::make_shared<CNOT>(0, 1);
 	auto h2 = std::make_shared<Hadamard>(0);
 
-
 	f->addInstruction(x);
 	f->addInstruction(h);
 	f->addInstruction(cn1);
