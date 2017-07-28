@@ -33,22 +33,24 @@
 // Quantum Kernel executing teleportation of
 // qubit state to another.
 // test
-const std::string src("__qpu__ teleport (qbit qreg) {\n"
-	"   cbit creg[3];\n"
-	"   // Init qubit 0 to 1\n"
-	"   X(qreg[0]);\n"
-	"   // Now teleport...\n"
-	"   H(qreg[1]);\n"
-	"   CNOT(qreg[1],qreg[2]);\n"
-	"   CNOT(qreg[0],qreg[1]);\n"
-	"   H(qreg[0]);\n"
-	"   creg[0] = MeasZ(qreg[0]);\n"
-	"   creg[1] = MeasZ(qreg[1]);\n"
-	"   if (creg[0] == 1) Z(qreg[2]);\n"
-	"   if (creg[1] == 1) X(qreg[2]);\n"
-	"   // Check that 3rd qubit is a 1\n"
-	"   creg[2] = MeasZ(qreg[2]);\n"
-	"}\n");
+    const char* src = R"src(__qpu__ teleport(qbit qreg){
+cbit creg[3];
+// qubit0 to be teleported
+Swap(qreg[0], qreg[1]);
+Rx(qreg[1],.6);
+Swap(qreg[0], qreg[1]);
+// Bell channel set up by qreg[1] and qreg[2]
+H(qreg[1]);
+CNOT(qreg[1],qreg[2]);
+// Alice Bell measurement
+CNOT(qreg[0],qreg[1]);
+H(qreg[0]);
+creg[0] = MeasZ(qreg[0]);
+creg[1] = MeasZ(qreg[1]);
+// Bob's operation base on Alice's measurement outcome
+if (creg[0] == 1) Z(qreg[2]);
+if (creg[1] == 1) X(qreg[2]);
+})src";
 
 int main (int argc, char** argv) {
 

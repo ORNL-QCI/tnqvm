@@ -62,7 +62,8 @@ link_directories(${XACC_LIBRARY_DIR})
 
 add_library(${LIBRARY_NAME} SHARED ${SRC})
 
-target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES})
+# specify the path of libitenor-g.a for detail debug information
+target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} "/allacc/itensor/lib/libitensor-g.a" lapack)
 
 install(FILES ${HEADERS} DESTINATION include)
 install(TARGETS ${LIBRARY_NAME} DESTINATION ${XACC_LIBRARY_DIR})
@@ -72,4 +73,3 @@ message(STATUS ${MPI_Fortran_LIBRARIES})
 file (GLOB test_files tests/*.cpp)
 add_tests("${test_files}" "${CMAKE_CURRENT_SOURCE_DIR}" "${Boost_LIBRARIES};${MPI_Fortran_LIBRARIES};${XACC_LIBRARIES};tnqvm;talsh")
 #dsvp;talsh;ExaTensor;ddss;intravirt;gfc;utility")
-

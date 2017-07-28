@@ -31,3 +31,5 @@
 add_executable(teleport_scaffold_tnqvm teleport_scaffold_tnqvm.cpp)
 target_link_libraries(teleport_scaffold_tnqvm ${Boost_LIBRARIES} dl)
    
+add_executable(h2_exp_vals_scaffold_tnqvm h2_exp_vals_scaffold_tnqvm.cpp)
+target_link_libraries(h2_exp_vals_scaffold_tnqvm ${Boost_LIBRARIES} dl)
