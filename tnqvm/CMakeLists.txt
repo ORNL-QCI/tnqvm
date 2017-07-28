@@ -73,4 +73,3 @@ message(STATUS ${MPI_Fortran_LIBRARIES})
 file (GLOB test_files tests/*.cpp)
 add_tests("${test_files}" "${CMAKE_CURRENT_SOURCE_DIR}" "${Boost_LIBRARIES};${MPI_Fortran_LIBRARIES};${XACC_LIBRARIES};tnqvm;talsh")
 #dsvp;talsh;ExaTensor;ddss;intravirt;gfc;utility")
-

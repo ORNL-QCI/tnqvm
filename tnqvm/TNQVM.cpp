@@ -59,7 +59,7 @@ bool TNQVM::isValidBufferSize(const int NBits) {
 void TNQVM::execute(std::shared_ptr<AcceleratorBuffer> buffer,
 		const std::shared_ptr<xacc::Function> kernel) {
 
-	auto visitor = std::make_shared<xacc::quantum::ITensorMPSVisitor>(buffer->size());
+	auto visitor = std::make_shared<xacc::quantum::ExaTensorVisitor>(buffer->size());
 
 	InstructionIterator it(kernel);
 	while (it.hasNext()) {

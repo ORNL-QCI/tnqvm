@@ -49,7 +49,8 @@ private:
     std::vector<int> iqbit2iind;
     std::vector<int> cbits;
     std::vector<ITensor> bondMats;    // singular matricies
-    std::vector<ITensor> legMats;    // matricies with phycial legs
+    std::vector<ITensor> legMats;     // matricies with physical legs
+    std::vector<Index> legs;          // physical degree of freedom
     int n_qbits;
 
     /// init the wave function tensor
@@ -185,7 +186,7 @@ public:
         // 1 -> 0-1
         tGate.set(ind_in(2), ind_out(1), 1.);
         tGate.set(ind_in(2), ind_out(2), -1.);
-        legMats[iqbit_in] *= 
+        legMats[iqbit_in] *= tGate;
         wavefunc *= tGate;
         endVisit(iqbit_in);
         printWavefunc();
