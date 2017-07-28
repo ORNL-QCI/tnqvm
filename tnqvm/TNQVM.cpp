@@ -29,7 +29,6 @@
  *
  **********************************************************************************/
 #include "TNQVM.hpp"
-#include "ITensorVisitor.hpp"
 #include "ITensorMPSVisitor.hpp"
 #include "ExaTensorVisitor.hpp"
 
