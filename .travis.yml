@@ -5,8 +5,6 @@ services:
 
 before_install:
   - docker build -t tnqvm -f Dockerfile .
-  - docker ps -a
-  - env
   
 script:
   - echo ""
