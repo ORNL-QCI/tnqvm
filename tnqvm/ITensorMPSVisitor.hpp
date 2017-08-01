@@ -63,10 +63,15 @@ private:
             tInitQbits.push_back(tInitQbit);
             iqbit2iind.push_back(i);
         }
+        Index ind_head("head",1);
+        ITensor head(ind_head);
+        head.set(ind_head(1), 1.);
+        tInitQbits.push_back(head);
         wavefunc = tInitQbits[0];
-        for(int i=1; i<n_qbits; ++i){
+        for(int i=1; i<n_qbits+1; ++i){
             wavefunc = wavefunc / tInitQbits[i];
         }
+        itensor::PrintData(wavefunc);
         reduce_to_MPS();
     }
 
@@ -97,16 +102,9 @@ private:
     */      
     void reduce_to_MPS(){
         ITensor tobe_svd = wavefunc;
-        ITensor legMat(ind_for_qbit(0)), bondMat, restTensor;
-        itensor::svd(tobe_svd, legMat, bondMat, restTensor, {"Cutoff", 1E-4});
-        legMats.push_back(legMat);
-        itensor::PrintData(legMat);
-        bondMats.push_back(bondMat);
-        itensor::PrintData(bondMat);
-        itensor::PrintData(restTensor);
-        Index last_rbond = bondMat.inds()[1];  // rbond: the bond on the right of bondMat
-        tobe_svd = restTensor;
-        for(int i=1; i<n_qbits-1; ++i){
+        ITensor bondMat, restTensor;
+        Index last_rbond = wavefunc.inds()[n_qbits];
+        for(int i=0; i<n_qbits-1; ++i){
             std::cout<<"i= "<<i<<std::endl;
             ITensor legMat(last_rbond, ind_for_qbit(i));
             itensor::svd(tobe_svd, legMat, bondMat, restTensor, {"Cutoff", 1E-4});
@@ -118,13 +116,11 @@ private:
             tobe_svd = restTensor;
             last_rbond = bondMat.inds()[1];
         }
-        legMats.push_back(restTensor);
+        Index ind_tail("tail",1);
+        ITensor tail(ind_tail);
+        tail.set(ind_tail(1),1.);
+        legMats.push_back(restTensor / tail);
     }
-
-    void append_gate_tensor(ITensor& tGate){
-        
-    }
-
 
 public:
 
@@ -155,8 +151,21 @@ public:
 	}
 
 	void visit(CNOT& gate) {
-        auto iqbit_in0 = gate.bits()[0];
-        auto iqbit_in1 = gate.bits()[1];
+        auto iqbit_in0_ori = gate.bits()[0];
+        auto iqbit_in1_ori = gate.bits()[1];
+        int iqbit_in0, iqbit_in1;
+        if (iqbit_in0_ori<iqbit_in1_ori-1){
+            permute_to(iqbit_in0_ori, iqbit_in1_ori-1);
+            iqbit_in0 = iqbit_in1_ori-1;
+            iqbit_in1 = iqbit_in1_ori;
+        }else if (iqbit_in1_ori<iqbit_in0_ori-1){
+            permute_to(iqbit_in1_ori, iqbit_in0_ori-1);
+            iqbit_in0 = iqbit_in0_ori;
+            iqbit_in1 = iqbit_in0_ori-1;
+        }else{
+            iqbit_in0 = iqbit_in0_ori;
+            iqbit_in1 = iqbit_in1_ori;
+        }
         std::cout<<"applying "<<gate.getName()<<" @ "<<iqbit_in0<<" , "<<iqbit_in1<<std::endl;
         auto ind_in0 = ind_for_qbit(iqbit_in0); // control
         auto ind_in1 = ind_for_qbit(iqbit_in1);
@@ -167,10 +176,17 @@ public:
         tGate.set(ind_out0(1), ind_out1(2), ind_in0(1), ind_in1(2), 1.);
         tGate.set(ind_out0(2), ind_out1(1), ind_in0(2), ind_in1(2), 1.);
         tGate.set(ind_out0(2), ind_out1(2), ind_in0(2), ind_in1(1), 1.);
-        wavefunc *= tGate;
-        endVisit(iqbit_in0);
-        endVisit(iqbit_in1);
-        printWavefunc();
+        auto tobe_svd = tGate * legMats[iqbit_in0] * legMats[iqbit_in1];
+        ITensor legMat(legMats[iqbit_in0].inds()[1], ind_out0), bondMat, restTensor;
+        itensor::svd(tobe_svd, legMat, bondMat, restTensor, {"Cutoff", 1E-4});
+        legMats[iqbit_in0] = legMat;
+        bondMats[iqbit_in0] = bondMat;
+        legMats[iqbit_in1] = restTensor;
+        if (iqbit_in0_ori<iqbit_in1_ori-1){
+            permute_to(iqbit_in1_ori-1, iqbit_in0_ori);
+        }else if (iqbit_in1_ori<iqbit_in0_ori-1){
+            permute_to(iqbit_in0_ori-1, iqbit_in1_ori);
+        }
 	}
 
 
@@ -304,23 +320,54 @@ public:
 		// 		+ ") " + std::to_string(cp.bits()[0]) + " " + std::to_string(cp.bits()[1]) + "\n";
 	}
 
+    void permute_to(int iqbit, int iqbit_to){
+        std::cout<<"permute "<<iqbit<<" to "<<iqbit_to<<std::endl;
+        int delta = iqbit<iqbit_to ? 1 : -1;
+        while(iqbit!=iqbit_to){
+            Swap gate(iqbit, iqbit+delta);
+            visit(gate);
+            iqbit = iqbit+delta;
+        }
+    }
+
 	void visit(Swap& gate) {
-        // auto iqbit_in0 = gate.bits()[0];
-        // auto iqbit_in1 = gate.bits()[1];
-        // std::cout<<"applying "<<gate.getName()<<" @ "<<iqbit_in0<<" , "<<iqbit_in1<<std::endl;
-        // auto ind_in0 = ind_for_qbit(iqbit_in0); // control
-        // auto ind_in1 = ind_for_qbit(iqbit_in1);
-        // auto ind_out0 = itensor::Index(gate.getName(), 2);
-        // auto ind_out1 = itensor::Index(gate.getName(), 2);
-        // auto tGate = itensor::ITensor(ind_in0, ind_in1, ind_out0, ind_out1);
-        // tGate.set(ind_out0(1), ind_out1(1), ind_in0(1), ind_in1(1), 1.);
-        // tGate.set(ind_out0(1), ind_out1(2), ind_in0(2), ind_in1(1), 1.);
-        // tGate.set(ind_out0(2), ind_out1(1), ind_in0(1), ind_in1(2), 1.);
-        // tGate.set(ind_out0(2), ind_out1(2), ind_in0(2), ind_in1(2), 1.);
-        // wavefunc *= tGate;
-        // endVisit(iqbit_in0);
-        // endVisit(iqbit_in1);
-        // printWavefunc();
+        auto iqbit_in0_ori = gate.bits()[0];
+        auto iqbit_in1_ori = gate.bits()[1];
+        int iqbit_in0, iqbit_in1;
+        if (iqbit_in0_ori<iqbit_in1_ori-1){
+            permute_to(iqbit_in0_ori, iqbit_in1_ori-1);
+            iqbit_in0 = iqbit_in1_ori-1;
+            iqbit_in1 = iqbit_in1_ori;
+        }else if (iqbit_in1_ori<iqbit_in0_ori-1){
+            permute_to(iqbit_in1_ori, iqbit_in0_ori-1);
+            iqbit_in0 = iqbit_in0_ori;
+            iqbit_in1 = iqbit_in0_ori-1;
+        }else{
+            iqbit_in0 = iqbit_in0_ori;
+            iqbit_in1 = iqbit_in1_ori;
+        }
+
+        std::cout<<"applying "<<gate.getName()<<" @ "<<iqbit_in0<<" , "<<iqbit_in1<<std::endl;
+        auto ind_in0 = ind_for_qbit(iqbit_in0); // control
+        auto ind_in1 = ind_for_qbit(iqbit_in1);
+        auto ind_out0 = itensor::Index(gate.getName(), 2);
+        auto ind_out1 = itensor::Index(gate.getName(), 2);
+        auto tGate = itensor::ITensor(ind_in0, ind_in1, ind_out0, ind_out1);
+        tGate.set(ind_out0(1), ind_out1(1), ind_in0(1), ind_in1(1), 1.);
+        tGate.set(ind_out0(1), ind_out1(2), ind_in0(2), ind_in1(1), 1.);
+        tGate.set(ind_out0(2), ind_out1(1), ind_in0(1), ind_in1(2), 1.);
+        tGate.set(ind_out0(2), ind_out1(2), ind_in0(2), ind_in1(2), 1.);
+        auto tobe_svd = tGate * legMats[iqbit_in0] * legMats[iqbit_in1];
+        ITensor legMat(legMats[iqbit_in0].inds()[1], ind_out0), bondMat, restTensor;
+        itensor::svd(tobe_svd, legMat, bondMat, restTensor, {"Cutoff", 1E-4});
+        legMats[iqbit_in0] = legMat;
+        bondMats[iqbit_in0] = bondMat;
+        legMats[iqbit_in1] = restTensor;
+        if (iqbit_in0_ori<iqbit_in1_ori-1){
+            permute_to(iqbit_in1_ori-1, iqbit_in0_ori);
+        }else if (iqbit_in1_ori<iqbit_in0_ori-1){
+            permute_to(iqbit_in0_ori-1, iqbit_in1_ori);
+        }
 	}
 
 	void visit(GateFunction& f) {

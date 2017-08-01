@@ -63,7 +63,7 @@ link_directories(${XACC_LIBRARY_DIR})
 add_library(${LIBRARY_NAME} SHARED ${SRC})
 
 # specify the path of libitenor-g.a for detail debug information
-target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} "/allacc/itensor/lib/libitensor-g.a" lapack)
+target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} ${ITENSOR_ROOT}/lib/libitensor-g.a lapack)
 
 install(FILES ${HEADERS} DESTINATION include)
 install(TARGETS ${LIBRARY_NAME} DESTINATION ${XACC_LIBRARY_DIR})
