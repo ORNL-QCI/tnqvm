@@ -71,12 +71,11 @@ private:
         for(int i=1; i<n_qbits+1; ++i){
             wavefunc = wavefunc / tInitQbits[i];
         }
-        itensor::PrintData(wavefunc);
         reduce_to_MPS();
     }
 
     Index ind_for_qbit(int iqbit) const {
-        if (legMats.size()==iqbit){
+        if (legMats.size()<=iqbit){
             return wavefunc.inds()[iqbit];
         }else{
             return legMats[iqbit].inds()[0];
@@ -84,9 +83,29 @@ private:
     }
 
     void printWavefunc() const {
-        std::cout<<"----wf--->>\n";
-        std::cout<<"<<---wf----\n"<<std::endl;
-        //itensor::PrintData(wavefunc);
+        std::cout<<">>>>>>>>----------wf--------->>>>>>>>>>\n";
+        auto mps = legMats[0];
+        for(int i=1; i<n_qbits;++i){
+            mps *= bondMats[i-1];
+            mps *= legMats[i];
+        }
+
+        unsigned long giind = 0;
+        const int n_qbits = iqbit2iind.size();
+        auto print_nz = [&giind, n_qbits, this](itensor::Cplx c){
+            if(std::norm(c)>0){
+                for(int iind=0; iind<n_qbits; ++iind){
+                    auto spin = (giind>>iind) & 1UL;
+                    std::cout<<spin;
+                }
+                std::cout<<"    "<<c<<std::endl;
+            }
+            ++giind;
+        };
+        auto normed_wf = mps / itensor::norm(mps);
+        normed_wf.visit(print_nz);
+        // itensor::PrintData(mps);
+        std::cout<<"<<<<<<<<---------------------<<<<<<<<<<\n"<<std::endl;
     }
 
     /** The process of SVD is to decompose a tensor,
@@ -109,10 +128,7 @@ private:
             ITensor legMat(last_rbond, ind_for_qbit(i));
             itensor::svd(tobe_svd, legMat, bondMat, restTensor, {"Cutoff", 1E-4});
             legMats.push_back(legMat); // the indeces of legMat in order: leg, last_rbond, lbond
-            itensor::PrintData(legMat);
             bondMats.push_back(bondMat);
-            itensor::PrintData(bondMat);
-            itensor::PrintData(restTensor);
             tobe_svd = restTensor;
             last_rbond = bondMat.inds()[1];
         }
@@ -120,6 +136,7 @@ private:
         ITensor tail(ind_tail);
         tail.set(ind_tail(1),1.);
         legMats.push_back(restTensor / tail);
+        printWavefunc();
     }
 
 public:
@@ -147,7 +164,7 @@ public:
         tGate.set(ind_in(2), ind_out(1), 1.);
         tGate.set(ind_in(2), ind_out(2), -1.);
         legMats[iqbit_in] = tGate * legMats[iqbit_in];
-        itensor::PrintData(legMats[iqbit_in]);
+        printWavefunc();
 	}
 
 	void visit(CNOT& gate) {
@@ -176,17 +193,19 @@ public:
         tGate.set(ind_out0(1), ind_out1(2), ind_in0(1), ind_in1(2), 1.);
         tGate.set(ind_out0(2), ind_out1(1), ind_in0(2), ind_in1(2), 1.);
         tGate.set(ind_out0(2), ind_out1(2), ind_in0(2), ind_in1(1), 1.);
-        auto tobe_svd = tGate * legMats[iqbit_in0] * legMats[iqbit_in1];
+        auto tobe_svd = tGate * legMats[iqbit_in0] * bondMats[std::min(iqbit_in0, iqbit_in1)] * legMats[iqbit_in1];
         ITensor legMat(legMats[iqbit_in0].inds()[1], ind_out0), bondMat, restTensor;
         itensor::svd(tobe_svd, legMat, bondMat, restTensor, {"Cutoff", 1E-4});
         legMats[iqbit_in0] = legMat;
-        bondMats[iqbit_in0] = bondMat;
+        bondMats[std::min(iqbit_in0, iqbit_in1)] = bondMat;
+        kickback_ind(restTensor, restTensor.inds()[1]);
         legMats[iqbit_in1] = restTensor;
         if (iqbit_in0_ori<iqbit_in1_ori-1){
             permute_to(iqbit_in1_ori-1, iqbit_in0_ori);
         }else if (iqbit_in1_ori<iqbit_in0_ori-1){
             permute_to(iqbit_in0_ori-1, iqbit_in1_ori);
         }
+        printWavefunc();
 	}
 
 
@@ -199,7 +218,7 @@ public:
         tGate.set(ind_out(1), ind_in(2), 1.);
         tGate.set(ind_out(2), ind_in(1), 1.);
         legMats[iqbit_in] = tGate * legMats[iqbit_in];
-        itensor::PrintData(legMats[iqbit_in]);
+        printWavefunc();
 	}
 
 	void visit(Y& gate) {
@@ -211,7 +230,7 @@ public:
         tGate.set(ind_out(1), ind_in(2), std::complex<double>(0,-1.));
         tGate.set(ind_out(2), ind_in(1), std::complex<double>(0,1.));
         legMats[iqbit_in] = tGate * legMats[iqbit_in];
-        itensor::PrintData(legMats[iqbit_in]);
+        printWavefunc();
 	}
 
 
@@ -224,49 +243,94 @@ public:
         tGate.set(ind_out(1), ind_in(1), 1.);
         tGate.set(ind_out(2), ind_in(2), -1.);
         legMats[iqbit_in] = tGate * legMats[iqbit_in];
-        itensor::PrintData(legMats[iqbit_in]);
+        printWavefunc();
 	}
 
+    /** The inner product is carried out in the following way 
+    *   so that:
+    *   1. no need to prime legs or bonds
+    *   2. no high rank tensor (eg. a rank-nqbits tensor) pops out during the computation
+    *
+    *    /\              /\
+    *   L--L            L--L
+    *   |  |            |  |
+    *   b      ---->    b  b
+    *   |               |  |
+    *                   L--L
+    *                   |  |
+    *                   b
+    *                   |
+    *   where L is a legMat, b is a bondMat
+    */
+    double wavefunc_inner(){
+        ITensor inner = itensor::conj(legMats[0]*bondMats[0]) * legMats[0];
+        for(int i=1; i<n_qbits-1; ++i){
+            inner = inner*itensor::conj(legMats[i]*bondMats[i]) * bondMats[i-1] * legMats[i];
+        }
+        inner = inner * itensor::conj(legMats[n_qbits-1]) * bondMats[n_qbits-2] * legMats[n_qbits-1];
+        return itensor::norm(inner);
+    }
+
+    double average(int iqbit, const ITensor& op_tensor){
+        ITensor inner;
+        if (iqbit==0){
+            auto bra = itensor::conj(legMats[0]*bondMats[0]) * op_tensor;
+            bra.noprime();
+            inner = bra * legMats[0];
+        }else{
+            inner = itensor::conj(legMats[0]*bondMats[0]) * legMats[0];
+        }
+        for(int i=1; i<n_qbits-1; ++i){
+            if (i==iqbit){
+                inner = inner * itensor::conj(legMats[i]*bondMats[i]) * op_tensor * bondMats[i-1] * legMats[i];
+            }else{
+                inner = inner*itensor::conj(legMats[i]*bondMats[i]) * bondMats[i-1] * legMats[i];
+            }
+        }
+        if (iqbit==n_qbits-1){
+            inner = inner * itensor::conj(legMats[n_qbits-1]) * op_tensor * bondMats[n_qbits-2] * legMats[n_qbits-1];
+        }else{
+            inner = inner * itensor::conj(legMats[n_qbits-1]) * bondMats[n_qbits-2] * legMats[n_qbits-1];
+        }
+        return itensor::norm(inner);
+    }
+
 	void visit(Measure& gate) {
-        // double rv = (std::rand()%1000000)/1000000.;
-        // auto iqbit_measured = gate.bits()[0];
-        // auto ind_measured = ind_for_qbit(iqbit_measured);
-        // std::cout<<"applying "<<gate.getName()<<" @ "<<iqbit_measured<<std::endl;
-        // auto ind_measured_p = ind_for_qbit(iqbit_measured);
-        // ind_measured_p.prime();
+        double rv = (std::rand()%1000000)/1000000.;
+        auto iqbit_measured = gate.bits()[0];
+        auto ind_measured = ind_for_qbit(iqbit_measured);
+        std::cout<<"applying "<<gate.getName()<<" @ "<<iqbit_measured<<std::endl;
+        auto ind_measured_p = ind_for_qbit(iqbit_measured);
+        ind_measured_p.prime();
 
-        // auto tMeasure0 = itensor::ITensor(ind_measured, ind_measured_p);
-        // tMeasure0.set(ind_measured_p(1), ind_measured(1), 1.);
-        // wavefunc /= itensor::norm(wavefunc);
-        // auto collapsed =  wavefunc * tMeasure0;
-        // collapsed.prime(ind_measured_p,-1);
-        // auto tmp = itensor::conj(wavefunc) * collapsed;
-        // double p0 = itensor::norm(tmp);
+        auto tMeasure0 = itensor::ITensor(ind_measured, ind_measured_p);
+        tMeasure0.set(ind_measured_p(1), ind_measured(1), 1.);
+        double p0 = average(iqbit_measured,tMeasure0) / wavefunc_inner();
 
-        // std::cout<<"rv= "<<rv<<"   p0= "<<p0<<std::endl;
+        std::cout<<"rv= "<<rv<<"   p0= "<<p0<<std::endl;
 
-        // if(rv<p0){
-        //     cbits[iqbit_measured] = 0;
-        // }else{
-        //     cbits[iqbit_measured] = 1;
-        //     auto tMeasure1 = itensor::ITensor(ind_measured, ind_measured_p);
-        //     tMeasure1.set(ind_measured_p(2), ind_measured(2), 1.);
-        //     collapsed = wavefunc * tMeasure1;
-        //     collapsed.prime(ind_measured_p,-1);
-        // }
-        // wavefunc = collapsed;
-        // endVisit(iqbit_measured);
-        // printWavefunc();
+        if(rv<p0){
+            cbits[iqbit_measured] = 0;
+            legMats[iqbit_measured] = tMeasure0 * legMats[iqbit_measured]; // collapse wavefunction
+            legMats[iqbit_measured].prime(ind_measured_p,-1);
+        }else{
+            cbits[iqbit_measured] = 1;
+            auto tMeasure1 = itensor::ITensor(ind_measured, ind_measured_p);
+            tMeasure1.set(ind_measured_p(2), ind_measured(2), 1.);
+            legMats[iqbit_measured] = tMeasure1 * legMats[iqbit_measured]; // collapse wavefunction
+            legMats[iqbit_measured].prime(ind_measured_p,-1);
+        }
+        printWavefunc();
 	}
 
 	void visit(ConditionalFunction& c) {
-		// auto classicalBitIdx = c.getConditionalQubit();
-        // std::cout<<"applying "<<c.getName()<<" @ "<<classicalBitIdx<<std::endl;
-        // if (cbits[classicalBitIdx]==1){ // TODO: add else
-    	// 	for (auto inst : c.getInstructions()) {
-	    // 		inst->accept(this);
-		//     }
-        // }
+		auto classicalBitIdx = c.getConditionalQubit();
+        std::cout<<"applying "<<c.getName()<<" @ "<<classicalBitIdx<<std::endl;
+        if (cbits[classicalBitIdx]==1){ // TODO: add else
+    		for (auto inst : c.getInstructions()) {
+	    		inst->accept(this);
+		    }
+        }
 	}
 
 	void visit(Rx& gate) {
@@ -281,7 +345,7 @@ public:
         tGate.set(ind_out(2), ind_in(1), std::complex<double>(0,-1)*std::sin(.5*theta));
         tGate.set(ind_out(2), ind_in(2), std::cos(.5*theta));
         legMats[iqbit_in] = tGate * legMats[iqbit_in];
-        itensor::PrintData(legMats[iqbit_in]);
+        printWavefunc();
 	}
 
 	void visit(Ry& gate) {
@@ -296,7 +360,7 @@ public:
         tGate.set(ind_out(2), ind_in(1), std::sin(.5*theta));
         tGate.set(ind_out(2), ind_in(2), std::cos(.5*theta));
         legMats[iqbit_in] = tGate * legMats[iqbit_in];
-        itensor::PrintData(legMats[iqbit_in]);
+        printWavefunc();
 	}
 
 	void visit(Rz& gate) {
@@ -309,7 +373,7 @@ public:
         tGate.set(ind_out(1), ind_in(1), std::exp(std::complex<double>(0,-.5*theta)));
         tGate.set(ind_out(2), ind_in(2), std::exp(std::complex<double>(0,.5*theta)));
         legMats[iqbit_in] = tGate * legMats[iqbit_in];
-        itensor::PrintData(legMats[iqbit_in]);
+        printWavefunc();
 	}
 
 	void visit(CPhase& cp) {
@@ -357,18 +421,30 @@ public:
         tGate.set(ind_out0(1), ind_out1(2), ind_in0(2), ind_in1(1), 1.);
         tGate.set(ind_out0(2), ind_out1(1), ind_in0(1), ind_in1(2), 1.);
         tGate.set(ind_out0(2), ind_out1(2), ind_in0(2), ind_in1(2), 1.);
-        auto tobe_svd = tGate * legMats[iqbit_in0] * legMats[iqbit_in1];
+        auto tobe_svd = tGate * legMats[iqbit_in0] * bondMats[std::min(iqbit_in0, iqbit_in1)] * legMats[iqbit_in1];
         ITensor legMat(legMats[iqbit_in0].inds()[1], ind_out0), bondMat, restTensor;
         itensor::svd(tobe_svd, legMat, bondMat, restTensor, {"Cutoff", 1E-4});
         legMats[iqbit_in0] = legMat;
-        bondMats[iqbit_in0] = bondMat;
+        bondMats[std::min(iqbit_in0,iqbit_in1)] = bondMat;
+        kickback_ind(restTensor, restTensor.inds()[1]);
         legMats[iqbit_in1] = restTensor;
         if (iqbit_in0_ori<iqbit_in1_ori-1){
             permute_to(iqbit_in1_ori-1, iqbit_in0_ori);
         }else if (iqbit_in1_ori<iqbit_in0_ori-1){
             permute_to(iqbit_in0_ori-1, iqbit_in1_ori);
         }
+        printWavefunc();
 	}
+
+    void kickback_ind(ITensor& tensor, const Index& ind){
+        auto ind_p = itensor::prime(ind);
+        ITensor identity(ind,ind_p);
+        for (int i=1; i<=ind.m(); ++i){
+            identity.set(ind(i),ind_p(i),1.);
+        }
+        tensor *= identity;
+        tensor.prime(ind_p,-1);
+    }
 
 	void visit(GateFunction& f) {
 		return;
