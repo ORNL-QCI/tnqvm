@@ -29,14 +29,17 @@
  *
  **********************************************************************************/
 #include "TNQVM.hpp"
+#include "ITensorVisitor.hpp"
 #include "ITensorMPSVisitor.hpp"
 #include "ExaTensorVisitor.hpp"
 
 namespace tnqvm {
 
+
 std::shared_ptr<AcceleratorBuffer> TNQVM::createBuffer(
 		const std::string& varId) {
-	auto buffer = std::make_shared<AcceleratorBuffer>(varId, 100);
+	auto derived_buffer = std::make_shared<TNQVMBuffer>(varId, 100);
+	std::shared_ptr<AcceleratorBuffer> buffer = derived_buffer;
 	storeBuffer(varId, buffer);
 	return buffer;
 }
@@ -46,7 +49,8 @@ std::shared_ptr<AcceleratorBuffer> TNQVM::createBuffer(
 	if (!isValidBufferSize(size)) {
 		XACCError("Invalid buffer size.");
 	}
-	auto buffer = std::make_shared<AcceleratorBuffer>(varId, size);
+	auto derived_buffer = std::make_shared<TNQVMBuffer>(varId, size);
+	std::shared_ptr<AcceleratorBuffer> buffer = derived_buffer;
 	storeBuffer(varId, buffer);
 	return buffer;
 }
@@ -58,7 +62,8 @@ bool TNQVM::isValidBufferSize(const int NBits) {
 void TNQVM::execute(std::shared_ptr<AcceleratorBuffer> buffer,
 		const std::shared_ptr<xacc::Function> kernel) {
 
-	auto visitor = std::make_shared<xacc::quantum::ITensorMPSVisitor>(buffer->size());
+	auto visitor = std::make_shared<xacc::quantum::ITensorMPSVisitor>(
+		std::dynamic_pointer_cast<TNQVMBuffer>(buffer));
 
 	InstructionIterator it(kernel);
 	while (it.hasNext()) {

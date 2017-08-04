@@ -50,6 +50,8 @@ set (LIBRARY_NAME tnqvm)
 file (GLOB HEADERS *.hpp)
 file (GLOB SRC *.cpp)
 
+message(${SRC})
+
 #link_directories(${EXATENSOR_ROOT})
 #link_directories(${EXATENSOR_ROOT}/UTILITY)
 #link_directories(${EXATENSOR_ROOT}/TALSH)
@@ -71,5 +73,5 @@ install(TARGETS ${LIBRARY_NAME} DESTINATION ${XACC_LIBRARY_DIR})
 message(STATUS ${MPI_Fortran_LIBRARIES})
 # Gather tests
 file (GLOB test_files tests/*.cpp)
-add_tests("${test_files}" "${CMAKE_CURRENT_SOURCE_DIR}" "${Boost_LIBRARIES};${MPI_Fortran_LIBRARIES};${XACC_LIBRARIES};tnqvm;talsh")
+#add_tests("${test_files}" "${CMAKE_CURRENT_SOURCE_DIR}" "${Boost_LIBRARIES};${MPI_Fortran_LIBRARIES};${XACC_LIBRARIES};tnqvm;talsh")
 #dsvp;talsh;ExaTensor;ddss;intravirt;gfc;utility")

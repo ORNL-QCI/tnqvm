@@ -29,20 +29,45 @@
  *
  **********************************************************************************/
 #include "XACC.hpp"
+#include "TNQVMBuffer.hpp"
 
 // Quantum Kernel executing teleportation of
 // qubit state to another.
 // test
-    const char* src = R"src(__qpu__ uccAnsatz(qbit qreg){
-Rx(qreg[0], 3.1415926);
-Ry(qreg[1], 1.57079);
-Rx(qreg[0], 7.8539752);
-CNOT(qreg[1], qreg[0]);
-Rz(qreg[0], .2);
-CNOT(qreg[1], qreg[0]);
-Ry(qreg[1], 7.8539752);
-Rx(qreg[0], 1.57079);
-})src";
+    const char* src = R"src(
+__qpu__ prepare_ansatz(qbit qreg, double theta){
+	Rx(qreg[0], 3.1415926);
+	Ry(qreg[1], 1.57079);
+	Rx(qreg[0], 7.8539752);
+	CNOT(qreg[1], qreg[0]);
+	Rz(qreg[0], theta);
+	CNOT(qreg[1], qreg[0]);
+	Ry(qreg[1], 7.8539752);
+	Rx(qreg[0], 1.57079);
+}
+
+// measure the 1st term of Hamiltonian on the ansatz
+__qpu__ term0(qbit qreg, double theta){
+	prepare_ansatz(qreg, theta);
+	cbit creg[1];
+	creg[0] = MeasZ(qreg[0]);
+}
+
+__qpu__ term1(qbit qreg, double theta){
+	prepare_ansatz(qreg, theta);
+	cbit creg[1];
+	creg[0] = MeasZ(qreg[1]);
+}
+
+__qpu__ term2(qbit qreg, double theta){
+	prepare_ansatz(qreg, theta);
+	cbit creg[2];
+	creg[0] = MeasZ(qreg[0]);
+	creg[1] = MeasZ(qreg[1])
+}
+
+
+)src";
 
 int main (int argc, char** argv) {
 
@@ -51,19 +76,42 @@ int main (int argc, char** argv) {
 
 	auto qpu = xacc::getAccelerator("tnqvm");
 
-	// Allocate a register of 3 qubits
+	// Allocate a register of 2 qubits
 	auto qubitReg = qpu->createBuffer("qreg", 2);
-
+	auto buffer = std::dynamic_pointer_cast<TNQVMBuffer>(qubitReg);
 	// Create a Program
 	xacc::Program program(qpu, src);
 
-	// Request the quantum kernel representing
-	// the above source code
-	auto teleport = program.getKernel("uccAnsatz");
+	int i=0;
+
+			std::string kernel_name = "term"+std::to_string(i);
+			std::cout<<kernel_name<<std::endl;
+			auto measure_term = program.getKernel<double>(kernel_name);
+			buffer->resetBuffer();
+			std::cout<<"measring"<<std::endl;
+	int n_terms = 1;
 
 	// Execute!
-	teleport(qubitReg);
+	std::ofstream file("energy_vs_theta.csv");
+	file<<"theta, Z_0, Z_1, Z_0 Z_1\n";
+	double pi = 3.14159265359;
 
+	for(double theta = -pi; theta<=pi; theta += .1){
+		file<<theta;
+		for(int i=0; i<n_terms; ++i){
+			std::string kernel_name = "term"+std::to_string(i);
+			std::cout<<kernel_name<<std::endl;
+			auto measure_term = program.getKernel<double>(kernel_name);
+			buffer->resetBuffer();
+			std::cout<<"measring"<<std::endl;
+			measure_term(buffer, theta);
+			auto aver = buffer->aver_from_wavefunc;
+			file<<", "<<aver<<std::endl;
+		}
+		break;
+	}
+	file.close();
+	
 	qubitReg->print(std::cout);
 
 	// Finalize the XACC Framework
@@ -71,6 +119,5 @@ int main (int argc, char** argv) {
 
 	return 0;
 }
-
 
 
