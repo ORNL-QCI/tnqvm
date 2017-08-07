@@ -68,6 +68,7 @@ add_library(${LIBRARY_NAME} SHARED ${SRC})
 target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} ${ITENSOR_ROOT}/lib/libitensor-g.a lapack)
 
 install(FILES ${HEADERS} DESTINATION include)
+message(${XACC_LIBRARY_DIR})
 install(TARGETS ${LIBRARY_NAME} DESTINATION ${XACC_LIBRARY_DIR})
 
 message(STATUS ${MPI_Fortran_LIBRARIES})
