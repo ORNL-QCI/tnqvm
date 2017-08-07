@@ -63,10 +63,8 @@ __qpu__ term2(qbit qreg, double theta){
 	prepare_ansatz(qreg, theta);
 	cbit creg[2];
 	creg[0] = MeasZ(qreg[0]);
-	creg[1] = MeasZ(qreg[1])
+	creg[1] = MeasZ(qreg[1]);
 }
-
-
 )src";
 
 int main (int argc, char** argv) {
@@ -82,14 +80,7 @@ int main (int argc, char** argv) {
 	// Create a Program
 	xacc::Program program(qpu, src);
 
-	int i=0;
-
-			std::string kernel_name = "term"+std::to_string(i);
-			std::cout<<kernel_name<<std::endl;
-			auto measure_term = program.getKernel<double>(kernel_name);
-			buffer->resetBuffer();
-			std::cout<<"measring"<<std::endl;
-	int n_terms = 1;
+	int n_terms=3;
 
 	// Execute!
 	std::ofstream file("energy_vs_theta.csv");
@@ -106,9 +97,9 @@ int main (int argc, char** argv) {
 			std::cout<<"measring"<<std::endl;
 			measure_term(buffer, theta);
 			auto aver = buffer->aver_from_wavefunc;
-			file<<", "<<aver<<std::endl;
+			file<<", "<<aver;
 		}
-		break;
+		file<<std::endl;
 	}
 	file.close();
 	

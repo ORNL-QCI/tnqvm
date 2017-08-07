@@ -70,8 +70,15 @@ private:
 
     std::vector<ITensor> bondMats;    // singular matricies
     std::vector<ITensor> legMats;     // matricies with physical legs
+
+    std::vector<ITensor> bondMats_m;  // the snapshot for measurement
+    std::vector<ITensor> legMats_m;
+
+    std::set<int> iqbits_m;           // indecies of qbits to measure
+
     itensor::IndexSet legs;           // physical degree of freedom
     int n_qbits;
+    bool snapped;
 
     /// init the wave function tensor
     void initWavefunc(int n_qbits);
@@ -82,6 +89,9 @@ private:
     void kickback_ind(ITensor& tensor, const Index& ind);
     double wavefunc_inner();
     double average(int iqbit, const ITensor& op_tensor);
+    itensor::ITensor tZ_measure_on(int iqbit_measured);
+    double averZs(std::set<int> iqbits);
+    void snap_wavefunc();
 };
 
 } // end namespace quantum

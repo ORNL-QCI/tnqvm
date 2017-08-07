@@ -35,6 +35,7 @@
 #include <complex>
 #include <cstdlib>
 #include <ctime>
+#include <cassert>
 
 namespace xacc{
 namespace quantum{
@@ -42,7 +43,8 @@ namespace quantum{
     /// Constructor
     ITensorMPSVisitor::ITensorMPSVisitor(std::shared_ptr<TNQVMBuffer> accbuffer_in)
         : n_qbits (accbuffer_in->size()),
-          accbuffer (accbuffer_in) {
+          accbuffer (accbuffer_in), 
+          snapped (false) {
         initWavefunc(n_qbits);
         // printWavefunc();
         std::srand(std::time(0));
@@ -56,11 +58,12 @@ namespace quantum{
         auto ind_out = itensor::Index(gate.getName(), 2);
         auto tGate = itensor::ITensor(ind_in, ind_out);
         // 0 -> 0+1 where 0 is at position 1 of input axis(space)
-        tGate.set(ind_in(1), ind_out(1), 1.);
-        tGate.set(ind_in(1), ind_out(2), 1.);
+        const double half_sqrt2 = .5*std::sqrt(2);
+        tGate.set(ind_in(1), ind_out(1), half_sqrt2);
+        tGate.set(ind_in(1), ind_out(2), half_sqrt2);
         // 1 -> 0-1
-        tGate.set(ind_in(2), ind_out(1), 1.);
-        tGate.set(ind_in(2), ind_out(2), -1.);
+        tGate.set(ind_in(2), ind_out(1),  half_sqrt2);
+        tGate.set(ind_in(2), ind_out(2), -half_sqrt2);
         legMats[iqbit_in] = tGate * legMats[iqbit_in];
         printWavefunc();
 	}
@@ -166,7 +169,7 @@ namespace quantum{
             inner = inner*itensor::conj(legMats[i]*bondMats[i]) * bondMats[i-1] * legMats[i];
         }
         inner = inner * itensor::conj(legMats[n_qbits-1]) * bondMats[n_qbits-2] * legMats[n_qbits-1];
-        return itensor::norm(inner);
+        return inner.real();
     }
 
     double ITensorMPSVisitor::average(int iqbit, const ITensor& op_tensor){
@@ -180,22 +183,80 @@ namespace quantum{
         }
         for(int i=1; i<n_qbits-1; ++i){
             if (i==iqbit){
-                inner = inner * itensor::conj(legMats[i]*bondMats[i]) * op_tensor * bondMats[i-1] * legMats[i];
+                auto bra = inner * itensor::conj(legMats[i]*bondMats[i]) * op_tensor;
+                bra.noprime();
+                inner = bra * bondMats[i-1] * legMats[i];
             }else{
                 inner = inner*itensor::conj(legMats[i]*bondMats[i]) * bondMats[i-1] * legMats[i];
             }
         }
         if (iqbit==n_qbits-1){
-            inner = inner * itensor::conj(legMats[n_qbits-1]) * op_tensor * bondMats[n_qbits-2] * legMats[n_qbits-1];
+            auto bra = inner * itensor::conj(legMats[n_qbits-1]) * op_tensor;
+            bra.noprime();
+            inner = bra * bondMats[n_qbits-2] * legMats[n_qbits-1];
         }else{
             inner = inner * itensor::conj(legMats[n_qbits-1]) * bondMats[n_qbits-2] * legMats[n_qbits-1];
         }
-        return itensor::norm(inner);
+        itensor::PrintData(inner);
+        return inner.cplx().real();
+    }
+
+    /// iqbits: the indecies of qits to measure
+    double ITensorMPSVisitor::averZs(std::set<int> iqbits){
+        ITensor inner;
+        if (iqbits.find(0)!=iqbits.end()){
+            auto bra = itensor::conj(legMats_m[0]*bondMats_m[0]) * tZ_measure_on(0);
+            bra.noprime();
+            inner = bra * legMats_m[0];
+        }else{
+            inner = itensor::conj(legMats_m[0]*bondMats_m[0]) * legMats_m[0];
+        }
+        for(int i=1; i<n_qbits-1; ++i){
+            if (iqbits.find(i)!=iqbits.end()){
+                auto bra = inner * itensor::conj(legMats_m[i]*bondMats_m[i]) * tZ_measure_on(i);
+                bra.noprime();
+                inner = bra * bondMats_m[i-1] * legMats_m[i];
+            }else{
+                inner = inner*itensor::conj(legMats_m[i]*bondMats_m[i]) * bondMats_m[i-1] * legMats_m[i];
+            }
+        }
+        if (iqbits.find(n_qbits-1)!=iqbits.end()){
+            auto bra = inner * itensor::conj(legMats_m[n_qbits-1]) * tZ_measure_on(n_qbits-1);
+            bra.noprime();
+            inner = bra * bondMats_m[n_qbits-2] * legMats_m[n_qbits-1];
+        }else{
+            inner = inner * itensor::conj(legMats_m[n_qbits-1]) * bondMats_m[n_qbits-2] * legMats_m[n_qbits-1];
+        }
+        itensor::PrintData(inner);
+        return inner.real();
+    }
+
+
+    /// tensor of Z gate on qbit i
+    itensor::ITensor ITensorMPSVisitor::tZ_measure_on(int iqbit_measured){
+        auto ind_measured   = ind_for_qbit(iqbit_measured);
+        auto ind_measured_p = ind_for_qbit(iqbit_measured);
+        ind_measured_p.prime();
+        auto tZ = itensor::ITensor(ind_measured, ind_measured_p);
+        tZ.set(ind_measured_p(1), ind_measured(1), 1.);
+        tZ.set(ind_measured_p(2), ind_measured(2), -1.);
+        return tZ;
+    }
+
+    void ITensorMPSVisitor::snap_wavefunc(){
+        if (!snapped){
+            legMats_m  = legMats;
+            bondMats_m = bondMats;
+            snapped = true;
+            std::cout<<"wave function inner = "<<wavefunc_inner()<<std::endl;
+        }
     }
 
 	void ITensorMPSVisitor::visit(Measure& gate) {
-        double rv = (std::rand()%1000000)/1000000.;
+        snap_wavefunc();
         auto iqbit_measured = gate.bits()[0];
+        iqbits_m.insert(iqbit_measured);
+        accbuffer->aver_from_wavefunc = averZs(iqbits_m);
         auto ind_measured = ind_for_qbit(iqbit_measured);
         std::cout<<"applying "<<gate.getName()<<" @ "<<iqbit_measured<<std::endl;
         auto ind_measured_p = ind_for_qbit(iqbit_measured);
@@ -204,8 +265,9 @@ namespace quantum{
         auto tMeasure0 = itensor::ITensor(ind_measured, ind_measured_p);
         tMeasure0.set(ind_measured_p(1), ind_measured(1), 1.);
         double p0 = average(iqbit_measured,tMeasure0) / wavefunc_inner();
-        accbuffer->aver_from_wavefunc *= (2*p0-1);
+        // accbuffer->aver_from_wavefunc *= (2*p0-1);
 
+        double rv = (std::rand()%1000000)/1000000.;
         std::cout<<"rv= "<<rv<<"   p0= "<<p0<<std::endl;
 
         if(rv<p0){
