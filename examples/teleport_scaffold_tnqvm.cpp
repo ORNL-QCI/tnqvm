@@ -36,9 +36,7 @@
     const char* src = R"src(__qpu__ teleport(qbit qreg){
 cbit creg[3];
 // qubit0 to be teleported
-Swap(qreg[0], qreg[1]);
-Rx(qreg[1],.6);
-Swap(qreg[0], qreg[1]);
+Rx(qreg[0],.6);
 // Bell channel set up by qreg[1] and qreg[2]
 H(qreg[1]);
 CNOT(qreg[1],qreg[2]);

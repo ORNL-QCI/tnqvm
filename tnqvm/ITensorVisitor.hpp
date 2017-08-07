@@ -32,6 +32,7 @@
 #define QUANTUM_GATE_ACCELERATORS_TNQVM_ITENSORVISITOR_HPP_
 
 #include "AllGateVisitor.hpp"
+#include "TNQVMBuffer.hpp"
 #include "itensor/all.h"
 #include <complex>
 #include <cstdlib>
@@ -48,6 +49,7 @@ private:
     itensor::ITensor wavefunc;
     std::vector<int> iqbit2iind;
     std::vector<int> cbits;
+    std::shared_ptr<TNQVMBuffer> accbuffer;
 
     /// init the wave function tensor
     void initWavefunc(int n_qbits){
@@ -83,24 +85,23 @@ private:
     }
 
     void printWavefunc() const {
-        std::cout<<"----wf--->>\n";
-        unsigned long giind = 0;
-        const int n_qbits = iqbit2iind.size();
-        auto print_nz = [&giind, n_qbits, this](itensor::Cplx c){
-            if(std::norm(c)>0){
-                for(int iqbit=0; iqbit<n_qbits; ++iqbit){
-                    auto iind = this->iqbit2iind[iqbit];
-                    auto spin = (giind>>iind) & 1UL;
-                    std::cout<<spin;
-                }
-                std::cout<<"    "<<c<<std::endl;
-            }
-            ++giind;
-        };
-        auto normed_wf = wavefunc / itensor::norm(wavefunc);
-        normed_wf.visit(print_nz);
-        std::cout<<"<<---wf----\n"<<std::endl;
-        //itensor::PrintData(wavefunc);
+        // std::cout<<"----wf--->>\n";
+        // unsigned long giind = 0;
+        // const int n_qbits = iqbit2iind.size();
+        // auto print_nz = [&giind, n_qbits, this](itensor::Cplx c){
+        //     if(std::norm(c)>0){
+        //         for(int iqbit=0; iqbit<n_qbits; ++iqbit){
+        //             auto iind = this->iqbit2iind[iqbit];
+        //             auto spin = (giind>>iind) & 1UL;
+        //             std::cout<<spin;
+        //         }
+        //         std::cout<<"    "<<c<<std::endl;
+        //     }
+        //     ++giind;
+        // };
+        // auto normed_wf = wavefunc / itensor::norm(wavefunc);
+        // normed_wf.visit(print_nz);
+        // std::cout<<"<<---wf----\n"<<std::endl;
     }
 
     void endVisit(int iqbit_in) {
@@ -117,8 +118,9 @@ private:
 public:
 
     /// Constructor
-    ITensorVisitor(){
-        int n_qbits = 3;
+    ITensorVisitor(std::shared_ptr<TNQVMBuffer> accbuffer_in)
+        : accbuffer (accbuffer_in) {
+        int n_qbits = accbuffer->size();
         initWavefunc(n_qbits);
         printWavefunc();
         std::srand(std::time(0));
@@ -220,6 +222,9 @@ public:
         double p0 = itensor::norm(tmp);
 
         std::cout<<"rv= "<<rv<<"   p0= "<<p0<<std::endl;
+        std::cout<<accbuffer->aver_from_wavefunc<<std::endl;
+        accbuffer->aver_from_wavefunc *= (2*p0-1);
+        std::cerr<<(accbuffer->aver_from_wavefunc)<<std::endl;
 
         if(rv<p0){
             cbits[iqbit_measured] = 0;

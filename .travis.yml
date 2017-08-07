@@ -1,0 +1,12 @@
+sudo: required
+
+services:
+  - docker
+
+before_install:
+  - git submodule update --init --recursive
+  - docker pull mchen360/yaccdev
+  - docker run -it --rm --name yacc_test -v "$(pwd)":/allacc --security-opt seccomp=unconfined mchen360/yaccdev bash -c "source ~/.bashrc && cd /allacc/tnqvm && mkdir build && cd build && cmake .. && make"
+  
+script:
+  - echo ""
