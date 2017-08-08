@@ -5,8 +5,26 @@ services:
 
 before_install:
   - git submodule update --init --recursive
-  - docker pull mchen360/yaccdev
-  - docker run -it --rm --name yacc_test -v "$(pwd)":/allacc --security-opt seccomp=unconfined mchen360/yaccdev bash -c "source ~/.bashrc && cd /allacc/tnqvm && mkdir build && cd build && cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local/xacc && make"
+  - apt-get -y upgrade && apt-get -y update && apt-get install -y software-properties-common
+  - add-apt-repository ppa:ubuntu-toolchain-r/test
+  - apt-get -y update && apt-get -y install libspdlog-dev libboost-all-dev git make libtool cmake gcc-6 g++-6 mpich wget
+  - update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-6 60 --slave /usr/bin/g++ g++ /usr/bin/g++-6
+
+  - wget https://github.com/ORNL-QCI/ScaffCC/releases/download/v2.0/scaffold_2.0_amd64.deb 
+  - apt-get -y update && apt-get -y install $(dpkg --info scaffold_2.0_amd64.deb | grep Depends | sed "s/.*ends: //" | sed 's/,//g') && dpkg -i scaffold_2.0_amd64.deb
+
+  - git clone https://github.com/cppmicroservices/cppmicroservices
+  - cd cppmicroservices && mkdir build && cd build
+  - cmake .. && make install
+  - cd ../..
+
+  - git clone --recursive https://github.com/ORNL-QCI/xacc
+  - cd xacc && mkdir build && cd build
+  - cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local/xacc -DCMAKE_BUILD_TYPE=Release
+  - make -j4 install
+  - ctest
+  - # docker pull mchen360/yaccdev
+  - # docker run -it --rm --name yacc_test -v "$(pwd)":/allacc --security-opt seccomp=unconfined mchen360/yaccdev bash -c "source ~/.bashrc && cd /allacc/tnqvm && mkdir build && cd build && cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local/xacc && make"
   
 script:
   - echo ""
