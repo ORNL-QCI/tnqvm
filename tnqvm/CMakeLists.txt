@@ -39,6 +39,18 @@
 
 find_package(XACC REQUIRED)
 
+include(ExternalProject)
+set(ITENSOR_ROOT ${CMAKE_SOURCE_DIR}/ITensor)
+ExternalProject_Add(projitensor
+    SOURCE_DIR ${ITENSOR_ROOT}
+    BINARY_DIR ${ITENSOR_ROOT}
+    CONFIGURE_COMMAND cp options.mk.sample options.mk
+    BUILD_COMMAND make PLATFORM=lapack
+    INSTALL_COMMAND ""
+)
+
+include_directories(${ITENSOR_ROOT})
+
 include_directories(${CMAKE_SOURCE_DIR}/tpls/fire/tensors)
 include_directories(${CMAKE_SOURCE_DIR}/tpls/fire/tensors/impl)
 include_directories(${CMAKE_SOURCE_DIR}/tpls/fire/tpls/eigen)
