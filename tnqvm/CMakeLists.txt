@@ -62,7 +62,8 @@ message(${SRC})
 #link_directories(${EXATENSOR_ROOT}/DDSS)
 #link_directories(${EXATENSOR_ROOT}/GFC)
 
-link_directories(${XACC_LIBRARY_DIR})
+include_directories(${XACC_INCLUDE_DIRS})
+link_directories   (${XACC_LIBRARY_DIR})
 
 add_library(${LIBRARY_NAME} SHARED ${SRC})
 

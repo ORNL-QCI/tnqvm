@@ -54,7 +54,7 @@ include_directories("${CMAKE_SOURCE_DIR}/tpls/fire/tensors")
 include_directories("${CMAKE_SOURCE_DIR}/tensor")
 include_directories("${CMAKE_SOURCE_DIR}/tpls/talsh")
 include_directories("${CMAKE_SOURCE_DIR}/tpls/hyper_array")
-include_directories(${XACC_INCLUDE_DIRS})
+
 include_directories(${ITENSOR_ROOT})
 
 add_subdirectory(tpls)
