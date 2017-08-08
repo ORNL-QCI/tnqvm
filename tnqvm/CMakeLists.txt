@@ -37,6 +37,8 @@
 #   message(FATAL_ERROR " - Invalid ExaTensor installation")
 #endif()
 
+find_package(XACC REQUIRED)
+
 include_directories(${CMAKE_SOURCE_DIR}/tpls/fire/tensors)
 include_directories(${CMAKE_SOURCE_DIR}/tpls/fire/tensors/impl)
 include_directories(${CMAKE_SOURCE_DIR}/tpls/fire/tpls/eigen)
