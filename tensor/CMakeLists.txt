@@ -51,9 +51,7 @@ file(GLOB HEADERS *.hpp)
 file(GLOB test_files tests/*Test.cpp)
 
 # Add the tests
-add_tests("${test_files}" 
-   "${CMAKE_CURRENT_SOURCE_DIR};${CMAKE_SOURCE_DIR}/tpls/talsh" 
-   "talsh;blas;lapack")
+add_tests("${test_files}" "${CMAKE_CURRENT_SOURCE_DIR};${CMAKE_SOURCE_DIR}/tpls/talsh" "talsh;blas;lapack")
 
 #Install the Fire header files
 install(FILES ${HEADERS} DESTINATION include)
