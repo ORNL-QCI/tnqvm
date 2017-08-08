@@ -1,4 +1,3 @@
-
 set(PACKAGE_NAME "talsh")
 set(PACKAGE_DESCRIPTION "Talsh C/Fortran Tensor Library")
 set(LIBRARY_NAME "talsh")
