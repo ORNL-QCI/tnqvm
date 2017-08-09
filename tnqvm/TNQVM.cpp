@@ -33,8 +33,9 @@
 #include "ITensorMPSVisitor.hpp"
 #include "ExaTensorVisitor.hpp"
 
+namespace xacc{
+	
 namespace tnqvm {
-
 
 std::shared_ptr<AcceleratorBuffer> TNQVM::createBuffer(
 		const std::string& varId) {
@@ -72,5 +73,6 @@ void TNQVM::execute(std::shared_ptr<AcceleratorBuffer> buffer,
 			nextInst->accept(visitor);
 		}
 	}
+}
 }
 }

@@ -29,4 +29,4 @@
 #
 #**********************************************************************************/
 add_executable(teleport_scaffold_tnqvm teleport_scaffold_tnqvm.cpp)
-target_link_libraries(teleport_scaffold_tnqvm ${Boost_LIBRARIES} dl)
+target_link_libraries(teleport_scaffold_tnqvm ${Boost_LIBRARIES} xacc CppMicroServices dl)

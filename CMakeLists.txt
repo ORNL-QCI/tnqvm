@@ -18,6 +18,8 @@ if (EXISTS ${CMAKE_SOURCE_DIR}/tpls/fire)
   include(tests)
 endif() 
 
+find_package(CppMicroServices REQUIRED)
+
 find_package(XACC REQUIRED)
 
 find_package(MPI REQUIRED)
