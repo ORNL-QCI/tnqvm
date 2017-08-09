@@ -36,7 +36,7 @@
 #include <cstdlib>
 #include <ctime>
 #include "AllGateVisitor.hpp"
-#include "tensor_expression.hpp"
+#include "exatensor/tensor_expression.hpp"
 
 namespace xacc {
 namespace quantum {

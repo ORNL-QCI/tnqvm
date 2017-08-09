@@ -51,11 +51,13 @@ ExternalProject_Add(projitensor
 
 include_directories(${ITENSOR_ROOT})
 
+include_directories(${CMAKE_SOURCE_DIR}/ExaTensor)
+
 include_directories(${CMAKE_SOURCE_DIR}/tpls/fire/tensors)
 include_directories(${CMAKE_SOURCE_DIR}/tpls/fire/tensors/impl)
 include_directories(${CMAKE_SOURCE_DIR}/tpls/fire/tpls/eigen)
-#include_directories(${EXATENSOR_ROOT})
-#include_directories(${EXATENSOR_ROOT}/INTERVIRT)
+include_directories(${EXATENSOR_ROOT})
+
 
 set (PACKAGE_NAME "TNQVM Tensor Network XACC Accelerator")
 set (PACKAGE_DESCIPTION "TNQVM Tensor Network XACC Accelerator Framework")
