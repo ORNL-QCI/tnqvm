@@ -29,15 +29,9 @@
 #
 #**********************************************************************************/
 
-#if (NOT EXATENSOR_ROOT)
-#   message(FATAL_ERROR " - Must have install path of ExaTensor")
-#endif()
-
-#if (NOT EXISTS ${EXATENSOR_ROOT}/libExaTensor.a) 
-#   message(FATAL_ERROR " - Invalid ExaTensor installation")
-#endif()
-
-find_package(XACC REQUIRED)
+set (PACKAGE_NAME "TNQVM Tensor Network XACC Accelerator")
+set (PACKAGE_DESCIPTION "TNQVM Tensor Network XACC Accelerator Framework")
+set (LIBRARY_NAME tnqvm)
 
 include(ExternalProject)
 set(ITENSOR_ROOT ${CMAKE_SOURCE_DIR}/ITensor)
@@ -50,45 +44,50 @@ ExternalProject_Add(projitensor
 )
 
 include_directories(${ITENSOR_ROOT})
-
 include_directories(${CMAKE_SOURCE_DIR}/ExaTensor)
-
 include_directories(${CMAKE_SOURCE_DIR}/tpls/fire/tensors)
 include_directories(${CMAKE_SOURCE_DIR}/tpls/fire/tensors/impl)
 include_directories(${CMAKE_SOURCE_DIR}/tpls/fire/tpls/eigen)
-include_directories(${EXATENSOR_ROOT})
-
-
-set (PACKAGE_NAME "TNQVM Tensor Network XACC Accelerator")
-set (PACKAGE_DESCIPTION "TNQVM Tensor Network XACC Accelerator Framework")
-set (LIBRARY_NAME tnqvm)
+find_package(XACC REQUIRED)
+include_directories(${XACC_INCLUDE_DIRS})
+link_directories   (${XACC_LIBRARY_DIRS})
 
 file (GLOB HEADERS *.hpp)
 file (GLOB SRC *.cpp)
 
-message(${SRC})
-
-#link_directories(${EXATENSOR_ROOT})
-#link_directories(${EXATENSOR_ROOT}/UTILITY)
-#link_directories(${EXATENSOR_ROOT}/TALSH)
-#link_directories(${EXATENSOR_ROOT}/INTRAVIRT)
-#link_directories(${EXATENSOR_ROOT}/DSVP)
-#link_directories(${EXATENSOR_ROOT}/DDSS)
-#link_directories(${EXATENSOR_ROOT}/GFC)
-
-include_directories(${XACC_INCLUDE_DIRS})
-link_directories   (${XACC_LIBRARY_DIR})
+usFunctionGetResourceSource(TARGET ${LIBRARY_NAME} OUT SRC)
+usFunctionGenerateBundleInit(TARGET ${LIBRARY_NAME} OUT SRC)
 
 add_library(${LIBRARY_NAME} SHARED ${SRC})
 
+set(_bundle_name xacc_tnqvm_accelerator)
+set_target_properties(${LIBRARY_NAME} PROPERTIES
+    # This is required for every bundle
+    COMPILE_DEFINITIONS US_BUNDLE_NAME=${_bundle_name}
+    # This is for convenience, used by other CMake functions
+    US_BUNDLE_NAME ${_bundle_name}
+    )
+if(BUILD_SHARED_LIBS)
+    set_target_properties(${LIBRARY_NAME} PROPERTIES
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN 1
+    )
+endif()
+# Embed meta-data from a manifest.json file
+usFunctionEmbedResources(TARGET ${LIBRARY_NAME}
+    WORKING_DIRECTORY
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    FILES
+    manifest.json
+    )
+
 # specify the path of libitenor-g.a for detail debug information
-target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} ${ITENSOR_ROOT}/lib/libitensor-g.a lapack)
+target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} CppMicroServices ${ITENSOR_ROOT}/lib/libitensor-g.a lapack)
 
 install(FILES ${HEADERS} DESTINATION include)
-message(${XACC_LIBRARY_DIR})
-install(TARGETS ${LIBRARY_NAME} DESTINATION ${XACC_LIBRARY_DIR})
+install(TARGETS ${LIBRARY_NAME} DESTINATION ${XACC_LIBRARY_DIR}/plugins/accelerators)
 
-message(STATUS ${MPI_Fortran_LIBRARIES})
+
 # Gather tests
 file (GLOB test_files tests/*.cpp)
 #add_tests("${test_files}" "${CMAKE_CURRENT_SOURCE_DIR}" "${Boost_LIBRARIES};${MPI_Fortran_LIBRARIES};${XACC_LIBRARIES};tnqvm;talsh")

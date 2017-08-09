@@ -34,12 +34,11 @@
 #include "Accelerator.hpp"
 #include "InstructionIterator.hpp"
 
-using namespace xacc;
+namespace xacc{
 
 namespace tnqvm {
 
 class TNQVM: public Accelerator {
-
 public:
 
 	virtual void initialize() {}
@@ -92,6 +91,14 @@ public:
 		return AcceleratorType::qpu_gate;
 	}
 
+	virtual const std::string name() const {
+		return "tnqvm";
+	}
+
+	virtual const std::string description() const {
+		return "XACC tensor netowrk quantum virtual machine (TNQVM) Accelerator";
+	}
+
 	/**
 	 * We have no need to transform the IR for this Accelerator,
 	 * so return an empty list
@@ -102,6 +109,7 @@ public:
 		return v;
 	}
 
+
 	/**
 	 * The destructor
 	 */
@@ -109,7 +117,7 @@ public:
 	}
 
 };
-
+}
 }
 
 #endif

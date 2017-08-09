@@ -28,6 +28,12 @@
 #   Initial API and implementation - Alex McCaskey
 #
 #**********************************************************************************/
+find_package(XACC REQUIRED)
+
+include_directories(${XACC_INCLUDE_DIRS})
 include_directories(${CMAKE_SOURCE_DIR})
+link_directories   (${XACC_LIBRARY_DIRS})
+
+
 add_executable(h2_exp_vals_scaffold_tnqvm h2_exp_vals_scaffold_tnqvm.cpp)
 target_link_libraries(h2_exp_vals_scaffold_tnqvm ${Boost_LIBRARIES} xacc CppMicroServices dl)
