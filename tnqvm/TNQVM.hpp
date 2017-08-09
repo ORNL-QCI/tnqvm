@@ -34,12 +34,11 @@
 #include "Accelerator.hpp"
 #include "InstructionIterator.hpp"
 
-using namespace xacc;
+namespace xacc{
 
 namespace tnqvm {
 
 class TNQVM: public Accelerator {
-
 public:
 
 	virtual void initialize() {}
@@ -84,12 +83,6 @@ public:
 	virtual void execute(std::shared_ptr<AcceleratorBuffer> buffer,
 			const std::shared_ptr<xacc::Function> kernel);
 
-	/**
-	 * Register this Accelerator with the framework.
-	 */
-	static void registerAccelerator() {
-		xacc::RegisterAccelerator<tnqvm::TNQVM> TNQVMTEMP("tnqvm");
-	}
 
 	/**
 	 * This Accelerator models QPU Gate accelerators.
@@ -97,6 +90,14 @@ public:
 	 */
 	virtual AcceleratorType getType() {
 		return AcceleratorType::qpu_gate;
+	}
+
+	virtual const std::string name() const {
+		return "tnqvm";
+	}
+
+	virtual const std::string description() const {
+		return "XACC tensor netowrk quantum virtual machine (TNQVM) Accelerator";
 	}
 
 	/**
@@ -109,6 +110,7 @@ public:
 		return v;
 	}
 
+
 	/**
 	 * The destructor
 	 */
@@ -117,9 +119,7 @@ public:
 
 };
 
-// Create an alias to search for.
-RegisterAccelerator(tnqvm::TNQVM)
-
+}
 }
 
 #endif
