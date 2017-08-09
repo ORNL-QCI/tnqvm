@@ -37,6 +37,7 @@ if (NOT CUDA_FOUND)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DNO_GPU") 
 endif()
 
+link_directories(${XACC_LIBRARY_DIR})
 
 include_directories(${MPI_INCLUDE_PATH})
 include_directories(${Boost_INCLUDE_DIRS})
@@ -45,10 +46,6 @@ include_directories("${CMAKE_SOURCE_DIR}/tensor")
 include_directories("${CMAKE_SOURCE_DIR}/tpls/talsh")
 include_directories("${CMAKE_SOURCE_DIR}/tpls/hyper_array")
 include_directories(${XACC_INCLUDE_DIRS})
-
-
-#add_subdirectory(tpls)
-#add_subdirectory(tensor)
 
 add_subdirectory(tnqvm)
 add_subdirectory(examples)

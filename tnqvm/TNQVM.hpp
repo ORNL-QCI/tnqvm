@@ -85,13 +85,6 @@ public:
 			const std::shared_ptr<xacc::Function> kernel);
 
 	/**
-	 * Register this Accelerator with the framework.
-	 */
-	static void registerAccelerator() {
-		xacc::RegisterAccelerator<tnqvm::TNQVM> TNQVMTEMP("tnqvm");
-	}
-
-	/**
 	 * This Accelerator models QPU Gate accelerators.
 	 * @return
 	 */
@@ -104,8 +97,8 @@ public:
 	 * so return an empty list
 	 * @return
 	 */
-	virtual std::vector<xacc::IRTransformation> getIRTransformations() {
-		std::vector<xacc::IRTransformation> v;
+	virtual std::vector<std::shared_ptr<xacc::IRTransformation>> getIRTransformations() {
+		std::vector<std::shared_ptr<xacc::IRTransformation>> v;
 		return v;
 	}
 
@@ -116,9 +109,6 @@ public:
 	}
 
 };
-
-// Create an alias to search for.
-RegisterAccelerator(tnqvm::TNQVM)
 
 }
 

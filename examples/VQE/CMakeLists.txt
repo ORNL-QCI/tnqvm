@@ -30,4 +30,4 @@
 #**********************************************************************************/
 include_directories(${CMAKE_SOURCE_DIR})
 add_executable(h2_exp_vals_scaffold_tnqvm h2_exp_vals_scaffold_tnqvm.cpp)
-target_link_libraries(h2_exp_vals_scaffold_tnqvm ${Boost_LIBRARIES} dl)
+target_link_libraries(h2_exp_vals_scaffold_tnqvm ${Boost_LIBRARIES} xacc CppMicroServices dl)
