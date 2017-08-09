@@ -37,11 +37,27 @@
 #   message(FATAL_ERROR " - Invalid ExaTensor installation")
 #endif()
 
+find_package(XACC REQUIRED)
+
+include(ExternalProject)
+set(ITENSOR_ROOT ${CMAKE_SOURCE_DIR}/ITensor)
+ExternalProject_Add(projitensor
+    SOURCE_DIR ${ITENSOR_ROOT}
+    BINARY_DIR ${ITENSOR_ROOT}
+    CONFIGURE_COMMAND cp options.mk.sample options.mk
+    BUILD_COMMAND make PLATFORM=lapack
+    INSTALL_COMMAND ""
+)
+
+include_directories(${ITENSOR_ROOT})
+
+include_directories(${CMAKE_SOURCE_DIR}/ExaTensor)
+
 include_directories(${CMAKE_SOURCE_DIR}/tpls/fire/tensors)
 include_directories(${CMAKE_SOURCE_DIR}/tpls/fire/tensors/impl)
 include_directories(${CMAKE_SOURCE_DIR}/tpls/fire/tpls/eigen)
-#include_directories(${EXATENSOR_ROOT})
-#include_directories(${EXATENSOR_ROOT}/INTERVIRT)
+include_directories(${EXATENSOR_ROOT})
+
 
 set (PACKAGE_NAME "TNQVM Tensor Network XACC Accelerator")
 set (PACKAGE_DESCIPTION "TNQVM Tensor Network XACC Accelerator Framework")
@@ -60,7 +76,8 @@ message(${SRC})
 #link_directories(${EXATENSOR_ROOT}/DDSS)
 #link_directories(${EXATENSOR_ROOT}/GFC)
 
-link_directories(${XACC_LIBRARY_DIR})
+include_directories(${XACC_INCLUDE_DIRS})
+link_directories   (${XACC_LIBRARY_DIR})
 
 add_library(${LIBRARY_NAME} SHARED ${SRC})
 
@@ -68,6 +85,7 @@ add_library(${LIBRARY_NAME} SHARED ${SRC})
 target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} ${ITENSOR_ROOT}/lib/libitensor-g.a lapack)
 
 install(FILES ${HEADERS} DESTINATION include)
+message(${XACC_LIBRARY_DIR})
 install(TARGETS ${LIBRARY_NAME} DESTINATION ${XACC_LIBRARY_DIR})
 
 message(STATUS ${MPI_Fortran_LIBRARIES})

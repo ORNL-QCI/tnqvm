@@ -29,7 +29,7 @@
  *
  **********************************************************************************/
 #include "XACC.hpp"
-#include "TNQVMBuffer.hpp"
+#include "tnqvm/TNQVMBuffer.hpp"
 
 // Quantum Kernel executing teleportation of
 // qubit state to another.
@@ -96,7 +96,7 @@ int main (int argc, char** argv) {
 			buffer->resetBuffer();
 			std::cout<<"measring"<<std::endl;
 			measure_term(buffer, theta);
-			auto aver = buffer->aver_from_wavefunc;
+			auto aver = buffer->getExpectationValueZ();
 			file<<", "<<aver;
 		}
 		file<<std::endl;
