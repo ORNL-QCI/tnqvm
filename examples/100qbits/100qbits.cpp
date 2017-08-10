@@ -34,20 +34,9 @@
 // qubit state to another.
 // test
     const char* src = R"src(__qpu__ teleport(qbit qreg){
-cbit creg[3];
-// qubit0 to be teleported
-Rx(qreg[0],.6);
-// Bell channel set up by qreg[1] and qreg[2]
-H(qreg[1]);
-CNOT(qreg[1],qreg[2]);
-// Alice Bell measurement
-CNOT(qreg[0],qreg[1]);
-H(qreg[0]);
-creg[0] = MeasZ(qreg[0]);
-creg[1] = MeasZ(qreg[1]);
-// Bob's operation base on Alice's measurement outcome
-if (creg[0] == 1) Z(qreg[2]);
-if (creg[1] == 1) X(qreg[2]);
+H(qreg[12]);
+Z(qreg[4]);
+CNOT(qreg[2], qreg[5]);
 })src";
 
 int main (int argc, char** argv) {
@@ -58,7 +47,7 @@ int main (int argc, char** argv) {
 	auto qpu = xacc::getAccelerator("tnqvm");
 
 	// Allocate a register of 3 qubits
-	auto qubitReg = qpu->createBuffer("qreg", 3);
+	auto qubitReg = qpu->createBuffer("qreg", 20);
 
 	// Create a Program
 	xacc::Program program(qpu, src);

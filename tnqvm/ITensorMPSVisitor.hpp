@@ -82,6 +82,7 @@ private:
 
     /// init the wave function tensor
     void initWavefunc(int n_qbits);
+    void initWavefunc_bysvd(int n_qbits);
     void reduce_to_MPS();
     Index ind_for_qbit(int iqbit) const ;
     void printWavefunc() const ;
