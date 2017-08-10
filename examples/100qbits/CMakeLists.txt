@@ -34,5 +34,6 @@ include_directories(${XACC_INCLUDE_DIRS})
 include_directories(${CMAKE_SOURCE_DIR})
 link_directories   (${XACC_LIBRARY_DIRS})
 
-add_executable(teleport_scaffold_tnqvm teleport_scaffold_tnqvm.cpp)
-target_link_libraries(teleport_scaffold_tnqvm ${Boost_LIBRARIES} xacc CppMicroServices dl)
+
+add_executable(100qbits 100qbits.cpp)
+target_link_libraries(100qbits ${Boost_LIBRARIES} xacc CppMicroServices dl)

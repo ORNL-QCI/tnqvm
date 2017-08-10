@@ -37,6 +37,10 @@
 #include <ctime>
 #include <cassert>
 
+#define cms_assert(EX) (void)((EX) || (__assert (#EX, __FILE__, __LINE__),0))
+
+
+
 namespace xacc{
 namespace quantum{
 
@@ -94,13 +98,17 @@ namespace quantum{
         tGate.set(ind_out0(1), ind_out1(2), ind_in0(1), ind_in1(2), 1.);
         tGate.set(ind_out0(2), ind_out1(1), ind_in0(2), ind_in1(2), 1.);
         tGate.set(ind_out0(2), ind_out1(2), ind_in0(2), ind_in1(1), 1.);
-        auto tobe_svd = tGate * legMats[iqbit_in0] * bondMats[std::min(iqbit_in0, iqbit_in1)] * legMats[iqbit_in1];
-        ITensor legMat(legMats[iqbit_in0].inds()[1], ind_out0), bondMat, restTensor;
+        int min_iqbit = std::min(iqbit_in0, iqbit_in1);
+        int max_iqbit = std::max(iqbit_in0, iqbit_in1);
+        auto tobe_svd = tGate * legMats[iqbit_in0] * bondMats[min_iqbit] * legMats[iqbit_in1];
+        ITensor legMat(legMats[min_iqbit].inds()[1], ind_out0), bondMat, restTensor;
         itensor::svd(tobe_svd, legMat, bondMat, restTensor, {"Cutoff", 1E-4});
+        std::cout<<"svd done"<<std::endl;
         legMats[iqbit_in0] = legMat;
-        bondMats[std::min(iqbit_in0, iqbit_in1)] = bondMat;
+        bondMats[min_iqbit] = bondMat;
         kickback_ind(restTensor, restTensor.inds()[1]);
-        legMats[iqbit_in1] = restTensor;
+        cms_assert(restTensor.r()==3);
+        legMats[max_iqbit] = restTensor;
         if (iqbit_in0_ori<iqbit_in1_ori-1){
             permute_to(iqbit_in1_ori-1, iqbit_in0_ori);
         }else if (iqbit_in1_ori<iqbit_in0_ori-1){
@@ -228,7 +236,9 @@ namespace quantum{
             inner = inner * itensor::conj(legMats_m[n_qbits-1]) * bondMats_m[n_qbits-2] * legMats_m[n_qbits-1];
         }
         itensor::PrintData(inner);
-        return inner.real();
+        std::complex<double> aver = inner.cplx();
+        cms_assert(aver.imag()<1e-10);
+        return aver.real();
     }
 
 
@@ -358,6 +368,7 @@ namespace quantum{
 	void ITensorMPSVisitor::visit(Swap& gate) {
         auto iqbit_in0_ori = gate.bits()[0];
         auto iqbit_in1_ori = gate.bits()[1];
+        std::cout<<"applying "<<gate.getName()<<" @ "<<iqbit_in0_ori<<" , "<<iqbit_in1_ori<<std::endl;
         int iqbit_in0, iqbit_in1;
         if (iqbit_in0_ori<iqbit_in1_ori-1){
             permute_to(iqbit_in0_ori, iqbit_in1_ori-1);
@@ -372,7 +383,6 @@ namespace quantum{
             iqbit_in1 = iqbit_in1_ori;
         }
 
-        std::cout<<"applying "<<gate.getName()<<" @ "<<iqbit_in0<<" , "<<iqbit_in1<<std::endl;
         auto ind_in0 = ind_for_qbit(iqbit_in0); // control
         auto ind_in1 = ind_for_qbit(iqbit_in1);
         auto ind_out0 = itensor::Index(gate.getName(), 2);
@@ -382,13 +392,24 @@ namespace quantum{
         tGate.set(ind_out0(1), ind_out1(2), ind_in0(2), ind_in1(1), 1.);
         tGate.set(ind_out0(2), ind_out1(1), ind_in0(1), ind_in1(2), 1.);
         tGate.set(ind_out0(2), ind_out1(2), ind_in0(2), ind_in1(2), 1.);
-        auto tobe_svd = tGate * legMats[iqbit_in0] * bondMats[std::min(iqbit_in0, iqbit_in1)] * legMats[iqbit_in1];
-        ITensor legMat(legMats[iqbit_in0].inds()[1], ind_out0), bondMat, restTensor;
+        std::cout<<"applying Swap gate tensor"<<std::endl;
+        itensor::PrintData(tGate);
+        itensor::PrintData(legMats[iqbit_in0]);
+        itensor::PrintData(legMats[iqbit_in1]);
+        itensor::PrintData(bondMats[std::min(iqbit_in0, iqbit_in1)]);
+        int min_iqbit = std::min(iqbit_in0, iqbit_in1);
+        int max_iqbit = std::max(iqbit_in0, iqbit_in1);
+        auto tobe_svd = tGate * legMats[iqbit_in0] * bondMats[min_iqbit] * legMats[iqbit_in1];
+        itensor::PrintData(tobe_svd);
+        std::cout<<"gate applied, start to svd"<<std::endl;
+        ITensor legMat(legMats[min_iqbit].inds()[1], ind_out0), bondMat, restTensor;
         itensor::svd(tobe_svd, legMat, bondMat, restTensor, {"Cutoff", 1E-4});
-        legMats[iqbit_in0] = legMat;
-        bondMats[std::min(iqbit_in0,iqbit_in1)] = bondMat;
+        std::cout<<"swap svd done"<<std::endl;
+        legMats[min_iqbit] = legMat;
+        bondMats[min_iqbit] = bondMat;
         kickback_ind(restTensor, restTensor.inds()[1]);
-        legMats[iqbit_in1] = restTensor;
+        cms_assert(restTensor.r()==3);
+        legMats[max_iqbit] = restTensor;
         if (iqbit_in0_ori<iqbit_in1_ori-1){
             permute_to(iqbit_in1_ori-1, iqbit_in0_ori);
         }else if (iqbit_in1_ori<iqbit_in0_ori-1){
@@ -415,6 +436,36 @@ namespace quantum{
 
     /// init the wave function tensor
     void ITensorMPSVisitor::initWavefunc(int n_qbits){
+        Index head("head", 1);
+        Index prev_rbond = head;
+        for(int i=0; i<n_qbits-1; ++i){
+            Index qbit("qbit",2);
+            Index lbond("lbond",1);
+            itensor::ITensor legMat(qbit, prev_rbond, lbond);
+            legMat.set(qbit(1), prev_rbond(1), lbond(1), 1.);
+            legMats.push_back(legMat);
+
+            Index rbond("rbond", 1);
+            itensor::ITensor bondMat(lbond, rbond);
+            bondMat.set(lbond(1),rbond(1), 1.);
+            bondMats.push_back(bondMat);
+            prev_rbond = rbond;
+        }
+        Index qbit("qbit", 2);
+        Index tail("tail", 1);
+        itensor::ITensor legMat(qbit, prev_rbond, tail);
+        legMat.set(qbit(1), prev_rbond(1), tail(1), 1.);
+        legMats.push_back(legMat);
+
+        for(int i=0; i<n_qbits-1; ++i){
+            itensor::PrintData(legMats[i]);
+            itensor::PrintData(bondMats[i]);
+        }
+        itensor::PrintData(legMats[n_qbits-1]);
+    }
+
+
+    void ITensorMPSVisitor::initWavefunc_bysvd(int n_qbits){
         std::vector<ITensor> tInitQbits;
         for(int i=0; i<n_qbits; ++i){
             Index ind_qbit("qbit",2);
@@ -432,6 +483,11 @@ namespace quantum{
             wavefunc = wavefunc / tInitQbits[i];
         }
         reduce_to_MPS();
+        for(int i=0; i<n_qbits-1; ++i){
+            itensor::PrintData(legMats[i]);
+            itensor::PrintData(bondMats[i]);
+        }
+        itensor::PrintData(legMats[n_qbits-1]);
     }
 
     itensor::Index ITensorMPSVisitor::ind_for_qbit(int iqbit) const {
@@ -443,29 +499,29 @@ namespace quantum{
     }
 
     void ITensorMPSVisitor::printWavefunc() const {
-        std::cout<<">>>>>>>>----------wf--------->>>>>>>>>>\n";
-        auto mps = legMats[0];
-        for(int i=1; i<n_qbits;++i){
-            mps *= bondMats[i-1];
-            mps *= legMats[i];
-        }
+        // std::cout<<">>>>>>>>----------wf--------->>>>>>>>>>\n";
+        // auto mps = legMats[0];
+        // for(int i=1; i<n_qbits;++i){
+        //     mps *= bondMats[i-1];
+        //     mps *= legMats[i];
+        // }
 
-        unsigned long giind = 0;
-        const int n_qbits = iqbit2iind.size();
-        auto print_nz = [&giind, n_qbits, this](itensor::Cplx c){
-            if(std::norm(c)>0){
-                for(int iind=0; iind<n_qbits; ++iind){
-                    auto spin = (giind>>iind) & 1UL;
-                    std::cout<<spin;
-                }
-                std::cout<<"    "<<c<<std::endl;
-            }
-            ++giind;
-        };
-        auto normed_wf = mps / itensor::norm(mps);
-        normed_wf.visit(print_nz);
-        // itensor::PrintData(mps);
-        std::cout<<"<<<<<<<<---------------------<<<<<<<<<<\n"<<std::endl;
+        // unsigned long giind = 0;
+        // const int n_qbits = iqbit2iind.size();
+        // auto print_nz = [&giind, n_qbits, this](itensor::Cplx c){
+        //     if(std::norm(c)>0){
+        //         for(int iind=0; iind<n_qbits; ++iind){
+        //             auto spin = (giind>>iind) & 1UL;
+        //             std::cout<<spin;
+        //         }
+        //         std::cout<<"    "<<c<<std::endl;
+        //     }
+        //     ++giind;
+        // };
+        // auto normed_wf = mps / itensor::norm(mps);
+        // normed_wf.visit(print_nz);
+        // // itensor::PrintData(mps);
+        // std::cout<<"<<<<<<<<---------------------<<<<<<<<<<\n"<<std::endl;
     }
 
     /** The process of SVD is to decompose a tensor,
