@@ -4,5 +4,4 @@
 
 The tensor network quantum virtual machine (TNQVM) is a numerical quantum circuit simulator operating within the formalism of tensor network theory.
 
-
-https://travis-ci.org/mileschen360/tnqvm.svg?branch=master
+see the [examples](examples) for how to use TNQVM to simulate quantum circuits.
