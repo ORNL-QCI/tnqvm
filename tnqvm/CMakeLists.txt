@@ -60,12 +60,6 @@ usFunctionGenerateBundleInit(TARGET ${LIBRARY_NAME} OUT SRC)
 
 add_library(${LIBRARY_NAME} SHARED ${SRC})
 
-
-#find_package(CppMicroServices REQUIRED)
-# Set up dependencies to resources to track changes
-#usFunctionGetResourceSource(TARGET ${LIBRARY_NAME} OUT SRC)
-# Generate bundle initialization code
-#usFunctionGenerateBundleInit(TARGET ${LIBRARY_NAME} OUT SRC)
 set(_bundle_name xacc_tnqvm_accelerator)
 set_target_properties(${LIBRARY_NAME} PROPERTIES
     # This is required for every bundle

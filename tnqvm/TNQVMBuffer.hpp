@@ -44,13 +44,13 @@ public:
         aver_from_wavefunc (1.),
         aver_from_manytime (1.) {}
 
-    void resetBuffer(){
+    virtual void resetBuffer(){
         xacc::AcceleratorBuffer::resetBuffer();
         aver_from_wavefunc = 1.;
         aver_from_manytime = 1.;
     }
 
-    double getExpectationValueZ() const{
+    virtual const double getExpectationValueZ() const{
         return aver_from_wavefunc;
     }
 

@@ -83,7 +83,6 @@ public:
 	virtual void execute(std::shared_ptr<AcceleratorBuffer> buffer,
 			const std::shared_ptr<xacc::Function> kernel);
 
-
 	/**
 	 * This Accelerator models QPU Gate accelerators.
 	 * @return
@@ -105,8 +104,8 @@ public:
 	 * so return an empty list
 	 * @return
 	 */
-	virtual std::vector<xacc::IRTransformation> getIRTransformations() {
-		std::vector<xacc::IRTransformation> v;
+	virtual std::vector<std::shared_ptr<xacc::IRTransformation>> getIRTransformations() {
+		std::vector<std::shared_ptr<xacc::IRTransformation>> v;
 		return v;
 	}
 
@@ -118,7 +117,6 @@ public:
 	}
 
 };
-
 }
 }
 
