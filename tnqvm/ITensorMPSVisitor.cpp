@@ -93,6 +93,12 @@ namespace quantum{
         auto ind_in1 = ind_for_qbit(iqbit_in1);
         auto ind_out0 = itensor::Index(gate.getName(), 2);
         auto ind_out1 = itensor::Index(gate.getName(), 2);
+        Index ind_lower;
+        if(iqbit_in0<iqbit_in1){
+            ind_lower = ind_out0;
+        }else{
+            ind_lower = ind_out1;
+        }
         auto tGate = itensor::ITensor(ind_in0, ind_in1, ind_out0, ind_out1);
         tGate.set(ind_out0(1), ind_out1(1), ind_in0(1), ind_in1(1), 1.);
         tGate.set(ind_out0(1), ind_out1(2), ind_in0(1), ind_in1(2), 1.);
@@ -100,11 +106,17 @@ namespace quantum{
         tGate.set(ind_out0(2), ind_out1(2), ind_in0(2), ind_in1(1), 1.);
         int min_iqbit = std::min(iqbit_in0, iqbit_in1);
         int max_iqbit = std::max(iqbit_in0, iqbit_in1);
+        itensor::PrintData(tGate);
+        itensor::PrintData(legMats[iqbit_in0]);
+        itensor::PrintData(legMats[iqbit_in1]);
+        itensor::PrintData(bondMats[min_iqbit]);
         auto tobe_svd = tGate * legMats[iqbit_in0] * bondMats[min_iqbit] * legMats[iqbit_in1];
-        ITensor legMat(legMats[min_iqbit].inds()[1], ind_out0), bondMat, restTensor;
+        itensor::PrintData(tobe_svd);
+        ITensor legMat(legMats[min_iqbit].inds()[1], ind_lower), bondMat, restTensor;
         itensor::svd(tobe_svd, legMat, bondMat, restTensor, {"Cutoff", 1E-4});
+        itensor::PrintData(legMat);
         std::cout<<"svd done"<<std::endl;
-        legMats[iqbit_in0] = legMat;
+        legMats[min_iqbit] = legMat;
         bondMats[min_iqbit] = bondMat;
         kickback_ind(restTensor, restTensor.inds()[1]);
         cms_assert(restTensor.r()==3);
@@ -387,24 +399,27 @@ namespace quantum{
         auto ind_in1 = ind_for_qbit(iqbit_in1);
         auto ind_out0 = itensor::Index(gate.getName(), 2);
         auto ind_out1 = itensor::Index(gate.getName(), 2);
+        Index ind_lower;
+        if(iqbit_in0<iqbit_in1){
+            ind_lower = ind_out0;
+        }else{
+            ind_lower = ind_out1;
+        }
         auto tGate = itensor::ITensor(ind_in0, ind_in1, ind_out0, ind_out1);
         tGate.set(ind_out0(1), ind_out1(1), ind_in0(1), ind_in1(1), 1.);
         tGate.set(ind_out0(1), ind_out1(2), ind_in0(2), ind_in1(1), 1.);
         tGate.set(ind_out0(2), ind_out1(1), ind_in0(1), ind_in1(2), 1.);
         tGate.set(ind_out0(2), ind_out1(2), ind_in0(2), ind_in1(2), 1.);
-        std::cout<<"applying Swap gate tensor"<<std::endl;
+        int min_iqbit = std::min(iqbit_in0, iqbit_in1);
+        int max_iqbit = std::max(iqbit_in0, iqbit_in1);
         itensor::PrintData(tGate);
         itensor::PrintData(legMats[iqbit_in0]);
         itensor::PrintData(legMats[iqbit_in1]);
-        itensor::PrintData(bondMats[std::min(iqbit_in0, iqbit_in1)]);
-        int min_iqbit = std::min(iqbit_in0, iqbit_in1);
-        int max_iqbit = std::max(iqbit_in0, iqbit_in1);
+        itensor::PrintData(bondMats[min_iqbit]);
         auto tobe_svd = tGate * legMats[iqbit_in0] * bondMats[min_iqbit] * legMats[iqbit_in1];
         itensor::PrintData(tobe_svd);
-        std::cout<<"gate applied, start to svd"<<std::endl;
-        ITensor legMat(legMats[min_iqbit].inds()[1], ind_out0), bondMat, restTensor;
+        ITensor legMat(legMats[min_iqbit].inds()[1], ind_lower), bondMat, restTensor;
         itensor::svd(tobe_svd, legMat, bondMat, restTensor, {"Cutoff", 1E-4});
-        std::cout<<"swap svd done"<<std::endl;
         legMats[min_iqbit] = legMat;
         bondMats[min_iqbit] = bondMat;
         kickback_ind(restTensor, restTensor.inds()[1]);
