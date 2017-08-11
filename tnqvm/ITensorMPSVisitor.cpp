@@ -57,7 +57,7 @@ namespace quantum{
 
 	void ITensorMPSVisitor::visit(Hadamard& gate) {
         auto iqbit_in = gate.bits()[0];
-        // std::cout<<"applying "<<gate.getName()<<" @ "<<iqbit_in<<std::endl;
+        std::cout<<"applying "<<gate.getName()<<" @ "<<iqbit_in<<std::endl;
         auto ind_in = ind_for_qbit(iqbit_in);
         auto ind_out = itensor::Index(gate.getName(), 2);
         auto tGate = itensor::ITensor(ind_in, ind_out);
@@ -88,7 +88,7 @@ namespace quantum{
             iqbit_in0 = iqbit_in0_ori;
             iqbit_in1 = iqbit_in1_ori;
         }
-        // std::cout<<"applying "<<gate.getName()<<" @ "<<iqbit_in0<<" , "<<iqbit_in1<<std::endl;
+        std::cout<<"applying "<<gate.getName()<<" @ "<<iqbit_in0<<" , "<<iqbit_in1<<std::endl;
         auto ind_in0 = ind_for_qbit(iqbit_in0); // control
         auto ind_in1 = ind_for_qbit(iqbit_in1);
         auto ind_out0 = itensor::Index(gate.getName(), 2);
@@ -132,7 +132,7 @@ namespace quantum{
 
 	void ITensorMPSVisitor::visit(X& gate) {
         auto iqbit_in = gate.bits()[0];
-        // std::cout<<"applying "<<gate.getName()<<" @ "<<iqbit_in<<std::endl;
+        std::cout<<"applying "<<gate.getName()<<" @ "<<iqbit_in<<std::endl;
         auto ind_in = ind_for_qbit(iqbit_in);
         auto ind_out = itensor::Index(gate.getName(), 2);
         auto tGate = itensor::ITensor(ind_in, ind_out);
@@ -144,7 +144,7 @@ namespace quantum{
 
 	void ITensorMPSVisitor::visit(Y& gate) {
         auto iqbit_in = gate.bits()[0];
-        // std::cout<<"applying "<<gate.getName()<<" @ "<<iqbit_in<<std::endl;
+        std::cout<<"applying "<<gate.getName()<<" @ "<<iqbit_in<<std::endl;
         auto ind_in = ind_for_qbit(iqbit_in);
         auto ind_out = itensor::Index(gate.getName(), 2);
         auto tGate = itensor::ITensor(ind_in, ind_out);
@@ -157,7 +157,7 @@ namespace quantum{
 
 	void ITensorMPSVisitor::visit(Z& gate) {
         auto iqbit_in = gate.bits()[0];
-        // std::cout<<"applying "<<gate.getName()<<" @ "<<iqbit_in<<std::endl;
+        std::cout<<"applying "<<gate.getName()<<" @ "<<iqbit_in<<std::endl;
         auto ind_in = ind_for_qbit(iqbit_in);
         auto ind_out = itensor::Index(gate.getName(), 2);
         auto tGate = itensor::ITensor(ind_in, ind_out);
@@ -280,7 +280,7 @@ namespace quantum{
         iqbits_m.insert(iqbit_measured);
         accbuffer->aver_from_wavefunc = averZs(iqbits_m);
         auto ind_measured = ind_for_qbit(iqbit_measured);
-        // std::cout<<"applying "<<gate.getName()<<" @ "<<iqbit_measured<<std::endl;
+        std::cout<<"applying "<<gate.getName()<<" @ "<<iqbit_measured<<std::endl;
         auto ind_measured_p = ind_for_qbit(iqbit_measured);
         ind_measured_p.prime();
 
@@ -308,7 +308,7 @@ namespace quantum{
 
 	void ITensorMPSVisitor::visit(ConditionalFunction& c) {
 		auto classicalBitIdx = c.getConditionalQubit();
-        // std::cout<<"applying "<<c.getName()<<" @ "<<classicalBitIdx<<std::endl;
+        std::cout<<"applying "<<c.getName()<<" @ "<<classicalBitIdx<<std::endl;
         if (cbits[classicalBitIdx]==1){ // TODO: add else
     		for (auto inst : c.getInstructions()) {
 	    		inst->accept(this);
@@ -318,7 +318,7 @@ namespace quantum{
 
 	void ITensorMPSVisitor::visit(Rx& gate) {
         auto iqbit_in = gate.bits()[0];
-        // std::cout<<"applying "<<gate.getName()<<" @ "<<iqbit_in<<std::endl;
+        std::cout<<"applying "<<gate.getName()<<" @ "<<iqbit_in<<std::endl;
         auto ind_in = ind_for_qbit(iqbit_in);
         auto ind_out = itensor::Index(gate.getName(), 2);
         auto tGate = itensor::ITensor(ind_in, ind_out);
@@ -333,7 +333,7 @@ namespace quantum{
 
 	void ITensorMPSVisitor::visit(Ry& gate) {
         auto iqbit_in = gate.bits()[0];
-        // std::cout<<"applying "<<gate.getName()<<" @ "<<iqbit_in<<std::endl;
+        std::cout<<"applying "<<gate.getName()<<" @ "<<iqbit_in<<std::endl;
         auto ind_in = ind_for_qbit(iqbit_in);
         auto ind_out = itensor::Index(gate.getName(), 2);
         auto tGate = itensor::ITensor(ind_in, ind_out);
@@ -348,7 +348,7 @@ namespace quantum{
 
 	void ITensorMPSVisitor::visit(Rz& gate) {
         auto iqbit_in = gate.bits()[0];
-        // std::cout<<"applying "<<gate.getName()<<" @ "<<iqbit_in<<std::endl;
+        std::cout<<"applying "<<gate.getName()<<" @ "<<iqbit_in<<std::endl;
         auto ind_in = ind_for_qbit(iqbit_in);
         auto ind_out = itensor::Index(gate.getName(), 2);
         auto tGate = itensor::ITensor(ind_in, ind_out);
@@ -368,7 +368,7 @@ namespace quantum{
 	}
 
     void ITensorMPSVisitor::permute_to(int iqbit, int iqbit_to){
-        // std::cout<<"permute "<<iqbit<<" to "<<iqbit_to<<std::endl;
+        std::cout<<"permute "<<iqbit<<" to "<<iqbit_to<<std::endl;
         int delta = iqbit<iqbit_to ? 1 : -1;
         while(iqbit!=iqbit_to){
             Swap gate(iqbit, iqbit+delta);
