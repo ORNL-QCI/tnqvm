@@ -22,7 +22,7 @@ find_package(CppMicroServices REQUIRED)
 
 find_package(XACC REQUIRED)
 
-find_package(MPI REQUIRED)
+find_package(MPI)
 find_package(Boost COMPONENTS filesystem program_options system REQUIRED)
 
 find_package(OpenMP)

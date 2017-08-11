@@ -50,7 +50,7 @@ public:
         aver_from_manytime = 1.;
     }
 
-    virtual const double getExpectationValueZ() const{
+    virtual const double getExpectationValueZ() {
         return aver_from_wavefunc;
     }
 

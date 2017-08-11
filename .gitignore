@@ -3,3 +3,4 @@ build
 **/tpls/common/*
 .settings/
 .settings/*
+ITensor/*
