@@ -34,6 +34,8 @@
 // qubit state to another.
 // test
     const char* src = R"src(__qpu__ teleport(qbit qreg){
+// A 100-qubit circuit with 357 gates
+// can be simulated by TNQVM (using ITensor backend) on single 2.8GHz CPU in about 168 minutes
 X(qreg[88]);
 CNOT(qreg[75], qreg[32]);
 CNOT(qreg[6], qreg[73]);
@@ -392,6 +394,8 @@ Z(qreg[49]);
 Y(qreg[58]);
 Y(qreg[9]);
 })src";
+
+
 
 int main (int argc, char** argv) {
 

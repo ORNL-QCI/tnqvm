@@ -39,10 +39,7 @@ namespace tnqvm {
 
 std::shared_ptr<AcceleratorBuffer> TNQVM::createBuffer(
 		const std::string& varId) {
-	auto derived_buffer = std::make_shared<TNQVMBuffer>(varId, 100);
-	std::shared_ptr<AcceleratorBuffer> buffer = derived_buffer;
-	storeBuffer(varId, buffer);
-	return buffer;
+	return createBuffer(varId, 100);
 }
 
 std::shared_ptr<AcceleratorBuffer> TNQVM::createBuffer(
@@ -51,6 +48,7 @@ std::shared_ptr<AcceleratorBuffer> TNQVM::createBuffer(
 		XACCError("Invalid buffer size.");
 	}
 	auto derived_buffer = std::make_shared<TNQVMBuffer>(varId, size);
+	derived_buffer->set_verbose(__verbose);
 	std::shared_ptr<AcceleratorBuffer> buffer = derived_buffer;
 	storeBuffer(varId, buffer);
 	return buffer;
