@@ -41,7 +41,9 @@ namespace tnqvm {
 class TNQVM: public Accelerator {
 public:
 
-	virtual void initialize() {}
+	virtual void initialize(){
+		__verbose = 1;
+	}
 
 	/**
 	 * Create, store, and return an AcceleratorBuffer with the given
@@ -116,6 +118,14 @@ public:
 	virtual ~TNQVM() {
 	}
 
+    int verbose() const {return __verbose; }
+	void verbose(int level) {__verbose = level;}
+	void set_verbose(int level) {__verbose = level;}
+    void mute  () { __verbose = 0; }
+    void unmute() { __verbose = 1;} // default to 1
+
+private:
+	int __verbose;
 };
 }
 }
