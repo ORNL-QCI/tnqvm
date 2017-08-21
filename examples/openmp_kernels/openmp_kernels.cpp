@@ -219,7 +219,7 @@ int main (int argc, char** argv) {
 	// Create a Program
 	auto qpu = xacc::getAccelerator("tnqvm");
 	auto dummy_buffer = qpu->createBuffer("qreg", 4); // to work around Error "Could not find AcceleratorBuffer with id qreg"
-	const int n_copies = 11;
+	const int n_copies = 1000;
 	auto src = n_copies_kernel_src(n_copies);
 	xacc::Program program(qpu, src);
 	auto kernels = program.getRuntimeKernels();

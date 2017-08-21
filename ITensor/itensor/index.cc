@@ -49,8 +49,13 @@ nameint(string const& f, int n)
 Index::id_type Index::
 generateID()
     {
+    Index::id_type r;
+#pragma omp critical 
+{
     static Index::IDGenerator G;
-    return G();
+    r = G();
+}
+    return r;
     }
 
 Index::

@@ -42,7 +42,7 @@ class TNQVM: public Accelerator {
 public:
 
 	virtual void initialize(){
-		__verbose = 1;
+		__verbose = 0;
 	}
 
 	/**
