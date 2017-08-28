@@ -37,8 +37,11 @@
 #include <ctime>
 #include <cassert>
 
+#ifdef NDEBUG
 #define cms_assert(EX) (void)((EX) || (__assert (#EX, __FILE__, __LINE__),0))
-
+#else
+#define cms_assert(EX) (void((EX))
+#endif
 
 
 namespace xacc{
