@@ -37,13 +37,6 @@
 #include <ctime>
 #include <cassert>
 
-#ifdef NDEBUG
-#define cms_assert(EX) (void)((EX) || (__assert (#EX, __FILE__, __LINE__),0))
-#else
-#define cms_assert(EX) (void((EX))
-#endif
-
-
 namespace xacc{
 namespace quantum{
 
@@ -126,7 +119,7 @@ namespace quantum{
         legMats[min_iqbit] = legMat;
         bondMats[min_iqbit] = bondMat;
         kickback_ind(restTensor, restTensor.inds()[1]);
-        cms_assert(restTensor.r()==3);
+        assert(restTensor.r()==3);
         legMats[max_iqbit] = restTensor;
         if (iqbit_in0_ori<iqbit_in1_ori-1){
             permute_to(iqbit_in1_ori-1, iqbit_in0_ori);
@@ -262,7 +255,7 @@ namespace quantum{
         }
         // itensor::PrintData(inner);
         std::complex<double> aver = inner.cplx();
-        cms_assert(aver.imag()<1e-10);
+        assert(aver.imag()<1e-10);
         return aver.real();
     }
 
@@ -448,7 +441,7 @@ namespace quantum{
         legMats[min_iqbit] = legMat;
         bondMats[min_iqbit] = bondMat;
         kickback_ind(restTensor, restTensor.inds()[1]);
-        cms_assert(restTensor.r()==3);
+        assert(restTensor.r()==3);
         legMats[max_iqbit] = restTensor;
         if (iqbit_in0_ori<iqbit_in1_ori-1){
             permute_to(iqbit_in1_ori-1, iqbit_in0_ori);
