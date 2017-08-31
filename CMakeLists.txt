@@ -10,15 +10,15 @@ message(STATUS "C++ version ${CXX_STANDARD} configured.")
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
-# Modify our CMAKE_MODULE_PATH
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules")
-include(tests)
-
-#find_package(CppMicroServices REQUIRED)
-
 find_package(XACC REQUIRED)
 
-#find_package(MPI)
+# Modify our CMAKE_MODULE_PATH
+set(CppMicroServicesConfig_DIR "${XACC_ROOT}/share/cppmicroservices3/cmake")
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${XACC_ROOT}/share/xacc")
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CppMicroServicesConfig_DIR}")
+include(tests)
+include(CppMicroServicesConfig)
+
 find_package(Boost COMPONENTS filesystem program_options system REQUIRED)
 
 find_package(OpenMP)
@@ -29,6 +29,7 @@ endif()
 
 find_package(CUDA)
 find_package(BLAS REQUIRED)
+find_package(LAPACK REQUIRED)
 message (STATUS ${BLAS_LIBRARIES})
 
 if (NOT CUDA_FOUND) 
@@ -37,13 +38,8 @@ endif()
 
 link_directories(${XACC_LIBRARY_DIR})
 
-#include_directories(${MPI_INCLUDE_PATH})
-include_directories(${Boost_INCLUDE_DIRS})
-#include_directories("${CMAKE_SOURCE_DIR}/tpls/fire/tensors")
-#include_directories("${CMAKE_SOURCE_DIR}/tensor")
-#include_directories("${CMAKE_SOURCE_DIR}/tpls/talsh")
-#include_directories("${CMAKE_SOURCE_DIR}/tpls/hyper_array")
 include_directories(${XACC_INCLUDE_DIRS})
+include_directories(${Boost_INCLUDE_DIRS})
 
 add_subdirectory(tnqvm)
 add_subdirectory(examples)

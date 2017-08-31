@@ -28,13 +28,10 @@
  *   Initial implementation - Mengsu Chen 2017.7
  *
  **********************************************************************************/
-
-
 #ifndef TNQVM_TNQVMBUFFER_HPP_
 #define TNQVM_TNQVMBUFFER_HPP_
 
-#include "xacc/AcceleratorBuffer.hpp"
-
+#include "AcceleratorBuffer.hpp"
 
 class TNQVMBuffer : public xacc::AcceleratorBuffer{
 public:
