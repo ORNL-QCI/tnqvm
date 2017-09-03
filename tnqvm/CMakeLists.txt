@@ -40,7 +40,7 @@ ExternalProject_Add(projitensor
     SOURCE_DIR ${ITENSOR_ROOT}
     BINARY_DIR ${ITENSOR_ROOT}
     CONFIGURE_COMMAND cp optionsopenmp.mk.sample options.mk
-    BUILD_COMMAND OPENMPFLAGS=${CMAKE_CXX_FLAGS} make PLATFORM=lapack
+    BUILD_COMMAND make PLATFORM=lapack
     INSTALL_COMMAND ""
 )
 else()
