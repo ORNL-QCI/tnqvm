@@ -40,4 +40,5 @@ include_directories(${CMAKE_SOURCE_DIR})
 link_directories   (${XACC_LIBRARY_DIRS})
 
 add_executable(openmp_kernels openmp_kernels.cpp)
+add_dependencies(openmp_kernels projitensor tnqvm)
 target_link_libraries(openmp_kernels ${Boost_LIBRARIES} xacc CppMicroServices dl)

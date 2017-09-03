@@ -35,14 +35,23 @@ set (LIBRARY_NAME tnqvm)
 
 include(ExternalProject)
 set(ITENSOR_ROOT ${CMAKE_SOURCE_DIR}/ITensor)
+if (OPENMP_FOUND)
 ExternalProject_Add(projitensor
     SOURCE_DIR ${ITENSOR_ROOT}
     BINARY_DIR ${ITENSOR_ROOT}
-    CONFIGURE_COMMAND cp options.mk.sample options.mk
-    BUILD_COMMAND make PLATFORM=lapack
+    CONFIGURE_COMMAND cp optionsopenmp.mk.sample options.mk
+    BUILD_COMMAND OPENMPFLAGS=${CMAKE_CXX_FLAGS} make PLATFORM=lapack
     INSTALL_COMMAND ""
 )
-
+else()
+ExternalProject_Add(projitensor
+	SOURCE_DIR ${ITENSOR_ROOT}
+	BINARY_DIR ${ITENSOR_ROOT}
+	CONFIGURE_COMMAND cp options.mk.sample options.mk
+	BUILD_COMMAND make PLATFORM=lapack
+	INSTALL_COMMAND ""
+	)
+endif()
 include_directories(${ITENSOR_ROOT})
 include_directories(${CMAKE_SOURCE_DIR}/ExaTensor)
 include_directories(${CMAKE_SOURCE_DIR}/tpls/fire/tensors)
@@ -59,6 +68,7 @@ usFunctionGetResourceSource(TARGET ${LIBRARY_NAME} OUT SRC)
 usFunctionGenerateBundleInit(TARGET ${LIBRARY_NAME} OUT SRC)
 
 add_library(${LIBRARY_NAME} SHARED ${SRC})
+add_dependencies(${LIBRARY_NAME} projitensor)
 
 set(_bundle_name xacc_tnqvm_accelerator)
 set_target_properties(${LIBRARY_NAME} PROPERTIES
@@ -82,7 +92,7 @@ usFunctionEmbedResources(TARGET ${LIBRARY_NAME}
     )
 
 # specify the path of libitenor-g.a for detail debug information
-target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} CppMicroServices ${ITENSOR_ROOT}/lib/libitensor-g.a lapack)
+target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} CppMicroServices ${ITENSOR_ROOT}/lib/libitensor-g.a lapack ${Boost_LIBRARIES} blas)
 
 install(TARGETS ${LIBRARY_NAME} DESTINATION ${XACC_LIBRARY_DIR}/plugins/accelerators)
 

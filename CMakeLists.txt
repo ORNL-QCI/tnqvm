@@ -9,7 +9,9 @@ message(STATUS "C++ version ${CXX_STANDARD} configured.")
 # Make sure all build libraries have reference to their dependents
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
-
+if(APPLE)
+	set(CMAKE_MACOSX_RPATH 1)
+endif()
 find_package(XACC REQUIRED)
 
 # Modify our CMAKE_MODULE_PATH
