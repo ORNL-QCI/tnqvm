@@ -33,6 +33,12 @@ set (PACKAGE_NAME "TNQVM Tensor Network XACC Accelerator")
 set (PACKAGE_DESCIPTION "TNQVM Tensor Network XACC Accelerator Framework")
 set (LIBRARY_NAME tnqvm)
 
+include(ProcessorCount)
+ProcessorCount(N)
+if (N EQUAL 0)
+   set(N 1)
+endif()
+
 include(ExternalProject)
 set(ITENSOR_ROOT ${CMAKE_SOURCE_DIR}/ITensor)
 if (OPENMP_FOUND)
@@ -40,7 +46,7 @@ ExternalProject_Add(projitensor
     SOURCE_DIR ${ITENSOR_ROOT}
     BINARY_DIR ${ITENSOR_ROOT}
     CONFIGURE_COMMAND cp optionsopenmp.mk.sample options.mk
-    BUILD_COMMAND make PLATFORM=lapack
+    BUILD_COMMAND make -j${N} PLATFORM=lapack
     INSTALL_COMMAND ""
 )
 else()
@@ -48,7 +54,7 @@ ExternalProject_Add(projitensor
 	SOURCE_DIR ${ITENSOR_ROOT}
 	BINARY_DIR ${ITENSOR_ROOT}
 	CONFIGURE_COMMAND cp options.mk.sample options.mk
-	BUILD_COMMAND make PLATFORM=lapack
+	BUILD_COMMAND make -j${N} PLATFORM=lapack
 	INSTALL_COMMAND ""
 	)
 endif()
