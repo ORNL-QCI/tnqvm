@@ -85,6 +85,29 @@ public:
 	virtual void execute(std::shared_ptr<AcceleratorBuffer> buffer,
 			const std::shared_ptr<xacc::Function> kernel);
 
+
+	/**
+	 * Return all relevant TNQVM runtime options.
+	 */
+	virtual std::shared_ptr<options_description> getOptions() {
+		auto desc = std::make_shared<options_description>(
+				"TNQVM Accelerator Options");
+		desc->add_options()("tnqvm-visitor", value<std::string>(),
+				"Provide visitor to be used in mapping IR to a Tensor Network.")
+				("tnqvm-list-visitors", "List the available visitors.");
+		return desc;
+	}
+
+	virtual bool handleOptions(variables_map& map) {
+		if (map.count("tnqvm-list-visitors")) {
+			XACCInfo("Available TNQVM Visitor: itensor-mps");
+			XACCInfo("Available TNQVM Visitor: exatensor-mps");
+			return true;
+		}
+		return false;
+	}
+
+
 	/**
 	 * This Accelerator models QPU Gate accelerators.
 	 * @return

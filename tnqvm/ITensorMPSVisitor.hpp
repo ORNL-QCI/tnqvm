@@ -31,6 +31,7 @@
 #ifndef QUANTUM_GATE_ACCELERATORS_TNQVM_ITensorMPSVisitor_HPP_
 #define QUANTUM_GATE_ACCELERATORS_TNQVM_ITensorMPSVisitor_HPP_
 
+#include <cstdlib>
 #include "AllGateVisitor.hpp"
 #include "TNQVMBuffer.hpp"
 #include "itensor/all.h"

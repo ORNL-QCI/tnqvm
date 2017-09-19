@@ -59,10 +59,18 @@ ExternalProject_Add(projitensor
 	)
 endif()
 include_directories(${ITENSOR_ROOT})
-include_directories(${CMAKE_SOURCE_DIR}/ExaTensor)
-include_directories(${CMAKE_SOURCE_DIR}/tpls/fire/tensors)
-include_directories(${CMAKE_SOURCE_DIR}/tpls/fire/tensors/impl)
-include_directories(${CMAKE_SOURCE_DIR}/tpls/fire/tpls/eigen)
+
+if (EXATENSOR_ROOT)
+   if (EXISTS ${EXATENSOR_ROOT}/TN/tensor_network.hpp)
+      message(STATUS "ExaTensor found at ${EXATENSOR_ROOT}")
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DTNQVM_HAS_EXATENSOR")
+      include_directories(${EXATENSOR_ROOT}/TN)
+      include_directories(${EXATENSOR_ROOT}/TALSH)
+   else()
+      message(FATAL_ERROR "Invalid EXATENSOR_ROOT path")
+   endif()
+endif()
+
 find_package(XACC REQUIRED)
 include_directories(${XACC_INCLUDE_DIRS})
 link_directories   (${XACC_LIBRARY_DIRS})
@@ -97,13 +105,16 @@ usFunctionEmbedResources(TARGET ${LIBRARY_NAME}
     manifest.json
     )
 
-# specify the path of libitenor-g.a for detail debug information
-target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} CppMicroServices ${ITENSOR_ROOT}/lib/libitensor-g.a lapack ${Boost_LIBRARIES} blas)
+if (EXATENSOR_ROOT)
+   link_directories(${EXATENSOR_ROOT}/TN)
+   target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} CppMicroServices ${ITENSOR_ROOT}/lib/libitensor-g.a lapack ${Boost_LIBRARIES} blas ${EXATENSOR_ROOT}/TN/libtensornet.a ${EXATENSOR_ROOT}/TALSH/libtalsh.a)
+else()
+   target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} CppMicroServices ${ITENSOR_ROOT}/lib/libitensor-g.a lapack ${Boost_LIBRARIES} blas)
+endif()
+#target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} CppMicroServices ${ITENSOR_ROOT}/lib/libitensor-g.a lapack ${Boost_LIBRARIES} blas)
 
 install(TARGETS ${LIBRARY_NAME} DESTINATION ${XACC_LIBRARY_DIR}/plugins/accelerators)
 
 
 # Gather tests
 file (GLOB test_files tests/*.cpp)
-#add_tests("${test_files}" "${CMAKE_CURRENT_SOURCE_DIR}" "${Boost_LIBRARIES};${MPI_Fortran_LIBRARIES};${XACC_LIBRARIES};tnqvm;talsh")
-#dsvp;talsh;ExaTensor;ddss;intravirt;gfc;utility")

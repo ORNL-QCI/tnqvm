@@ -1,1 +1,0 @@
-The "exatensor" folder provide the c++ interface of ExaTensor library.

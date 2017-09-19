@@ -29,19 +29,20 @@
  *   Initial implementation - Mengsu Chen 2017/7/17
  *
  **********************************************************************************/
-#ifndef QUANTUM_GATE_ACCELERATORS_TNQVM_EXATENSORVISITOR_HPP_
-#define QUANTUM_GATE_ACCELERATORS_TNQVM_EXATENSORVISITOR_HPP_
+#ifndef QUANTUM_GATE_ACCELERATORS_TNQVM_EXATENSORMPSVISITOR_HPP_
+#define QUANTUM_GATE_ACCELERATORS_TNQVM_EXATENSORMPSVISITOR_HPP_
 
 #include <complex>
 #include <cstdlib>
 #include <ctime>
 #include "AllGateVisitor.hpp"
-#include "exatensor/tensor_expression.hpp"
+#include "tensor_network.hpp"
+#include "TNQVMBuffer.hpp"
 
 namespace xacc {
 namespace quantum {
 
-class ExaTensorVisitor : public AllGateVisitor {
+class ExaTensorMPSVisitor : public AllGateVisitor {
     using TensDataType = std::complex<double>;
     using Tensor = exatensor::TensorDenseAdpt<TensDataType>;
     using TensorNetwork = exatensor::TensorNetwork<TensDataType>;
@@ -49,6 +50,8 @@ class ExaTensorVisitor : public AllGateVisitor {
 
 private:
     TensorNetwork wavefunc;
+
+    std::shared_ptr<TNQVMBuffer> buffer;
 
     Tensor nqbit_gate_tensor(unsigned int n_qbits,
                              std::shared_ptr<TensDataType> body) {
@@ -85,9 +88,10 @@ private:
     }
 
 public:
+
     /// Constructor
-    ExaTensorVisitor(int n_qbits) {
-        initWavefunc(n_qbits);
+    ExaTensorMPSVisitor(std::shared_ptr<AcceleratorBuffer> buf) : buffer(std::dynamic_pointer_cast<TNQVMBuffer>(buf)) {
+        initWavefunc(buffer->size());
     }
 
     void visit(Hadamard& gate) {
@@ -215,7 +219,10 @@ public:
 
     void visit(GateFunction& f) {}
 
-    virtual ~ExaTensorVisitor() {}
+    void evaluate() {
+    }
+
+    virtual ~ExaTensorMPSVisitor() {}
 };
 
 }  // end namespace quantum
