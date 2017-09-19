@@ -72,6 +72,7 @@ if (EXATENSOR_ROOT)
 endif()
 
 find_package(XACC REQUIRED)
+
 include_directories(${XACC_INCLUDE_DIRS})
 link_directories   (${XACC_LIBRARY_DIRS})
 
@@ -111,7 +112,6 @@ if (EXATENSOR_ROOT)
 else()
    target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} CppMicroServices ${ITENSOR_ROOT}/lib/libitensor-g.a lapack ${Boost_LIBRARIES} blas)
 endif()
-#target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} CppMicroServices ${ITENSOR_ROOT}/lib/libitensor-g.a lapack ${Boost_LIBRARIES} blas)
 
 install(TARGETS ${LIBRARY_NAME} DESTINATION ${XACC_LIBRARY_DIR}/plugins/accelerators)
 
