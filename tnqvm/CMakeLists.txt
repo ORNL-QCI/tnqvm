@@ -59,11 +59,15 @@ ExternalProject_Add(projitensor
 	)
 endif()
 include_directories(${ITENSOR_ROOT})
-include_directories(${CMAKE_SOURCE_DIR}/ExaTensor)
-include_directories(${CMAKE_SOURCE_DIR}/tpls/fire/tensors)
-include_directories(${CMAKE_SOURCE_DIR}/tpls/fire/tensors/impl)
-include_directories(${CMAKE_SOURCE_DIR}/tpls/fire/tpls/eigen)
+
+include_directories(/projects/ExaTensor/TN)
+include_directories(/projects/ExaTensor/TALSH)
+#include_directories(${CMAKE_SOURCE_DIR}/tpls/fire/tensors)
+#include_directories(${CMAKE_SOURCE_DIR}/tpls/fire/tensors/impl)
+#include_directories(${CMAKE_SOURCE_DIR}/tpls/fire/tpls/eigen)
+
 find_package(XACC REQUIRED)
+
 include_directories(${XACC_INCLUDE_DIRS})
 link_directories   (${XACC_LIBRARY_DIRS})
 
@@ -98,7 +102,7 @@ usFunctionEmbedResources(TARGET ${LIBRARY_NAME}
     )
 
 # specify the path of libitenor-g.a for detail debug information
-target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} CppMicroServices ${ITENSOR_ROOT}/lib/libitensor-g.a lapack ${Boost_LIBRARIES} blas)
+target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} CppMicroServices ${ITENSOR_ROOT}/lib/libitensor-g.a lapack ${Boost_LIBRARIES} blas /projects/ExaTensor/TN/libtensornet.a gfortran)
 
 install(TARGETS ${LIBRARY_NAME} DESTINATION ${XACC_LIBRARY_DIR}/plugins/accelerators)
 
