@@ -74,6 +74,8 @@ void TNQVM::execute(std::shared_ptr<AcceleratorBuffer> buffer,
 			nextInst->accept(visitor);
 		}
 	}
+
+	visitor->evaluate();
 }
 
 }

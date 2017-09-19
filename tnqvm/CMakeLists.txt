@@ -60,11 +60,10 @@ ExternalProject_Add(projitensor
 endif()
 include_directories(${ITENSOR_ROOT})
 
-include_directories(/projects/ExaTensor/TN)
-include_directories(/projects/ExaTensor/TALSH)
-#include_directories(${CMAKE_SOURCE_DIR}/tpls/fire/tensors)
-#include_directories(${CMAKE_SOURCE_DIR}/tpls/fire/tensors/impl)
-#include_directories(${CMAKE_SOURCE_DIR}/tpls/fire/tpls/eigen)
+if (EXATENSOR_ROOT)
+	include_directories(${EXATENSOR_ROOT}/TN)
+	include_directories(${EXATENSOR_ROOT}/TALSH)
+endif()
 
 find_package(XACC REQUIRED)
 
@@ -102,7 +101,10 @@ usFunctionEmbedResources(TARGET ${LIBRARY_NAME}
     )
 
 # specify the path of libitenor-g.a for detail debug information
-target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} CppMicroServices ${ITENSOR_ROOT}/lib/libitensor-g.a lapack ${Boost_LIBRARIES} blas /projects/ExaTensor/TN/libtensornet.a gfortran)
+target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} CppMicroServices ${ITENSOR_ROOT}/lib/libitensor-g.a lapack ${Boost_LIBRARIES} blas /projects/ExaTensor/TN/libtensornet.a ${MPI_FORTRAN_LIBRARIES})
+if (EXATENSOR_ROOT)
+	target_link_libraries(${LIBRARY_NAME} ${EXATENSOR_ROOT}/TN/libtensornet.a ${MPI_FORTRAN_LIBRARIES})
+endif()
 
 install(TARGETS ${LIBRARY_NAME} DESTINATION ${XACC_LIBRARY_DIR}/plugins/accelerators)
 

@@ -37,4 +37,4 @@ link_directories   (${XACC_LIBRARY_DIRS})
 
 add_executable(100qbits 100qbits.cpp)
 add_dependencies(100qbits projitensor tnqvm)
-target_link_libraries(100qbits ${Boost_LIBRARIES} xacc CppMicroServices dl)
+target_link_libraries(100qbits ${Boost_LIBRARIES} xacc CppMicroServices dl ${MPI_CXX_LIBRARIES})

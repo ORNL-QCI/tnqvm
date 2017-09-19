@@ -215,6 +215,10 @@ public:
 
     void visit(GateFunction& f) {}
 
+    void evaluate() {
+
+
+    }
     virtual ~ExaTensorVisitor() {}
 };
 
