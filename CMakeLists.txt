@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 2.8)
 #set(CMAKE_DISABLE_IN_SOURCE_BUILDS ON)
 #set(CMAKE_DISABLE_SOURCE_CHANGES ON)
 set(CMAKE_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 11)
 message(STATUS "C++ version ${CXX_STANDARD} configured.")
 
 # Make sure all build libraries have reference to their dependents
