@@ -31,6 +31,10 @@ endif()
 
 find_package(MPI) # REQUIRED)
 
+if ( NOT MPI_FOUND)
+ message(status "mpi not found")
+ set(MPI_CXX_LIBRARIES "")
+endif()
 find_package(CUDA)
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)

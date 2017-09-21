@@ -96,7 +96,9 @@ void TNQVM::execute(std::shared_ptr<AcceleratorBuffer> buffer,
 	// If we made it here with this exatensor string, then
 	// we don't have to re-check that we built with ExaTensor
 	if (visitorType == "exatensor") {
+#ifdef TNQVM_HAS_EXATENSOR
 		std::dynamic_pointer_cast<xacc::quantum::ExaTensorMPSVisitor>(visitor)->evaluate();
+#endif
 	}
 
 }
