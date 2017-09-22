@@ -36,4 +36,4 @@ link_directories   (${XACC_LIBRARY_DIRS})
 
 add_executable(teleport_scaffold_tnqvm teleport_scaffold_tnqvm.cpp)
 add_dependencies(teleport_scaffold_tnqvm projitensor tnqvm)
-target_link_libraries(teleport_scaffold_tnqvm ${Boost_LIBRARIES} xacc CppMicroServices dl ${MPI_CXX_LIBRARIES})
+target_link_libraries(teleport_scaffold_tnqvm ${Boost_LIBRARIES} ${XACC_LIBRARIES})
