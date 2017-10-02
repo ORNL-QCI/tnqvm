@@ -60,8 +60,28 @@ bool TNQVM::isValidBufferSize(const int NBits) {
 	return NBits <= 1000;
 }
 
+std::vector<std::shared_ptr<AcceleratorBuffer>> TNQVM::execute(
+		std::shared_ptr<AcceleratorBuffer> buffer,
+		const std::vector<std::shared_ptr<Function>> functions) {
+	int counter = 0;
+	std::vector<std::shared_ptr<AcceleratorBuffer>> tmpBuffers;
+	for (auto f : functions) {
+		auto tmpBuffer = createBuffer(
+				buffer->name() + std::to_string(counter), buffer->size());
+		execute(tmpBuffer, f);
+		tmpBuffers.push_back(tmpBuffer);
+		counter++;
+	}
+
+	return tmpBuffers;
+}
+
 void TNQVM::execute(std::shared_ptr<AcceleratorBuffer> buffer,
 		const std::shared_ptr<xacc::Function> kernel) {
+
+	if (!std::dynamic_pointer_cast<TNQVMBuffer>(buffer)) {
+		XACCError("Invalid AcceleratorBuffer, must be a TNQVMBuffer.");
+	}
 
 	auto options = RuntimeOptions::instance();
 	std::string visitorType = "itensor-mps";

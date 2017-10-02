@@ -85,6 +85,19 @@ public:
 	virtual void execute(std::shared_ptr<AcceleratorBuffer> buffer,
 			const std::shared_ptr<xacc::Function> kernel);
 
+	/**
+	 * Execute a set of kernels with one remote call. Return
+	 * a list of AcceleratorBuffers that provide a new view
+	 * of the given one AcceleratorBuffer. The ith AcceleratorBuffer
+	 * contains the results of the ith kernel execution.
+	 *
+	 * @param buffer The AcceleratorBuffer to execute on
+	 * @param functions The list of IR Functions to execute
+	 * @return tempBuffers The list of new AcceleratorBuffers
+	 */
+	virtual std::vector<std::shared_ptr<AcceleratorBuffer>> execute(
+			std::shared_ptr<AcceleratorBuffer> buffer,
+			const std::vector<std::shared_ptr<Function>> functions);
 
 	/**
 	 * Return all relevant TNQVM runtime options.
