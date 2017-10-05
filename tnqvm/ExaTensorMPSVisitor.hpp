@@ -13,8 +13,7 @@
  *     names of its contributors may be used to endorse or promote products
  *     derived from this software without specific prior written permission.
  *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- *AND
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
  * DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
@@ -26,33 +25,156 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Contributors:
- *   Initial implementation - Mengsu Chen 2017/7/17
+ *   Initial sketch - Mengsu Chen 2017/07/17;
+ *   Implementation - Dmitry Lyakh 2017/10/05;
  *
  **********************************************************************************/
 #ifndef QUANTUM_GATE_ACCELERATORS_TNQVM_EXATENSORMPSVISITOR_HPP_
 #define QUANTUM_GATE_ACCELERATORS_TNQVM_EXATENSORMPSVISITOR_HPP_
 
-#include <complex>
+#ifdef TNQVM_HAS_EXATENSOR
+
 #include <cstdlib>
-#include <ctime>
+#include <complex>
+#include <vector>
 #include "AllGateVisitor.hpp"
-#include "tensor_network.hpp"
 #include "TNQVMBuffer.hpp"
+
+#include "exatensor.hpp"
 
 namespace xacc {
 namespace quantum {
 
 class ExaTensorMPSVisitor : public AllGateVisitor {
-    using TensDataType = std::complex<double>;
-    using Tensor = exatensor::TensorDenseAdpt<TensDataType>;
-    using TensorNetwork = exatensor::TensorNetwork<TensDataType>;
-    using Bond = std::pair<unsigned int, unsigned int>;
 
 private:
-    TensorNetwork wavefunc;
 
-    std::shared_ptr<TNQVMBuffer> buffer;
+//Type aliases:
+ using TensDataType = std::complex<double>;
+ using Tensor = exatensor::TensorDenseAdpt<TensDataType>;
+ using TensorNetwork = exatensor::TensorNetwork<TensDataType>;
+ using Bond = std::pair<unsigned int, unsigned int>;
+ using WaveFunction = std::vector<Tensor>;
 
+//Data members:
+ std::shared_ptr<TNQVMBuffer> Buffer; //accelerator buffer
+ WaveFunction StateMPS; //MPS wave-function of qubits
+
+public:
+
+//Life cycle:
+
+    ExaTensorMPSVisitor(std::shared_ptr<TNQVMBuffer> buffer): Buffer(buffer)
+    {
+     auto numQubits = buffer->size();
+    }
+
+    virtual ~ExaTensorMPSVisitor(){}
+
+//Visit methods:
+
+    void visit(Hadamard & gate)
+    {
+     auto qbit0 = gate.bits()[0];
+     std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
+     return;
+    }
+
+    void visit(X & gate)
+    {
+     auto qbit0 = gate.bits()[0];
+     std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
+     return;
+    }
+
+    void visit(Y & gate)
+    {
+     auto qbit0 = gate.bits()[0];
+     std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
+     return;
+    }
+
+    void visit(Z & gate)
+    {
+     auto qbit0 = gate.bits()[0];
+     std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
+     return;
+    }
+
+    void visit(Rx & gate)
+    {
+     auto qbit0 = gate.bits()[0];
+     std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
+     return;
+    }
+
+    void visit(Ry & gate)
+    {
+     auto qbit0 = gate.bits()[0];
+     std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
+     return;
+    }
+
+    void visit(Rz & gate)
+    {
+     auto qbit0 = gate.bits()[0];
+     std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
+     return;
+    }
+
+    void visit(CPhase & gate)
+    {
+     auto qbit0 = gate.bits()[0];
+     std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
+     return;
+    }
+
+    void visit(CNOT & gate)
+    {
+     auto qbit0 = gate.bits()[0];
+     auto qbit1 = gate.bits()[1];
+     std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "," << qbit1 << "}" << std::endl;
+     return;
+    }
+
+    void visit(Swap & gate)
+    {
+     auto qbit0 = gate.bits()[0];
+     auto qbit1 = gate.bits()[1];
+     std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "," << qbit1 << "}" << std::endl;
+     return;
+    }
+
+    void visit(Measure & gate)
+    {
+     auto qbit0 = gate.bits()[0];
+     std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
+     return;
+    }
+
+    void visit(ConditionalFunction & condFunc)
+    {
+     return;
+    }
+
+    void visit(GateFunction & gateFunc)
+    {
+     return;
+    }
+
+    void evaluate()
+    {
+     return;
+    }
+
+}; //end class ExaTensorMPSVisitor
+
+}  // end namespace quantum
+}  // end namespace xacc
+#endif
+
+//DEPRECATED:
+#if 0
     Tensor nqbit_gate_tensor(unsigned int n_qbits,
                              std::shared_ptr<TensDataType> body) {
         unsigned int rank = 2 * n_qbits;
@@ -74,7 +196,7 @@ private:
         std::size_t vol = std::pow(2, n_qbits);
         TensDataType* p = new TensDataType[vol];
         std::shared_ptr<TensDataType> body(p,
-                                           [](TensDataType* p) { delete[] p; });        
+                                           [](TensDataType* p) { delete[] p; });
         Tensor initTensor(rank, dims, body);
         std::vector<Bond> bonds;
         wavefunc.appendTensor(initTensor, bonds);
@@ -83,148 +205,10 @@ private:
 
     void printWavefunc() const {
         std::cout<<"------wave function---->>\n";
-        wavefunc.printIt(); 
+        wavefunc.printIt();
         std::cout<<"<<----wave function------\n"<<std::endl;
     }
 
-public:
+#endif //TNQVM_HAS_EXATENSOR
 
-    /// Constructor
-    ExaTensorMPSVisitor(std::shared_ptr<AcceleratorBuffer> buf) : buffer(std::dynamic_pointer_cast<TNQVMBuffer>(buf)) {
-        initWavefunc(buffer->size());
-    }
-
-    void visit(Hadamard& gate) {
-        auto iqbit = gate.bits()[0];
-        std::cout << "applying " << gate.getName() << " @ " << iqbit
-                  << std::endl;
-        TensDataType* p = new TensDataType[4];
-        std::shared_ptr<TensDataType> body(p,
-                                           [](TensDataType* p) { delete[] p; });
-        auto tGate = nqbit_gate_tensor(1, body);
-        std::vector<Bond> bonds{Bond(0, iqbit)};
-        wavefunc.appendTensor(tGate, bonds);
-        printWavefunc();
-    }
-
-    void visit(CNOT& gate) {
-        auto iqbit = gate.bits()[0];
-        std::cout << "applying " << gate.getName() << " @ " << iqbit
-                  << std::endl;
-        TensDataType* p = new TensDataType[16];
-        std::shared_ptr<TensDataType> body(p,
-                                           [](TensDataType* p) { delete[] p; });
-        auto tGate = nqbit_gate_tensor(2, body);
-        std::vector<Bond> bonds{Bond(0, iqbit)};
-        wavefunc.appendTensor(tGate, bonds);
-        printWavefunc();
-    }
-
-    void visit(X& gate) {
-        auto iqbit = gate.bits()[0];
-        std::cout << "applying " << gate.getName() << " @ " << iqbit
-                  << std::endl;
-        TensDataType* p = new TensDataType[4];
-        std::shared_ptr<TensDataType> body(p,
-                                           [](TensDataType* p) { delete[] p; });
-        auto tGate = nqbit_gate_tensor(1, body);
-        std::vector<Bond> bonds{Bond(0, iqbit)};
-        wavefunc.appendTensor(tGate, bonds);
-        printWavefunc();
-    }
-
-    void visit(Y& gate) {
-        auto iqbit = gate.bits()[0];
-        std::cout << "applying " << gate.getName() << " @ " << iqbit
-                  << std::endl;
-        TensDataType* p = new TensDataType[4];
-        std::shared_ptr<TensDataType> body(p,
-                                           [](TensDataType* p) { delete[] p; });
-        auto tGate = nqbit_gate_tensor(1, body);
-        std::vector<Bond> bonds{Bond(0, iqbit)};
-        wavefunc.appendTensor(tGate, bonds);
-        printWavefunc();
-    }
-
-    void visit(Z& gate) {
-        auto iqbit = gate.bits()[0];
-        std::cout << "applying " << gate.getName() << " @ " << iqbit
-                  << std::endl;
-        TensDataType* p = new TensDataType[4];
-        std::shared_ptr<TensDataType> body(p,
-                                           [](TensDataType* p) { delete[] p; });
-        auto tGate = nqbit_gate_tensor(1, body);
-        std::vector<Bond> bonds{Bond(0, iqbit)};
-        wavefunc.appendTensor(tGate, bonds);
-        printWavefunc();
-    }
-
-    void visit(Measure& gate) {
-        auto iqbit = gate.bits()[0];
-        std::cout << "applying " << gate.getName() << " @ " << iqbit
-                  << std::endl;
-        TensDataType* p = new TensDataType[4];
-        std::shared_ptr<TensDataType> body(p,
-                                           [](TensDataType* p) { delete[] p; });
-        auto tGate = nqbit_gate_tensor(1, body);
-        std::vector<Bond> bonds{Bond(0, iqbit)};
-        wavefunc.appendTensor(tGate, bonds);
-        printWavefunc();
-    }
-
-    void visit(ConditionalFunction& c) {}
-
-    void visit(Rx& gate) {
-        auto iqbit = gate.bits()[0];
-        std::cout << "applying " << gate.getName() << " @ " << iqbit
-                  << std::endl;
-        TensDataType* p = new TensDataType[4];
-        std::shared_ptr<TensDataType> body(p,
-                                           [](TensDataType* p) { delete[] p; });
-        auto tGate = nqbit_gate_tensor(1, body);
-        std::vector<Bond> bonds{Bond(0, iqbit)};
-        wavefunc.appendTensor(tGate, bonds);
-        printWavefunc();
-    }
-
-    void visit(Ry& gate) {
-        auto iqbit = gate.bits()[0];
-        std::cout << "applying " << gate.getName() << " @ " << iqbit
-                  << std::endl;
-        TensDataType* p = new TensDataType[4];
-        std::shared_ptr<TensDataType> body(p,
-                                           [](TensDataType* p) { delete[] p; });
-        auto tGate = nqbit_gate_tensor(1, body);
-        std::vector<Bond> bonds{Bond(0, iqbit)};
-        wavefunc.appendTensor(tGate, bonds);
-        printWavefunc();
-    }
-
-    void visit(Rz& gate) {
-        auto iqbit = gate.bits()[0];
-        std::cout << "applying " << gate.getName() << " @ " << iqbit
-                  << std::endl;
-        TensDataType* p = new TensDataType[4];
-        std::shared_ptr<TensDataType> body(p,
-                                           [](TensDataType* p) { delete[] p; });
-        auto tGate = nqbit_gate_tensor(1, body);
-        std::vector<Bond> bonds{Bond(0, iqbit)};
-        wavefunc.appendTensor(tGate, bonds);
-        printWavefunc();
-    }
-
-    void visit(CPhase& gate) {}
-
-    void visit(Swap& s) {}
-
-    void visit(GateFunction& f) {}
-
-    void evaluate() {
-    }
-
-    virtual ~ExaTensorMPSVisitor() {}
-};
-
-}  // end namespace quantum
-}  // end namespace xacc
-#endif
+#endif //QUANTUM_GATE_ACCELERATORS_TNQVM_EXATENSORMPSVISITOR_HPP_
