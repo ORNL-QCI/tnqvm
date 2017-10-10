@@ -29,13 +29,10 @@
  *
  **********************************************************************************/
 #include "TNQVM.hpp"
+#include "ServiceRegistry.hpp"
 #ifdef TNQVM_HAS_EXATENSOR
 #include "ExaTensorMPSVisitor.hpp"
 #endif
-#include "ITensorVisitor.hpp"
-#include "ITensorMPSVisitor.hpp"
-
-namespace xacc{
 
 namespace tnqvm {
 
@@ -89,39 +86,30 @@ void TNQVM::execute(std::shared_ptr<AcceleratorBuffer> buffer,
 		visitorType = (*options)["tnqvm-visitor"];
 	}
 
-	std::shared_ptr<BaseInstructionVisitor> visitor;
-	if (visitorType == "itensor-mps") {
+	// Get the visitor backend
+	visitor = ServiceRegistry::instance()->getService<TNQVMVisitor>(
+			visitorType);
 
-		visitor = std::make_shared<xacc::quantum::ITensorMPSVisitor>(
-				std::dynamic_pointer_cast<TNQVMBuffer>(buffer));
-	} else if (visitorType == "exatensor") {
-#ifdef TNQVM_HAS_EXATENSOR
-		visitor = std::make_shared<xacc::quantum::ExaTensorMPSVisitor>(
-				std::dynamic_pointer_cast<TNQVMBuffer>(buffer));
-#else
-		XACCError("Cannot use ExaTensor MPS Visitor since TNQVM not built with ExaTensor.");
-#endif
-	} else {
-		XACCError("Invalid TNQVM visitor string.");
-	}
+	// Initialize the visitor
+	visitor->initialize(std::dynamic_pointer_cast<TNQVMBuffer>(buffer));
 
+	// Cast to a base instruction visitor for the accept call
+	auto visCast =
+			std::dynamic_pointer_cast<BaseInstructionVisitor>(visitor);
+
+	// Walk the IR tree, and visit each node
 	InstructionIterator it(kernel);
 	while (it.hasNext()) {
 		auto nextInst = it.next();
 		if (nextInst->isEnabled()) {
-			nextInst->accept(visitor);
+			nextInst->accept(
+					visCast);
 		}
 	}
 
-	// If we made it here with this exatensor string, then
-	// we don't have to re-check that we built with ExaTensor
-	if (visitorType == "exatensor") {
-#ifdef TNQVM_HAS_EXATENSOR
-		std::dynamic_pointer_cast<xacc::quantum::ExaTensorMPSVisitor>(visitor)->evaluate();
-#endif
-	}
+	// Finalize the visitor
+	visitor->finalize();
 
 }
 
-}
 }

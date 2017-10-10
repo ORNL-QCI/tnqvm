@@ -76,7 +76,6 @@ int main (int argc, char** argv) {
 
 	// Allocate a register of 2 qubits
 	auto qubitReg = qpu->createBuffer("qreg", 2);
-	auto buffer = std::dynamic_pointer_cast<TNQVMBuffer>(qubitReg);
 	// Create a Program
 	xacc::Program program(qpu, src);
 
@@ -91,12 +90,10 @@ int main (int argc, char** argv) {
 		file<<theta;
 		for(int i=0; i<n_terms; ++i){
 			std::string kernel_name = "term"+std::to_string(i);
-			std::cout<<kernel_name<<std::endl;
 			auto measure_term = program.getKernel<double>(kernel_name);
-			buffer->resetBuffer();
-			std::cout<<"measring"<<std::endl;
-			measure_term(buffer, theta);
-			auto aver = buffer->getExpectationValueZ();
+			qubitReg->resetBuffer();
+			measure_term(qubitReg, theta);
+			auto aver = qubitReg->getExpectationValueZ();
 			file<<", "<<aver;
 		}
 		file<<std::endl;

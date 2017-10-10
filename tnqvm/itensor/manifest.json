@@ -1,0 +1,6 @@
+{
+  "bundle.symbolic_name" : "tnqvm_itensor",
+  "bundle.activator" : true,
+  "bundle.name" : "XACC ITensor backend",
+  "bundle.description" : "This bundle provides a tensor netowrk Accelerator for Gate Model QC."
+}

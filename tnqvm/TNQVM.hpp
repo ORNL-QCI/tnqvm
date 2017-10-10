@@ -33,8 +33,10 @@
 
 #include "Accelerator.hpp"
 #include "InstructionIterator.hpp"
+#include "TNQVMVisitor.hpp"
+#include "TNQVMBuffer.hpp"
 
-namespace xacc{
+using namespace xacc;
 
 namespace tnqvm {
 
@@ -160,10 +162,13 @@ public:
     void mute  () { __verbose = 0; }
     void unmute() { __verbose = 1;} // default to 1
 
+protected:
+
+    std::shared_ptr<TNQVMVisitor> visitor;
+
 private:
 	int __verbose;
 };
-}
 }
 
 #endif
