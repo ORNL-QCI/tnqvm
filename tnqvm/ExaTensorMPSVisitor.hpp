@@ -53,125 +53,53 @@ private:
  using TensDataType = std::complex<double>;
  using Tensor = exatensor::TensorDenseAdpt<TensDataType>;
  using TensorNetwork = exatensor::TensorNetwork<TensDataType>;
- using Bond = std::pair<unsigned int, unsigned int>;
  using WaveFunction = std::vector<Tensor>;
 
 //Data members:
  std::shared_ptr<TNQVMBuffer> Buffer; //accelerator buffer
- WaveFunction StateMPS; //MPS wave-function of qubits
+ WaveFunction StateMPS;               //MPS wave-function of qubits
+ TensorNetwork TensNet;               //currently constructed tensor network
+
+//Private member functions:
+ int apply1BodyGate(const Tensor & gate, const unsigned int q0);
+ int apply2BodyGate(const Tensor & gate, const unsigned int q0, const unsigned int q1);
+ int applyNBodyGate(const Tensor & gate, const unsigned int q[]);
 
 public:
 
+//Constants:
+ static const unsigned int BASE_SPACE_DIM = 2; //basic space dimension (2 for a qubit)
+ static const std::size_t INITIAL_VALENCE = 2; //initial dimension extent for virtual MPS indices
+
 //Life cycle:
+ ExaTensorMPSVisitor(std::shared_ptr<TNQVMBuffer> buffer,
+                     const std::size_t initialValence = INITIAL_VALENCE);
+ virtual ~ExaTensorMPSVisitor();
 
-    ExaTensorMPSVisitor(std::shared_ptr<TNQVMBuffer> buffer): Buffer(buffer)
-    {
-     auto numQubits = buffer->size();
-    }
+//Visitor methods:
+ void visit(Hadamard & gate);
+ void visit(X & gate);
+ void visit(Y & gate);
+ void visit(Z & gate);
+ void visit(Rx & gate);
+ void visit(Ry & gate);
+ void visit(Rz & gate);
+ void visit(CPhase & gate);
+ void visit(CNOT & gate);
+ void visit(Swap & gate);
+ void visit(Measure & gate);
+ void visit(ConditionalFunction & condFunc);
+ void visit(GateFunction & gateFunc);
 
-    virtual ~ExaTensorMPSVisitor(){}
-
-//Visit methods:
-
-    void visit(Hadamard & gate)
-    {
-     auto qbit0 = gate.bits()[0];
-     std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
-     return;
-    }
-
-    void visit(X & gate)
-    {
-     auto qbit0 = gate.bits()[0];
-     std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
-     return;
-    }
-
-    void visit(Y & gate)
-    {
-     auto qbit0 = gate.bits()[0];
-     std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
-     return;
-    }
-
-    void visit(Z & gate)
-    {
-     auto qbit0 = gate.bits()[0];
-     std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
-     return;
-    }
-
-    void visit(Rx & gate)
-    {
-     auto qbit0 = gate.bits()[0];
-     std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
-     return;
-    }
-
-    void visit(Ry & gate)
-    {
-     auto qbit0 = gate.bits()[0];
-     std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
-     return;
-    }
-
-    void visit(Rz & gate)
-    {
-     auto qbit0 = gate.bits()[0];
-     std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
-     return;
-    }
-
-    void visit(CPhase & gate)
-    {
-     auto qbit0 = gate.bits()[0];
-     std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
-     return;
-    }
-
-    void visit(CNOT & gate)
-    {
-     auto qbit0 = gate.bits()[0];
-     auto qbit1 = gate.bits()[1];
-     std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "," << qbit1 << "}" << std::endl;
-     return;
-    }
-
-    void visit(Swap & gate)
-    {
-     auto qbit0 = gate.bits()[0];
-     auto qbit1 = gate.bits()[1];
-     std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "," << qbit1 << "}" << std::endl;
-     return;
-    }
-
-    void visit(Measure & gate)
-    {
-     auto qbit0 = gate.bits()[0];
-     std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
-     return;
-    }
-
-    void visit(ConditionalFunction & condFunc)
-    {
-     return;
-    }
-
-    void visit(GateFunction & gateFunc)
-    {
-     return;
-    }
-
-    void evaluate()
-    {
-     return;
-    }
+//Numerical evaluation:
+ int evaluate(); //evaluates the constructed tensor network
 
 }; //end class ExaTensorMPSVisitor
 
 }  // end namespace quantum
 }  // end namespace xacc
-#endif
+
+#endif //TNQVM_HAS_EXATENSOR
 
 //DEPRECATED:
 #if 0
@@ -202,13 +130,6 @@ public:
         wavefunc.appendTensor(initTensor, bonds);
         printWavefunc();
     }
-
-    void printWavefunc() const {
-        std::cout<<"------wave function---->>\n";
-        wavefunc.printIt();
-        std::cout<<"<<----wave function------\n"<<std::endl;
-    }
-
-#endif //TNQVM_HAS_EXATENSOR
+#endif
 
 #endif //QUANTUM_GATE_ACCELERATORS_TNQVM_EXATENSORMPSVISITOR_HPP_
