@@ -39,6 +39,7 @@
 #include <vector>
 #include "AllGateVisitor.hpp"
 #include "TNQVMBuffer.hpp"
+#include "GateFactory.hpp"
 
 #include "exatensor.hpp"
 
@@ -54,6 +55,9 @@ private:
  using Tensor = exatensor::TensorDenseAdpt<TensDataType>;
  using TensorNetwork = exatensor::TensorNetwork<TensDataType>;
  using WaveFunction = std::vector<Tensor>;
+
+//Gate factory member:
+ GateFactory GateTensors;
 
 //Data members:
  std::shared_ptr<TNQVMBuffer> Buffer; //accelerator buffer
@@ -99,8 +103,8 @@ public:
 
 }; //end class ExaTensorMPSVisitor
 
-}  // end namespace quantum
-}  // end namespace xacc
+} //end namespace quantum
+} //end namespace xacc
 
 #endif //TNQVM_HAS_EXATENSOR
 
