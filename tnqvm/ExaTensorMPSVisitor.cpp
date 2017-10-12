@@ -33,6 +33,8 @@
 
 #include "ExaTensorMPSVisitor.hpp"
 
+#define _DEBUG_DIL
+
 namespace xacc {
 namespace quantum {
 
@@ -43,17 +45,22 @@ ExaTensorMPSVisitor::ExaTensorMPSVisitor(std::shared_ptr<TNQVMBuffer> buffer, co
 {
  assert(initialValence > 0);
  assert(StateMPS.size() == 0);
- auto numQubits = buffer->size();
+ const auto numQubits = buffer->size();
+#ifdef _DEBUG_DIL
  std::cout << "[ExaTensorMPSVisitor]: Constructing an MPS wavefunction for " << numQubits << " qubits ... ";
+#endif
  //Construct initial MPS tensors for all qubits:
  const unsigned int rankMPS = 3; //MPS tensor rank
  const std::size_t dimExts[] = {initialValence,initialValence,BASE_SPACE_DIM}; //initial MPS tensor shape
- for(decltype(numQubits) i = 0; i < numQubits; ++i){
+ for(unsigned int i = 0; i < numQubits; ++i){
   StateMPS.emplace_back(Tensor(rankMPS,dimExts)); //construct a bodyless MPS tensor
   StateMPS[i].allocateBody(); //allocates MPS tensor body
   StateMPS[i].nullifyBody(); //sets all MPS tensor elements to zero
+  this->initMPSTensor(i); //initializes the MPS tensor body
  }
+#ifdef _DEBUG_DIL
  std::cout << "Done" << std::endl;
+#endif
 }
 
 ExaTensorMPSVisitor::~ExaTensorMPSVisitor()
@@ -61,6 +68,15 @@ ExaTensorMPSVisitor::~ExaTensorMPSVisitor()
 }
 
 //Private member functions:
+
+/** Initializes an MPS tensor to a disentangled pure |0> state. **/
+void ExaTensorMPSVisitor::initMPSTensor(const unsigned int tensNum)
+{
+ assert(tensNum < StateMPS.size());
+ assert(StateMPS[tensNum].getRank() == 3);
+ StateMPS[tensNum][{0,0,0}] = TensDataType(1.0,0.0);
+ return;
+}
 
 int ExaTensorMPSVisitor::apply1BodyGate(const Tensor & gate, const unsigned int q0)
 {
@@ -169,6 +185,13 @@ void ExaTensorMPSVisitor::visit(GateFunction & gateFunc)
 }
 
 //Numerical evaluation:
+
+void ExaTensorMPSVisitor::setEvaluationStrategy(const bool eagerEval)
+{
+ assert(TensNet.isEmpty());
+ EagerEval = eagerEval;
+ return;
+}
 
 int ExaTensorMPSVisitor::evaluate()
 {

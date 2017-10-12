@@ -59,11 +59,13 @@ private:
  std::shared_ptr<TNQVMBuffer> Buffer; //accelerator buffer
  WaveFunction StateMPS;               //MPS wave-function of qubits
  TensorNetwork TensNet;               //currently constructed tensor network
+ bool EagerEval;                      //if TRUE each gate will be applied immediately (defaults to FALSE)
 
 //Private member functions:
- int apply1BodyGate(const Tensor & gate, const unsigned int q0);
- int apply2BodyGate(const Tensor & gate, const unsigned int q0, const unsigned int q1);
- int applyNBodyGate(const Tensor & gate, const unsigned int q[]);
+ void initMPSTensor(const unsigned int tensNum); //initializes an MPS tensor to a pure |0> state
+ int apply1BodyGate(const Tensor & gate, const unsigned int q0); //applies a 1-body gate to a qubit
+ int apply2BodyGate(const Tensor & gate, const unsigned int q0, const unsigned int q1); //applies a 2-body gate to a pair of qubits
+ int applyNBodyGate(const Tensor & gate, const unsigned int q[]); //applies an arbitrary N-body gate to N qubits
 
 public:
 
@@ -73,8 +75,8 @@ public:
 
 //Life cycle:
  ExaTensorMPSVisitor(std::shared_ptr<TNQVMBuffer> buffer,
-                     const std::size_t initialValence = INITIAL_VALENCE);
- virtual ~ExaTensorMPSVisitor();
+                     const std::size_t initialValence = INITIAL_VALENCE); //ctor
+ virtual ~ExaTensorMPSVisitor(); //dtor
 
 //Visitor methods:
  void visit(Hadamard & gate);
@@ -92,6 +94,7 @@ public:
  void visit(GateFunction & gateFunc);
 
 //Numerical evaluation:
+ void setEvaluationStrategy(const bool eagerEval); //sets EagerEval member
  int evaluate(); //evaluates the constructed tensor network
 
 }; //end class ExaTensorMPSVisitor
@@ -100,36 +103,5 @@ public:
 }  // end namespace xacc
 
 #endif //TNQVM_HAS_EXATENSOR
-
-//DEPRECATED:
-#if 0
-    Tensor nqbit_gate_tensor(unsigned int n_qbits,
-                             std::shared_ptr<TensDataType> body) {
-        unsigned int rank = 2 * n_qbits;
-        std::size_t dims[n_qbits];
-        for (unsigned int i = 0; i < rank; ++i) {
-            dims[i] = 2;
-        }
-        std::size_t vol = 1;
-        return Tensor(rank, dims, body);
-    }
-
-    /// init the wave function tensor
-    void initWavefunc(unsigned int n_qbits) {
-        unsigned int rank = n_qbits;
-        std::size_t dims[n_qbits];
-        for (unsigned int i = 0; i < rank; ++i) {
-            dims[i] = 2;
-        }
-        std::size_t vol = std::pow(2, n_qbits);
-        TensDataType* p = new TensDataType[vol];
-        std::shared_ptr<TensDataType> body(p,
-                                           [](TensDataType* p) { delete[] p; });
-        Tensor initTensor(rank, dims, body);
-        std::vector<Bond> bonds;
-        wavefunc.appendTensor(initTensor, bonds);
-        printWavefunc();
-    }
-#endif
 
 #endif //QUANTUM_GATE_ACCELERATORS_TNQVM_EXATENSORMPSVISITOR_HPP_
