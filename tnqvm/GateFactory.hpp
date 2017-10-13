@@ -46,7 +46,7 @@ private:
 
  using TensDataType = std::complex<double>;
 
-//Static data (gate tensors):
+//Static data (gate tensor bodies):
 
  static constexpr const TensDataType HBody[4] = {
   TensDataType(1.0,0.0), TensDataType( 1.0,0.0),
@@ -102,7 +102,7 @@ private:
   TensDataType(0.0,0.0), TensDataType(0.0,0.0), TensDataType(0.0,0.0), TensDataType(1.0,0.0)
  };
 
-//Data members:
+//Data members (gate tensor body pointers):
 
  std::shared_ptr<TensDataType> HTensor;  //Hadamard
  std::shared_ptr<TensDataType> XTensor;  //Pauli X
@@ -190,7 +190,7 @@ private:
 
  GateBodyFactory GateBodies;
 
-//Data members:
+//Data members (gate tensors):
 
  Tensor HadamardTensor;
  Tensor XTensor;
@@ -221,7 +221,7 @@ public:
  {
  }
 
-//Returns the tensor body for a concrete quantum gate:
+//Returns the tensor for a concrete quantum gate:
 
  const Tensor & getTensor(const Hadamard & gate){
   if(!(HadamardTensor.hasBody())) HadamardTensor.setBody(GateBodies.getBody(gate));

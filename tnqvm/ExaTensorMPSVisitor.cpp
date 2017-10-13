@@ -99,6 +99,7 @@ void ExaTensorMPSVisitor::visit(Hadamard & gate)
 {
  auto qbit0 = gate.bits()[0];
  std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
+ const Tensor & gateTensor = GateTensors.getTensor(gate);
  return;
 }
 
@@ -106,6 +107,7 @@ void ExaTensorMPSVisitor::visit(X & gate)
 {
  auto qbit0 = gate.bits()[0];
  std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
+ const Tensor & gateTensor = GateTensors.getTensor(gate);
  return;
 }
 
@@ -113,6 +115,7 @@ void ExaTensorMPSVisitor::visit(Y & gate)
 {
  auto qbit0 = gate.bits()[0];
  std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
+ const Tensor & gateTensor = GateTensors.getTensor(gate);
  return;
 }
 
@@ -120,6 +123,7 @@ void ExaTensorMPSVisitor::visit(Z & gate)
 {
  auto qbit0 = gate.bits()[0];
  std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
+ const Tensor & gateTensor = GateTensors.getTensor(gate);
  return;
 }
 
@@ -127,6 +131,7 @@ void ExaTensorMPSVisitor::visit(Rx & gate)
 {
  auto qbit0 = gate.bits()[0];
  std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
+ const Tensor & gateTensor = GateTensors.getTensor(gate);
  return;
 }
 
@@ -134,6 +139,7 @@ void ExaTensorMPSVisitor::visit(Ry & gate)
 {
  auto qbit0 = gate.bits()[0];
  std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
+ const Tensor & gateTensor = GateTensors.getTensor(gate);
  return;
 }
 
@@ -141,6 +147,7 @@ void ExaTensorMPSVisitor::visit(Rz & gate)
 {
  auto qbit0 = gate.bits()[0];
  std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
+ const Tensor & gateTensor = GateTensors.getTensor(gate);
  return;
 }
 
@@ -148,6 +155,7 @@ void ExaTensorMPSVisitor::visit(CPhase & gate)
 {
  auto qbit0 = gate.bits()[0];
  std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
+ const Tensor & gateTensor = GateTensors.getTensor(gate);
  return;
 }
 
@@ -156,6 +164,7 @@ void ExaTensorMPSVisitor::visit(CNOT & gate)
  auto qbit0 = gate.bits()[0];
  auto qbit1 = gate.bits()[1];
  std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "," << qbit1 << "}" << std::endl;
+ const Tensor & gateTensor = GateTensors.getTensor(gate);
  return;
 }
 
@@ -164,6 +173,7 @@ void ExaTensorMPSVisitor::visit(Swap & gate)
  auto qbit0 = gate.bits()[0];
  auto qbit1 = gate.bits()[1];
  std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "," << qbit1 << "}" << std::endl;
+ const Tensor & gateTensor = GateTensors.getTensor(gate);
  return;
 }
 
