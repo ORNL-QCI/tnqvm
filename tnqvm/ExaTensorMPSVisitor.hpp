@@ -26,7 +26,7 @@
  *
  * Contributors:
  *   Initial sketch - Mengsu Chen 2017/07/17;
- *   Implementation - Dmitry Lyakh 2017/10/05;
+ *   Implementation - Dmitry Lyakh 2017/10/05 - active;
  *
  **********************************************************************************/
 #ifndef QUANTUM_GATE_ACCELERATORS_TNQVM_EXATENSORMPSVISITOR_HPP_
@@ -53,6 +53,7 @@ private:
 //Type aliases:
  using TensDataType = std::complex<double>;
  using Tensor = exatensor::TensorDenseAdpt<TensDataType>;
+ using TensorLeg = exatensor::TensorLeg;
  using TensorNetwork = exatensor::TensorNetwork<TensDataType>;
  using WaveFunction = std::vector<Tensor>;
 
@@ -67,6 +68,8 @@ private:
 
 //Private member functions:
  void initMPSTensor(const unsigned int tensNum); //initializes an MPS tensor to a pure |0> state
+ void buildWaveFunctionNetwork(); //builds a TensorNetwork object for the wavefunction
+ void closeCircuitNetwork(); //closes the circuit TensorNetwork object with output tensors (those to be optimized)
  int apply1BodyGate(const Tensor & gate, const unsigned int q0); //applies a 1-body gate to a qubit
  int apply2BodyGate(const Tensor & gate, const unsigned int q0, const unsigned int q1); //applies a 2-body gate to a pair of qubits
  int applyNBodyGate(const Tensor & gate, const unsigned int q[]); //applies an arbitrary N-body gate to N qubits
@@ -74,12 +77,12 @@ private:
 public:
 
 //Constants:
- static const unsigned int BASE_SPACE_DIM = 2; //basic space dimension (2 for a qubit)
+ static const std::size_t BASE_SPACE_DIM = 2; //basic space dimension (2 for a qubit)
  static const std::size_t INITIAL_VALENCE = 2; //initial dimension extent for virtual MPS indices
 
 //Life cycle:
- ExaTensorMPSVisitor(std::shared_ptr<TNQVMBuffer> buffer,
-                     const std::size_t initialValence = INITIAL_VALENCE); //ctor
+ ExaTensorMPSVisitor(std::shared_ptr<TNQVMBuffer> buffer, //accelerator buffer
+                     const std::size_t initialValence = INITIAL_VALENCE); //initial dimension extent for virtual dimensions
  virtual ~ExaTensorMPSVisitor(); //dtor
 
 //Visitor methods:
@@ -99,7 +102,7 @@ public:
 
 //Numerical evaluation:
  void setEvaluationStrategy(const bool eagerEval); //sets EagerEval member
- int evaluate(); //evaluates the constructed tensor network
+ int evaluate(); //evaluates the constructed tensor network (returns an error or 0)
 
 }; //end class ExaTensorMPSVisitor
 

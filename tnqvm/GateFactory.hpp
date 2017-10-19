@@ -54,38 +54,40 @@ private:
  };
 
  static constexpr const TensDataType XBody[4] = {
-  TensDataType(1.0,0.0), TensDataType( 1.0,0.0),
-  TensDataType(1.0,0.0), TensDataType(-1.0,0.0)
+  TensDataType(0.0,0.0), TensDataType(1.0,0.0),
+  TensDataType(1.0,0.0), TensDataType(0.0,0.0)
  };
 
  static constexpr const TensDataType YBody[4] = {
-  TensDataType(1.0,0.0), TensDataType( 1.0,0.0),
-  TensDataType(1.0,0.0), TensDataType(-1.0,0.0)
+  TensDataType(0.0,0.0), TensDataType(0.0,-1.0),
+  TensDataType(0.0,1.0), TensDataType(0.0, 0.0)
  };
 
  static constexpr const TensDataType ZBody[4] = {
-  TensDataType(1.0,0.0), TensDataType( 1.0,0.0),
-  TensDataType(1.0,0.0), TensDataType(-1.0,0.0)
+  TensDataType(1.0,0.0), TensDataType( 0.0,0.0),
+  TensDataType(0.0,0.0), TensDataType(-1.0,0.0)
  };
 
  static constexpr const TensDataType RxBody[4] = {
-  TensDataType(1.0,0.0), TensDataType( 1.0,0.0),
-  TensDataType(1.0,0.0), TensDataType(-1.0,0.0)
+  TensDataType(0.0,0.0), TensDataType(0.0,0.0),
+  TensDataType(0.0,0.0), TensDataType(0.0,0.0)
  };
 
  static constexpr const TensDataType RyBody[4] = {
-  TensDataType(1.0,0.0), TensDataType( 1.0,0.0),
-  TensDataType(1.0,0.0), TensDataType(-1.0,0.0)
+  TensDataType(0.0,0.0), TensDataType(0.0,0.0),
+  TensDataType(0.0,0.0), TensDataType(0.0,0.0)
  };
 
  static constexpr const TensDataType RzBody[4] = {
-  TensDataType(1.0,0.0), TensDataType( 1.0,0.0),
-  TensDataType(1.0,0.0), TensDataType(-1.0,0.0)
+  TensDataType(0.0,0.0), TensDataType(0.0,0.0),
+  TensDataType(0.0,0.0), TensDataType(0.0,0.0)
  };
 
- static constexpr const TensDataType CPBody[4] = {
-  TensDataType(1.0,0.0), TensDataType( 1.0,0.0),
-  TensDataType(1.0,0.0), TensDataType(-1.0,0.0)
+ static constexpr const TensDataType CPBody[16] = {
+  TensDataType(1.0,0.0), TensDataType(0.0,0.0), TensDataType(0.0,0.0), TensDataType(0.0,0.0),
+  TensDataType(0.0,0.0), TensDataType(1.0,0.0), TensDataType(0.0,0.0), TensDataType(0.0,0.0),
+  TensDataType(0.0,0.0), TensDataType(0.0,0.0), TensDataType(0.0,0.0), TensDataType(1.0,0.0),
+  TensDataType(0.0,0.0), TensDataType(0.0,0.0), TensDataType(1.0,0.0), TensDataType(0.0,0.0)
  };
 
  static constexpr const TensDataType CNBody[16] = {
@@ -127,7 +129,7 @@ public:
   RxTensor(new TensDataType[4], [](TensDataType * ptr){delete[] ptr;}),
   RyTensor(new TensDataType[4], [](TensDataType * ptr){delete[] ptr;}),
   RzTensor(new TensDataType[4], [](TensDataType * ptr){delete[] ptr;}),
-  CPTensor(new TensDataType[4], [](TensDataType * ptr){delete[] ptr;}),
+  CPTensor(new TensDataType[16], [](TensDataType * ptr){delete[] ptr;}),
   CNTensor(new TensDataType[16], [](TensDataType * ptr){delete[] ptr;}),
   SWTensor(new TensDataType[16], [](TensDataType * ptr){delete[] ptr;})
  {
@@ -138,7 +140,7 @@ public:
   {auto body = RxTensor.get(); for(unsigned int i = 0; i < 4; ++i) body[i]=RxBody[i];}
   {auto body = RyTensor.get(); for(unsigned int i = 0; i < 4; ++i) body[i]=RyBody[i];}
   {auto body = RzTensor.get(); for(unsigned int i = 0; i < 4; ++i) body[i]=RzBody[i];}
-  {auto body = CPTensor.get(); for(unsigned int i = 0; i < 4; ++i) body[i]=CPBody[i];}
+  {auto body = CPTensor.get(); for(unsigned int i = 0; i < 16; ++i) body[i]=CPBody[i];}
   {auto body = CNTensor.get(); for(unsigned int i = 0; i < 16; ++i) body[i]=CNBody[i];}
   {auto body = SWTensor.get(); for(unsigned int i = 0; i < 16; ++i) body[i]=SWBody[i];}
  }
@@ -215,7 +217,7 @@ public:
   RxTensor(OneBodyRank,OneBodyShape),
   RyTensor(OneBodyRank,OneBodyShape),
   RzTensor(OneBodyRank,OneBodyShape),
-  CPhaseTensor(OneBodyRank,OneBodyShape),
+  CPhaseTensor(TwoBodyRank,TwoBodyShape),
   CNOTTensor(TwoBodyRank,TwoBodyShape),
   SwapTensor(TwoBodyRank,TwoBodyShape)
  {
