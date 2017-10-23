@@ -77,17 +77,20 @@ void ExaTensorMPSVisitor::initMPSTensor(const unsigned int tensNum) //in: qubit 
  return;
 }
 
-/** Builds a tensor network for the wavefunction representation. **/
-void ExaTensorMPSVisitor::buildWaveFunctionNetwork()
+/** Builds a tensor network for the wavefunction representation for qubits [firstQubit:lastQubit]. **/
+void ExaTensorMPSVisitor::buildWaveFunctionNetwork(int firstQubit, int lastQubit)
 {
  assert(TensNet.isEmpty());
+ unsigned int numQubitsTotal = StateMPS.size(); //total number of MPS tensors = total number of qubits
+ if(lastQubit < 0) lastQubit = numQubitsTotal - 1; //default last qubit
+ assert(firstQubit >= 0 && lastQubit < numQubitsTotal && firstQubit <= lastQubit);
  //Construct the output tensor:
- unsigned int numQubits = StateMPS.size(); //number of MPS tensors = number of qubits
- const std::size_t outDims[numQubits] = {BASE_SPACE_DIM};
+ unsigned int numQubits = lastQubit - firstQubit + 1; //rank of the output tensor
+ const std::size_t outDims[numQubits] = {BASE_SPACE_DIM}; //dimensions of the output tensor
  std::vector<TensorLeg> legs;
  for(unsigned int i = 1; i <= numQubits; ++i) legs.emplace_back(TensorLeg(i,2)); //leg #2 is the open leg of each MPS tensor
- TensNet.appendTensor(Tensor(numQubits,outDims),legs);
- //Construct the input tensors:
+ TensNet.appendTensor(Tensor(numQubits,outDims),legs); //output tensor
+ //Construct the input tensors (ring MPS topology):
  for(unsigned int i = 1; i <= numQubits; ++i){
   legs.clear();
   unsigned int prevTensId = i - 1; if(prevTensId == 0) prevTensId = numQubits; //previous MPS tensor id: [1..numQubits]
@@ -95,8 +98,9 @@ void ExaTensorMPSVisitor::buildWaveFunctionNetwork()
   legs.emplace_back(TensorLeg(prevTensId,1)); //connection to the previous MPS tensor
   legs.emplace_back(TensorLeg(nextTensId,0)); //connection to the next MPS tensor
   legs.emplace_back(TensorLeg(0,i-1)); //connection to the output tensor
-  TensNet.appendTensor(StateMPS[i-1],legs); //append a wavefunction MPS tensor to the tensor network
+  TensNet.appendTensor(StateMPS[firstQubit+i-1],legs); //append a wavefunction MPS tensor to the tensor network
  }
+ QubitRange = std::make_pair(static_cast<unsigned int>(firstQubit),static_cast<unsigned int>(lastQubit)); //range of qubits involved in the tensor network
  return;
 }
 

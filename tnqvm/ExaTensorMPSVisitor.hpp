@@ -37,6 +37,7 @@
 #include <cstdlib>
 #include <complex>
 #include <vector>
+#include <utility>
 #include "AllGateVisitor.hpp"
 #include "TNQVMBuffer.hpp"
 #include "GateFactory.hpp"
@@ -61,14 +62,15 @@ private:
  GateFactory GateTensors;
 
 //Data members:
- std::shared_ptr<TNQVMBuffer> Buffer; //accelerator buffer
- WaveFunction StateMPS;               //MPS wave-function of qubits
- TensorNetwork TensNet;               //currently constructed tensor network
- bool EagerEval;                      //if TRUE each gate will be applied immediately (defaults to FALSE)
+ std::shared_ptr<TNQVMBuffer> Buffer;               //accelerator buffer
+ WaveFunction StateMPS;                             //MPS wave-function of qubits (MPS tensors)
+ TensorNetwork TensNet;                             //currently constructed tensor network
+ std::pair<unsigned int, unsigned int> QubitRange;  //range of qubits in the current tensor network
+ bool EagerEval;                                    //if TRUE each gate will be applied immediately (defaults to FALSE)
 
 //Private member functions:
  void initMPSTensor(const unsigned int tensNum); //initializes an MPS tensor to a pure |0> state
- void buildWaveFunctionNetwork(); //builds a TensorNetwork object for the wavefunction
+ void buildWaveFunctionNetwork(int firstQubit = 0, int lastQubit = -1); //builds a TensorNetwork object for the wavefunction of qubits [first:last]
  void closeCircuitNetwork(); //closes the circuit TensorNetwork object with output tensors (those to be optimized)
  int apply1BodyGate(const Tensor & gate, const unsigned int q0); //applies a 1-body gate to a qubit
  int apply2BodyGate(const Tensor & gate, const unsigned int q0, const unsigned int q1); //applies a 2-body gate to a pair of qubits
