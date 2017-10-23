@@ -54,8 +54,7 @@ ExaTensorMPSVisitor::ExaTensorMPSVisitor(std::shared_ptr<TNQVMBuffer> buffer, co
  for(unsigned int i = 0; i < numQubits; ++i){
   StateMPS.emplace_back(Tensor(rankMPS,dimExts)); //construct a bodyless MPS tensor
   StateMPS[i].allocateBody(); //allocates MPS tensor body
-  StateMPS[i].nullifyBody(); //sets all MPS tensor elements to zero
-  this->initMPSTensor(i); //initializes the MPS tensor body to a pure state
+  this->initMPSTensor(StateMPS[i]); //initializes the MPS tensor body to a pure state
  }
 #ifdef _DEBUG_DIL
  std::cout << "Done" << std::endl; //debug
@@ -69,11 +68,11 @@ ExaTensorMPSVisitor::~ExaTensorMPSVisitor()
 //Private member functions:
 
 /** Initializes an MPS tensor to a disentangled pure |0> state. **/
-void ExaTensorMPSVisitor::initMPSTensor(const unsigned int tensNum) //in: qubit id
+void ExaTensorMPSVisitor::initMPSTensor(Tensor & tensor)
 {
- assert(tensNum < StateMPS.size());
- assert(StateMPS[tensNum].getRank() == 3);
- StateMPS[tensNum][{0,0,0}] = TensDataType(1.0,0.0);
+ assert(tensor.getRank() == 3);
+ tensor.nullifyBody();
+ tensor[{0,0,0}] = TensDataType(1.0,0.0);
  return;
 }
 
@@ -108,7 +107,31 @@ void ExaTensorMPSVisitor::buildWaveFunctionNetwork(int firstQubit, int lastQubit
 void ExaTensorMPSVisitor::closeCircuitNetwork()
 {
  assert(!(TensNet.isEmpty()));
- //`Implement
+ assert(OptimizedTensors.size() == 0);
+ const auto numOutLegs = TensNet.getTensor(0).getRank(); //total number of open legs in the tensor network
+ auto numTensors = TensNet.getNumTensors(); //number of the r.h.s. tensors in the tensor network
+ //construct the tensor network for the output WaveFunction:
+ TensorNetwork optNet;
+ const std::size_t outDims[numOutLegs] = {BASE_SPACE_DIM}; //dimensions of the output tensor
+ std::vector<TensorLeg> legs;
+ for(unsigned int i = 1; i <= numOutLegs; ++i) legs.emplace_back(TensorLeg(i,2)); //leg #2 is the open leg of each MPS tensor
+ optNet.appendTensor(Tensor(numOutLegs,outDims),legs); //output tensor
+ //construct the input tensors (ring MPS topology):
+ for(unsigned int i = 1; i <= numOutLegs; ++i){
+  legs.clear();
+  unsigned int prevTensId = i - 1; if(prevTensId == 0) prevTensId = numOutLegs; //previous MPS tensor id: [1..numOutLegs]
+  unsigned int nextTensId = i + 1; if(nextTensId > numOutLegs) nextTensId = 1; //next MPS tensor id: [1..numOutLegs]
+  legs.emplace_back(TensorLeg(prevTensId,1)); //connection to the previous MPS tensor
+  legs.emplace_back(TensorLeg(nextTensId,0)); //connection to the next MPS tensor
+  legs.emplace_back(TensorLeg(0,i-1)); //connection to the output tensor
+  const auto tensRank = TensNet.getTensor(i).getRank();
+  const auto dimExts = TensNet.getTensor(i).getDimExtents();
+  optNet.appendTensor(Tensor(tensRank,dimExts),legs); //append a wavefunction MPS tensor to the tensor network
+ }
+ std::vector<std::pair<unsigned int, unsigned int>> legPairs;
+ for(unsigned int i = 0; i < numOutLegs; ++i) legPairs.push_back(std::pair<unsigned int, unsigned int>(i,i));
+ TensNet.appendNetwork(optNet,legPairs);
+ for(unsigned int i = 0; i < numOutLegs; ++i) OptimizedTensors.push_back(++numTensors);
  return;
 }
 

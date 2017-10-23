@@ -66,10 +66,11 @@ private:
  WaveFunction StateMPS;                             //MPS wave-function of qubits (MPS tensors)
  TensorNetwork TensNet;                             //currently constructed tensor network
  std::pair<unsigned int, unsigned int> QubitRange;  //range of qubits in the current tensor network
+ std::vector<unsigned int> OptimizedTensors;        //IDs of the tensors to be optimized in the closed tensor network
  bool EagerEval;                                    //if TRUE each gate will be applied immediately (defaults to FALSE)
 
 //Private member functions:
- void initMPSTensor(const unsigned int tensNum); //initializes an MPS tensor to a pure |0> state
+ void initMPSTensor(Tensor & tensor); //initializes an MPS tensor to a pure |0> state
  void buildWaveFunctionNetwork(int firstQubit = 0, int lastQubit = -1); //builds a TensorNetwork object for the wavefunction of qubits [first:last]
  void closeCircuitNetwork(); //closes the circuit TensorNetwork object with output tensors (those to be optimized)
  int apply1BodyGate(const Tensor & gate, const unsigned int q0); //applies a 1-body gate to a qubit
