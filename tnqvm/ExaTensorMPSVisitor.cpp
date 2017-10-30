@@ -103,20 +103,21 @@ void ExaTensorMPSVisitor::buildWaveFunctionNetwork(int firstQubit, int lastQubit
  return;
 }
 
-/** Closes the circuit tensor network with output tensors, those to be optimized.**/
+/** Closes the circuit tensor network with output tensors (those to be optimized). **/
 void ExaTensorMPSVisitor::closeCircuitNetwork()
 {
  assert(!(TensNet.isEmpty()));
  assert(OptimizedTensors.size() == 0);
  const auto numOutLegs = TensNet.getTensor(0).getRank(); //total number of open legs in the tensor network
  auto numTensors = TensNet.getNumTensors(); //number of the r.h.s. tensors in the tensor network
- //construct the tensor network for the output WaveFunction:
+ //Construct the tensor network for the output WaveFunction:
+ // Construct the output tensor:
  TensorNetwork optNet;
  const std::size_t outDims[numOutLegs] = {BASE_SPACE_DIM}; //dimensions of the output tensor
  std::vector<TensorLeg> legs;
  for(unsigned int i = 1; i <= numOutLegs; ++i) legs.emplace_back(TensorLeg(i,2)); //leg #2 is the open leg of each MPS tensor
  optNet.appendTensor(Tensor(numOutLegs,outDims),legs); //output tensor
- //construct the input tensors (ring MPS topology):
+ // Construct the input tensors (ring MPS topology):
  for(unsigned int i = 1; i <= numOutLegs; ++i){
   legs.clear();
   unsigned int prevTensId = i - 1; if(prevTensId == 0) prevTensId = numOutLegs; //previous MPS tensor id: [1..numOutLegs]
@@ -124,50 +125,55 @@ void ExaTensorMPSVisitor::closeCircuitNetwork()
   legs.emplace_back(TensorLeg(prevTensId,1)); //connection to the previous MPS tensor
   legs.emplace_back(TensorLeg(nextTensId,0)); //connection to the next MPS tensor
   legs.emplace_back(TensorLeg(0,i-1)); //connection to the output tensor
-  const auto tensRank = TensNet.getTensor(i).getRank();
-  const auto dimExts = TensNet.getTensor(i).getDimExtents();
+  const auto tensRank = TensNet.getTensor(i).getRank(); //tensor i is the i-th MPS tensor, i=[1..numMPSTensors]
+  const auto dimExts = TensNet.getTensor(i).getDimExtents(); //tensor i is the i-th MPS tensor, i=[1..numMPSTensors]
   optNet.appendTensor(Tensor(tensRank,dimExts),legs); //append a wavefunction MPS tensor to the tensor network
  }
+ //Define output leg matching:
  std::vector<std::pair<unsigned int, unsigned int>> legPairs;
- for(unsigned int i = 0; i < numOutLegs; ++i) legPairs.push_back(std::pair<unsigned int, unsigned int>(i,i));
+ for(unsigned int i = 0; i < numOutLegs; ++i) legPairs.emplace_back(std::pair<unsigned int, unsigned int>(i,i));
+ //Append the output wavefunction tensor network to the input+gates one:
  TensNet.appendNetwork(optNet,legPairs);
+ //Mark the tensors to be optimized:
  for(unsigned int i = 0; i < numOutLegs; ++i) OptimizedTensors.push_back(++numTensors);
+ assert(numTensors == TensNet.getNumTensors());
  return;
 }
 
 int ExaTensorMPSVisitor::apply1BodyGate(const Tensor & gate, const unsigned int q0)
 {
  int error_code = 0;
- assert(gate.getRank() == 2);
- if(TensNet.isEmpty()) buildWaveFunctionNetwork();
- const auto numOutLegs = TensNet.getTensor(0).getRank();
- assert(q0 < numOutLegs);
- std::initializer_list<unsigned int> qubits {q0};
+ assert(gate.getRank() == 2); //1-body gate
+ if(TensNet.isEmpty()) buildWaveFunctionNetwork(); //`Here I always construct the full wavefunction, but may need partial as well
+ assert(QubitRange.first <= q0 && q0 <= QubitRange.second);
+ std::initializer_list<unsigned int> qubits {q0-QubitRange.first};
  std::vector<unsigned int> legIds(qubits);
- TensNet.appendTensor(gate,legIds);
- if(EagerEval) error_code = this->evaluate();
+ TensNet.appendTensor(gate,legIds); //append the unitary tensor to the tensor network
+ if(EagerEval) error_code = this->evaluate(); //eager evaluation
  return error_code;
 }
 
 int ExaTensorMPSVisitor::apply2BodyGate(const Tensor & gate, const unsigned int q0, const unsigned int q1)
 {
  int error_code = 0;
- assert(gate.getRank() == 4);
- if(TensNet.isEmpty()) buildWaveFunctionNetwork();
- const auto numOutLegs = TensNet.getTensor(0).getRank();
- assert(q0 < numOutLegs && q1 < numOutLegs);
- std::initializer_list<unsigned int> qubits {q0,q1};
+ assert(gate.getRank() == 4); //2-body gate
+ if(TensNet.isEmpty()) buildWaveFunctionNetwork(); //`Here I always construct the full wavefunction, but may need partial as well
+ assert(QubitRange.first <= q0 && q0 <= QubitRange.second &&
+        QubitRange.first <= q1 && q1 <= QubitRange.second && q0 != q1);
+ std::initializer_list<unsigned int> qubits {q0-QubitRange.first,q1-QubitRange.first};
  std::vector<unsigned int> legIds(qubits);
- TensNet.appendTensor(gate,legIds);
- if(EagerEval) error_code = this->evaluate();
+ TensNet.appendTensor(gate,legIds); //append the unitary tensor to the tensor network
+ if(EagerEval) error_code = this->evaluate(); //eager evaluation
  return error_code;
 }
 
 int ExaTensorMPSVisitor::applyNBodyGate(const Tensor & gate, const unsigned int q[])
 {
- if(TensNet.isEmpty()) buildWaveFunctionNetwork();
+ int error_code = 0;
+ const unsigned int numQubits = gate.getRank(); //N-body gate
+ assert(numQubits > 0 && numQubits%2 == 0);
  //`Implement
- return 0;
+ return error_code;
 }
 
 //Public visitor methods:
@@ -298,10 +304,11 @@ int ExaTensorMPSVisitor::evaluate()
 {
  int error_code = 0;
  assert(!(TensNet.isEmpty()));
- closeCircuitNetwork(); //close the circuit tensor network with output tensors (those to be optimized)
- //`Send the tensor network to the solver, specifying which tensors to optimize
+ closeCircuitNetwork(); //close the circuit tensor network with the output wavefunction tensors (those to be optimized)
+ std::vector<TensDataType> norms(OptimizedTensors.size(),TensDataType(1.0,0.0));
+ exatensor::optimizeOverlapMax(TensNet,OptimizedTensors,norms); //optimize output MPS wavefunction tensors
  //`Update the WaveFunction tensors with the optimized output tensors and destroy old wavefunction tensors
- //`Destroy the tensor network object
+ //`Destroy the tensor network object, optimized tensors, and qubit range
  return error_code;
 }
 
