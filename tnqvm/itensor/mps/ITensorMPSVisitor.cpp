@@ -35,6 +35,9 @@
 #include <cstdlib>
 #include <ctime>
 #include <cassert>
+#include <stack>
+
+using namespace xacc::quantum;
 
 namespace tnqvm {
 
@@ -291,12 +294,103 @@ itensor::ITensor ITensorMPSVisitor::tZ_measure_on(int iqbit_measured) {
 }
 
 void ITensorMPSVisitor::snap_wavefunc() {
-	if (!snapped) {
-		legMats_m = legMats;
-		bondMats_m = bondMats;
-		snapped = true;
-		// std::cout<<"wave function inner = "<<wavefunc_inner()<<std::endl;
-	}
+    if (!snapped){
+         legMats_m  = legMats;
+         bondMats_m = bondMats;
+         snapped = true;
+         // std::cout<<"wave function inner = "<<wavefunc_inner()<<std::endl;
+
+         // measure all possible
+       /*  legMats_q.push(legMats);
+         probnode_q.push(&root);
+         ProbNode* curr;
+         int iqbit_measured;
+         while(!legMats_q.empty()){
+
+             legMats = legMats_q.front();
+             legMats_q.pop();
+             curr = probnode_q.front();
+             probnode_q.pop();
+
+             iqbit_measured = curr->iqbit + 1;
+             std::cout<<"measuring qbit "<<iqbit_measured<<" on"<<std::endl;
+             printWavefunc();
+             auto ind_measured = ind_for_qbit(iqbit_measured);
+             auto ind_measured_p = ind_for_qbit(iqbit_measured);
+             ind_measured_p.prime();
+
+             auto legMat_tobe_measured = legMats[iqbit_measured];
+
+             // project to 0
+             auto tMeasure0 = itensor::ITensor(ind_measured, ind_measured_p);
+             tMeasure0.set(ind_measured_p(1), ind_measured(1), 1.);
+             double p0 = average(iqbit_measured,tMeasure0) / wavefunc_inner();
+             std::cout<<"p0= "<<p0<<std::endl;
+             auto collapsed_legMat_0 = tMeasure0 * legMat_tobe_measured;
+             legMats[iqbit_measured] = collapsed_legMat_0;
+             legMats[iqbit_measured].prime(ind_measured_p,-1);
+             curr->left = new ProbNode(p0, iqbit_measured, 0);
+             curr->left->print();
+             probnode_q.push(curr->left);
+             if (iqbit_measured < n_qbits-1){
+                 legMats_q.push(legMats);
+             }
+
+             // project to 1
+             auto tMeasure1 = itensor::ITensor(ind_measured, ind_measured_p);
+             tMeasure1.set(ind_measured_p(2), ind_measured(2), 1.);
+             auto collapsed_legMat_1 = tMeasure1 * legMat_tobe_measured;
+             legMats[iqbit_measured] = collapsed_legMat_1;
+             legMats[iqbit_measured].prime(ind_measured_p,-1);
+             curr->right = new ProbNode(1-p0, iqbit_measured, 1);
+             curr->right->print();
+             probnode_q.push(curr->right);
+             if (iqbit_measured < n_qbits-1){
+                 legMats_q.push(legMats);
+             }
+         }
+
+         // restore legMats
+         legMats = legMats_m;
+
+         // walk the probability tree to sample
+         int n_samples = 20;
+         double rv;
+
+         std::cout<<"sampling"<<std::endl;
+         std::vector<boost::dynamic_bitset<> > measurements;
+         boost::dynamic_bitset<> measurement (n_qbits);
+         for(int i=0; i<n_samples; ++i){
+             curr = &root;
+             while(curr->left!=NULL){
+                 rv = (std::rand()%1000000)/1000000.;
+                 if (rv<(curr->left->val)){
+                     std::cout<<"0";
+                     measurement[curr->left->iqbit] = 0;
+                     curr = curr->left;
+                 }else{
+                     std::cout<<"1";
+                     measurement[curr->right->iqbit] = 1;
+                     curr = curr->right;
+                 }
+             }
+             accbuffer->appendMeasurement(measurement);
+             measurements.push_back(measurement);
+             std::cout<<std::endl;
+         }
+
+         // test, output accbuffer measurements
+         std::cout<<"samples in accbuffer:"<<std::endl;
+         for(int i=0; i<measurements.size(); ++i){
+             std::cout<<measurements[i]<<std::endl;
+         }
+
+         root.iqbit = -1;
+         root.outcome = -1;
+         root.val = -99.0;
+         root.left = NULL;
+         root.right = NULL;*/
+     }
 }
 
 void ITensorMPSVisitor::visit(Measure& gate) {
@@ -387,14 +481,14 @@ void ITensorMPSVisitor::visit(Ry& gate) {
 
 void ITensorMPSVisitor::visit(Rz& gate) {
 	auto iqbit_in = gate.bits()[0];
+	double theta = boost::get<double>(gate.getParameter(0));
 	if ((accbuffer->verbose()) >= 1) {
 		std::cout << "applying " << gate.getName() << " @ " << iqbit_in
-				<< std::endl;
+				<< " with angle " << theta << std::endl;
 	}
 	auto ind_in = ind_for_qbit(iqbit_in);
 	auto ind_out = itensor::Index(gate.getName(), 2);
 	auto tGate = itensor::ITensor(ind_in, ind_out);
-	double theta = boost::get<double>(gate.getParameter(0));
 	tGate.set(ind_out(1), ind_in(1),
 			std::exp(std::complex<double>(0, -.5 * theta)));
 	tGate.set(ind_out(2), ind_in(2),
@@ -562,29 +656,29 @@ itensor::Index ITensorMPSVisitor::ind_for_qbit(int iqbit) const {
 }
 
 void ITensorMPSVisitor::printWavefunc() const {
-	// // std::cout<<">>>>>>>>----------wf--------->>>>>>>>>>\n";
-	// auto mps = legMats[0];
-	// for(int i=1; i<n_qbits;++i){
-	//     mps *= bondMats[i-1];
-	//     mps *= legMats[i];
-	// }
-
-	// unsigned long giind = 0;
-	// const int n_qbits = iqbit2iind.size();
-	// auto print_nz = [&giind, n_qbits, this](itensor::Cplx c){
-	//     if(std::norm(c)>0){
-	//         for(int iind=0; iind<n_qbits; ++iind){
-	//             auto spin = (giind>>iind) & 1UL;
-	//             // std::cout<<spin;
-	//         }
-	//         // std::cout<<"    "<<c<<std::endl;
-	//     }
-	//     ++giind;
-	// };
-	// auto normed_wf = mps / itensor::norm(mps);
-	// normed_wf.visit(print_nz);
-	// // // itensor::PrintData(mps);
-	// // std::cout<<"<<<<<<<<---------------------<<<<<<<<<<\n"<<std::endl;
+//	  std::cout<<">>>>>>>>----------wf--------->>>>>>>>>>\n";
+//	 auto mps = legMats[0];
+//	 for(int i=1; i<n_qbits;++i){
+//	     mps *= bondMats[i-1];
+//	     mps *= legMats[i];
+//	 }
+//
+//	 unsigned long giind = 0;
+//	 const int n_qbits = iqbit2iind.size();
+//	 auto print_nz = [&giind, n_qbits, this](itensor::Cplx c){
+//	     if(std::norm(c)>0){
+//	         for(int iind=0; iind<n_qbits; ++iind){
+//	             auto spin = (giind>>iind) & 1UL;
+//	              std::cout<<spin;
+//	         }
+//	          std::cout<<"    "<<c<<std::endl;
+//	     }
+//	     ++giind;
+//	 };
+//	 auto normed_wf = mps / itensor::norm(mps);
+//	 normed_wf.visit(print_nz);
+//	   itensor::PrintData(mps);
+//	  std::cout<<"<<<<<<<<---------------------<<<<<<<<<<\n"<<std::endl;
 }
 
 /** The process of SVD is to decompose a tensor,

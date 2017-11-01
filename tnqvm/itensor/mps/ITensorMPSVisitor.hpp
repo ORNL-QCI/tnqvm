@@ -35,6 +35,8 @@
 #include "TNQVMVisitor.hpp"
 #include "TNQVMBuffer.hpp"
 #include "itensor/all.h"
+#include <queue>
+#include "ProbNode.hpp"
 
 using namespace xacc::quantum;
 
@@ -96,6 +98,11 @@ private:
 
     std::vector<ITensor> bondMats_m;  // the snapshot for measurement
     std::vector<ITensor> legMats_m;
+
+    std::queue<std::vector<ITensor> > bondMats_q;
+    std::queue<std::vector<ITensor> > legMats_q;
+    std::queue<ProbNode*> probnode_q;
+    ProbNode root;
 
     std::set<int> iqbits_m;           // indecies of qbits to measure
 

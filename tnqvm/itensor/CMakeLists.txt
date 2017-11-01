@@ -103,4 +103,8 @@ install(TARGETS ${LIBRARY_NAME} DESTINATION ${XACC_LIBRARY_DIR}/plugins/visitors
 
 
 # Gather tests
-file (GLOB test_files tests/*.cpp)
+file (GLOB test_files mps/tests/*.cpp)
+
+# Add the tests
+add_tests("${test_files}" "${CMAKE_CURRENT_SOURCE_DIR}/mps" "${LIBRARY_NAME};${Boost_LIBRARIES};${XACC_LIBRARIES}")
+
