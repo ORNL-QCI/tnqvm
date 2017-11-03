@@ -61,7 +61,7 @@ endif()
 include_directories(${ITENSOR_ROOT})
 
 if (EXATENSOR_ROOT)
-   if (EXISTS ${EXATENSOR_ROOT}/include/exatensor.hpp)
+   if (EXISTS ${EXATENSOR_ROOT}/include/tensornet.hpp)
       message(STATUS "ExaTensor found at ${EXATENSOR_ROOT}")
       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DTNQVM_HAS_EXATENSOR")
       include_directories(${EXATENSOR_ROOT}/include)

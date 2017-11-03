@@ -42,7 +42,7 @@
 #include "TNQVMBuffer.hpp"
 #include "GateFactory.hpp"
 
-#include "exatensor.hpp"
+#include "tensornet.hpp"
 
 namespace xacc {
 namespace quantum {

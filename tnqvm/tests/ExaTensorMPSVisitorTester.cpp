@@ -40,7 +40,7 @@
 #include "X.hpp"
 #include "ExaTensorMPSVisitor.hpp"
 
-BOOST_AUTO_TEST_CASE(checkSimple) {
+BOOST_AUTO_TEST_CASE(checkExaTensorMPSVisitor) {
 
  using namespace xacc::tnqvm;
  using namespace xacc::quantum;

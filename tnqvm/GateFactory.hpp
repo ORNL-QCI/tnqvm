@@ -166,7 +166,7 @@ public:
 
 #ifdef TNQVM_HAS_EXATENSOR
 
-#include "exatensor.hpp"
+#include "tensornet.hpp"
 
 namespace xacc {
 namespace quantum {
@@ -276,6 +276,8 @@ public:
  }
 
 }; //end class GateFactory
+
+//constexpr const std::size_t GateFactory::OneBodyShape[GateFactory::OneBodyRank];
 
 } //end namespace quantum
 } //end namespace xacc
