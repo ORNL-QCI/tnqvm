@@ -29,7 +29,7 @@
  *
  **********************************************************************************/
 #define BOOST_TEST_DYN_LINK
-#define BOOST_TEST_MODULE TNQVMTester
+#define BOOST_TEST_MODULE ExaTensorMPSVisitorTester
 
 #include <memory>
 #include <boost/test/included/unit_test.hpp>
@@ -38,28 +38,29 @@
 #include "Hadamard.hpp"
 #include "CNOT.hpp"
 #include "X.hpp"
+#include "ExaTensorMPSVisitor.hpp"
 
-BOOST_AUTO_TEST_CASE(checkKernelExecution) {
+BOOST_AUTO_TEST_CASE(checkSimple) {
 
-	using namespace xacc::tnqvm;
-	using namespace xacc::quantum;
+ using namespace xacc::tnqvm;
+ using namespace xacc::quantum;
 
-	TNQVM acc;
-	auto qreg1 = acc.createBuffer("qreg", 3);
-	auto f = std::make_shared<GateFunction>("foo");
+ TNQVM acc;
+ auto qreg1 = acc.createBuffer("qreg",3); //3-qubit accelerator buffer
+ auto f = std::make_shared<GateFunction>("foo"); //gate function
 
-	auto x = std::make_shared<X>(0);
-	auto h = std::make_shared<Hadamard>(1);
-	auto cn1 = std::make_shared<CNOT>(1, 2);
-	auto cn2 = std::make_shared<CNOT>(0, 1);
-	auto h2 = std::make_shared<Hadamard>(0);
+ auto x1 = std::make_shared<X>(0);
+ auto h1 = std::make_shared<Hadamard>(1);
+ auto cn1 = std::make_shared<CNOT>(1, 2);
+ auto cn2 = std::make_shared<CNOT>(0, 1);
+ auto h2 = std::make_shared<Hadamard>(0);
 
-	f->addInstruction(x);
-	f->addInstruction(h);
-	f->addInstruction(cn1);
-	f->addInstruction(cn2);
-	f->addInstruction(h2);
+ f->addInstruction(x1);
+ f->addInstruction(h1);
+ f->addInstruction(cn1);
+ f->addInstruction(cn2);
+ f->addInstruction(h2);
 
-	acc.execute(qreg1, f);
+ acc.execute(qreg1, f);
 
 }
