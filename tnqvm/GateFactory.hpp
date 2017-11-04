@@ -40,11 +40,13 @@ namespace quantum {
 
 class GateBodyFactory{
 
-private:
+public:
 
 //Type aliases:
 
  using TensDataType = std::complex<double>;
+
+private:
 
 //Static data (gate tensor bodies):
 
