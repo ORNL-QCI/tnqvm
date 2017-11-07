@@ -147,6 +147,9 @@ public:
 		return v;
 	}
 
+	virtual bool isPhysical() {
+		return false;
+	}
 
 	/**
 	 * The destructor
