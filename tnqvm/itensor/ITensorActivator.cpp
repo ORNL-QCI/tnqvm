@@ -1,5 +1,7 @@
 #include "ITensorMPSVisitor.hpp"
 
+#include "OptionsProvider.hpp"
+
 #include "cppmicroservices/BundleActivator.h"
 #include "cppmicroservices/BundleContext.h"
 #include "cppmicroservices/ServiceProperties.h"
@@ -13,6 +15,7 @@ public:
     void Start(BundleContext context){
         auto vis = std::make_shared<tnqvm::ITensorMPSVisitor>();
         context.RegisterService<tnqvm::TNQVMVisitor>(vis);
+        context.RegisterService<xacc::OptionsProvider>(vis);
     }
 
     void Stop(BundleContext context){}
