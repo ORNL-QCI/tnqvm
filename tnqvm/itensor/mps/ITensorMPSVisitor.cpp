@@ -401,7 +401,7 @@ void ITensorMPSVisitor::visit(Measure& gate) {
 	auto ind_measured = ind_for_qbit(iqbit_measured);
 	if ((accbuffer->verbose()) >= 1) {
 		std::cout << "applying " << gate.getName() << " @ " << iqbit_measured
-				<< std::endl;
+				<< ", " << accbuffer->aver_from_wavefunc << std::endl;
 	}
 	auto ind_measured_p = ind_for_qbit(iqbit_measured);
 	ind_measured_p.prime();
@@ -409,10 +409,8 @@ void ITensorMPSVisitor::visit(Measure& gate) {
 	auto tMeasure0 = itensor::ITensor(ind_measured, ind_measured_p);
 	tMeasure0.set(ind_measured_p(1), ind_measured(1), 1.);
 	double p0 = average(iqbit_measured, tMeasure0) / wavefunc_inner();
-	// accbuffer->aver_from_wavefunc *= (2*p0-1);
 
 	double rv = (std::rand() % 1000000) / 1000000.;
-	// std::cout<<"rv= "<<rv<<"   p0= "<<p0<<std::endl;
 
 	if (rv < p0) {
 		cbits[iqbit_measured] = 0;

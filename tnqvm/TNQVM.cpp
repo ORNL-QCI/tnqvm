@@ -48,9 +48,9 @@ std::shared_ptr<AcceleratorBuffer> TNQVM::createBuffer(
 	}
 	auto derived_buffer = std::make_shared<TNQVMBuffer>(varId, size);
 	derived_buffer->set_verbose(__verbose);
-	std::shared_ptr<AcceleratorBuffer> buffer = derived_buffer;
-	storeBuffer(varId, buffer);
-	return buffer;
+//	std::shared_ptr<AcceleratorBuffer> buffer = derived_buffer;
+	storeBuffer(varId, derived_buffer);
+	return derived_buffer;
 }
 
 bool TNQVM::isValidBufferSize(const int NBits) {

@@ -35,7 +35,7 @@
 
 namespace tnqvm {
 
-class TNQVMBuffer : public xacc::AcceleratorBuffer{
+class TNQVMBuffer : public xacc::AcceleratorBuffer {
 public:
 
     TNQVMBuffer(const std::string& str, const int N)

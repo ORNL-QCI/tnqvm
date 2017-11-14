@@ -37,16 +37,20 @@
 #include "GateFunction.hpp"
 #include "Hadamard.hpp"
 #include "CNOT.hpp"
+#include "GateQIR.hpp"
 #include "X.hpp"
 #include "InstructionIterator.hpp"
 #include <Eigen/Dense>
 #include <boost/math/constants/constants.hpp>
+#include "XACC.hpp"
 
 using namespace xacc::quantum;
 using namespace tnqvm;
 using namespace xacc;
 
 BOOST_AUTO_TEST_CASE(checkSimpleSimulation) {
+
+	auto gateRegistry = GateInstructionRegistry::instance();
 
 	auto statePrep =
 			std::make_shared<GateFunction>("statePrep",
@@ -58,35 +62,35 @@ BOOST_AUTO_TEST_CASE(checkSimpleSimulation) {
 					std::vector<InstructionParameter> { InstructionParameter(
 							"theta") });
 
-	auto rx = GateInstructionRegistry::instance()->create("Rx", std::vector<int>{0});
+	auto rx = gateRegistry->create("Rx", std::vector<int>{0});
 	InstructionParameter p0(3.1415926);
 	rx->setParameter(0, p0);
 
-	auto ry = GateInstructionRegistry::instance()->create("Ry", std::vector<int>{1});
+	auto ry = gateRegistry->create("Ry", std::vector<int>{1});
 	InstructionParameter p1(3.1415926/2.0);
 	ry->setParameter(0, p1);
 
-	auto rx2 = GateInstructionRegistry::instance()->create("Rx", std::vector<int>{0});
+	auto rx2 = gateRegistry->create("Rx", std::vector<int>{0});
 	InstructionParameter p2(7.8539752);
 	rx2->setParameter(0, p2);
 
-	auto cnot1 = GateInstructionRegistry::instance()->create("CNOT", std::vector<int>{1,0});
+	auto cnot1 = gateRegistry->create("CNOT", std::vector<int>{1,0});
 
-	auto rz = GateInstructionRegistry::instance()->create("Rz", std::vector<int>{0});
+	auto rz = gateRegistry->create("Rz", std::vector<int>{0});
 	InstructionParameter p3("theta");
 	rz->setParameter(0, p3);
 
-	auto cnot2 = GateInstructionRegistry::instance()->create("CNOT", std::vector<int>{1,0});
+	auto cnot2 = gateRegistry->create("CNOT", std::vector<int>{1,0});
 
-	auto ry2 = GateInstructionRegistry::instance()->create("Ry", std::vector<int>{1});
+	auto ry2 = gateRegistry->create("Ry", std::vector<int>{1});
 	InstructionParameter p4(7.8539752);
 	ry2->setParameter(0, p4);
 
-	auto rx3 = GateInstructionRegistry::instance()->create("Rx", std::vector<int>{0});
+	auto rx3 = gateRegistry->create("Rx", std::vector<int>{0});
 	InstructionParameter p5(3.1415926/2.0);
-	rx->setParameter(0, p5);
+	rx3->setParameter(0, p5);
 
-	auto meas = GateInstructionRegistry::instance()->create("Measure", std::vector<int>{0});
+	auto meas = gateRegistry->create("Measure", std::vector<int>{0});
 	InstructionParameter p6(0);
 	meas->setParameter(0, p6);
 
@@ -103,36 +107,42 @@ BOOST_AUTO_TEST_CASE(checkSimpleSimulation) {
 	term0->addInstruction(meas);
 
 	auto buffer = std::make_shared<TNQVMBuffer>("qreg", 2);
+	buffer->set_verbose(0);
 
 	// Get the visitor backend
 	auto visitor = std::make_shared<ITensorMPSVisitor>();
 	auto visCast =
 				std::dynamic_pointer_cast<BaseInstructionVisitor>(visitor);
+
+	auto run =
+			[&](std::shared_ptr<ITensorMPSVisitor> visitor, double theta) -> double {
+				buffer->resetBuffer();
+				// Initialize the visitor
+				visitor->initialize(buffer);
+
+				term0->evaluateVariableParameters(std::vector<InstructionParameter> {
+							InstructionParameter(theta)});
+
+				// Walk the IR tree, and visit each node
+				InstructionIterator it(term0);
+				while (it.hasNext()) {
+					auto nextInst = it.next();
+					if (nextInst->isEnabled()) {
+						nextInst->accept(visCast);
+					}
+				}
+
+				// Finalize the visitor
+				visitor->finalize();
+				return buffer->getExpectationValueZ();
+			};
+
 	auto pi = boost::math::constants::pi<double>();
-	Eigen::VectorXd range = Eigen::VectorXd::LinSpaced(100, -pi, pi);
-	std::vector<double> rangeVec(range.data(), range.data() + range.size());
-	for (auto theta0 : rangeVec) {
-		// Initialize the visitor
-		visitor->initialize(buffer);
 
-		term0->evaluateVariableParameters(std::vector<InstructionParameter> {
-				InstructionParameter(theta0) });
-
-		// Walk the IR tree, and visit each node
-		InstructionIterator it(term0);
-		while (it.hasNext()) {
-			auto nextInst = it.next();
-			if (nextInst->isEnabled()) {
-				nextInst->accept(visCast);
-			}
-		}
-
-		std::cout << "HELLO: " << buffer->getExpectationValueZ() << "\n";
-		buffer->resetBuffer();
-	}
-
-	// Finalize the visitor
-	visitor->finalize();
-
+	BOOST_VERIFY(std::fabs(-1 - run(visitor, -pi)) < 1e-8);
+	BOOST_VERIFY(std::fabs(0.128844 - run(visitor, -1.44159)) < 1e-8);
+	BOOST_VERIFY(std::fabs(0.307333 - run(visitor, 1.25841)) < 1e-8);
+	BOOST_VERIFY(std::fabs(-.283662 - run(visitor, 1.85841)) < 1e-8);
+	BOOST_VERIFY(std::fabs(-1 - run(visitor, pi)) < 1e-8);
 
 }
