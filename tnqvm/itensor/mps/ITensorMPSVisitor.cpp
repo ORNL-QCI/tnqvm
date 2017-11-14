@@ -42,7 +42,9 @@ using namespace xacc::quantum;
 
 namespace tnqvm {
 
-ITensorMPSVisitor::ITensorMPSVisitor() :n_qbits(0), snapped(false) {}
+ITensorMPSVisitor::ITensorMPSVisitor() :
+		n_qbits(0), snapped(false) {
+}
 
 void ITensorMPSVisitor::initialize(std::shared_ptr<TNQVMBuffer> buffer) {
 	n_qbits = buffer->size();
@@ -132,7 +134,7 @@ void ITensorMPSVisitor::visit(CNOT& gate) {
 	legMats[min_iqbit] = legMat;
 	bondMats[min_iqbit] = bondMat;
 	kickback_ind(restTensor, restTensor.inds()[1]);
-	assert(restTensor.r()==3);
+	assert(restTensor.r() == 3);
 	legMats[max_iqbit] = restTensor;
 	if (iqbit_in0_ori < iqbit_in1_ori - 1) {
 		permute_to(iqbit_in1_ori - 1, iqbit_in0_ori);
@@ -279,7 +281,7 @@ double ITensorMPSVisitor::averZs(std::set<int> iqbits) {
 	}
 	// itensor::PrintData(inner);
 	std::complex<double> aver = inner.cplx();
-	assert(aver.imag()<1e-10);
+	assert(aver.imag() < 1e-10);
 	return aver.real();
 }
 
@@ -301,85 +303,89 @@ void ITensorMPSVisitor::snap_wavefunc() {
 		snapped = true;
 		// std::cout<<"wave function inner = "<<wavefunc_inner()<<std::endl;
 
-		// measure all possible
-		legMats_q.push(legMats);
-		probnode_q.push(&root);
-		ProbNode* curr;
-		int iqbit_measured;
-		while (!legMats_q.empty()) {
+		if (xacc::optionExists("itensor-compute-samples")) {
+			// measure all possible
+			legMats_q.push(legMats);
+			probnode_q.push(&root);
+			ProbNode* curr;
+			int iqbit_measured;
+			while (!legMats_q.empty()) {
 
-			legMats = legMats_q.front();
-			legMats_q.pop();
-			curr = probnode_q.front();
-			probnode_q.pop();
+				legMats = legMats_q.front();
+				legMats_q.pop();
+				curr = probnode_q.front();
+				probnode_q.pop();
 
-			iqbit_measured = curr->iqbit + 1;
-			if (iqbit_measured > this->accbuffer->size() - 1) {
-				break;
-			}
-//             std::cout<<"measuring qbit "<<iqbit_measured<<" on"<<std::endl;
-			printWavefunc();
-			auto ind_measured = ind_for_qbit(iqbit_measured);
-			auto ind_measured_p = ind_for_qbit(iqbit_measured);
-			ind_measured_p.prime();
+				iqbit_measured = curr->iqbit + 1;
+				if (iqbit_measured > this->accbuffer->size() - 1) {
+					break;
+				}
+				std::cout << "measuring qbit " << iqbit_measured << " on"
+						<< std::endl;
+				printWavefunc();
+				auto ind_measured = ind_for_qbit(iqbit_measured);
+				auto ind_measured_p = ind_for_qbit(iqbit_measured);
+				ind_measured_p.prime();
 
-			auto legMat_tobe_measured = legMats[iqbit_measured];
+				auto legMat_tobe_measured = legMats[iqbit_measured];
 
-			// project to 0
-			auto tMeasure0 = itensor::ITensor(ind_measured, ind_measured_p);
-			tMeasure0.set(ind_measured_p(1), ind_measured(1), 1.);
-			double p0 = average(iqbit_measured, tMeasure0) / wavefunc_inner();
+				// project to 0
+				auto tMeasure0 = itensor::ITensor(ind_measured, ind_measured_p);
+				tMeasure0.set(ind_measured_p(1), ind_measured(1), 1.);
+				double p0 = average(iqbit_measured, tMeasure0)
+						/ wavefunc_inner();
 //             std::cout<<"p0= "<<p0<<std::endl;
-			auto collapsed_legMat_0 = tMeasure0 * legMat_tobe_measured;
-			legMats[iqbit_measured] = collapsed_legMat_0;
-			legMats[iqbit_measured].prime(ind_measured_p, -1);
-			curr->left = new ProbNode(p0, iqbit_measured, 0);
+				auto collapsed_legMat_0 = tMeasure0 * legMat_tobe_measured;
+				legMats[iqbit_measured] = collapsed_legMat_0;
+				legMats[iqbit_measured].prime(ind_measured_p, -1);
+				curr->left = new ProbNode(p0, iqbit_measured, 0);
 //             curr->left->print();
-			probnode_q.push(curr->left);
-			if (iqbit_measured < n_qbits - 1) {
-				legMats_q.push(legMats);
-			}
+				probnode_q.push(curr->left);
+				if (iqbit_measured < n_qbits - 1) {
+					legMats_q.push(legMats);
+				}
 
-			// project to 1
-			auto tMeasure1 = itensor::ITensor(ind_measured, ind_measured_p);
-			tMeasure1.set(ind_measured_p(2), ind_measured(2), 1.);
-			auto collapsed_legMat_1 = tMeasure1 * legMat_tobe_measured;
-			legMats[iqbit_measured] = collapsed_legMat_1;
-			legMats[iqbit_measured].prime(ind_measured_p, -1);
-			curr->right = new ProbNode(1 - p0, iqbit_measured, 1);
+				// project to 1
+				auto tMeasure1 = itensor::ITensor(ind_measured, ind_measured_p);
+				tMeasure1.set(ind_measured_p(2), ind_measured(2), 1.);
+				auto collapsed_legMat_1 = tMeasure1 * legMat_tobe_measured;
+				legMats[iqbit_measured] = collapsed_legMat_1;
+				legMats[iqbit_measured].prime(ind_measured_p, -1);
+				curr->right = new ProbNode(1 - p0, iqbit_measured, 1);
 //             curr->right->print();
-			probnode_q.push(curr->right);
-			if (iqbit_measured < n_qbits - 1) {
-				legMats_q.push(legMats);
-			}
-		}
-
-		// restore legMats
-		legMats = legMats_m;
-
-		// walk the probability tree to sample
-		int n_samples = 20;
-		if (xacc::optionExists("itensor-samples")) {
-			n_samples = std::stoi(xacc::getOption("itensor-samples"));
-		}
-		double rv;
-
-		std::vector<boost::dynamic_bitset<> > measurements;
-		boost::dynamic_bitset<> measurement(n_qbits);
-		for (int i = 0; i < n_samples; ++i) {
-			curr = &root;
-			while (curr->left != NULL) {
-				rv = (std::rand() % 1000000) / 1000000.;
-				if (rv < (curr->left->val)) {
-					measurement[curr->left->iqbit] = 0;
-					curr = curr->left;
-				} else {
-					measurement[curr->right->iqbit] = 1;
-					curr = curr->right;
+				probnode_q.push(curr->right);
+				if (iqbit_measured < n_qbits - 1) {
+					legMats_q.push(legMats);
 				}
 			}
-			accbuffer->appendMeasurement(measurement);
-			measurements.push_back(measurement);
+
+			// restore legMats
+			legMats = legMats_m;
+
+			// walk the probability tree to sample
+			int n_samples = 20;
+			if (xacc::optionExists("itensor-samples")) {
+				n_samples = std::stoi(xacc::getOption("itensor-samples"));
+			}
+			double rv;
+
+			std::vector<boost::dynamic_bitset<> > measurements;
+			boost::dynamic_bitset<> measurement(n_qbits);
+			for (int i = 0; i < n_samples; ++i) {
+				curr = &root;
+				while (curr->left != NULL) {
+					rv = (std::rand() % 1000000) / 1000000.;
+					if (rv < (curr->left->val)) {
+						measurement[curr->left->iqbit] = 0;
+						curr = curr->left;
+					} else {
+						measurement[curr->right->iqbit] = 1;
+						curr = curr->right;
+					}
+				}
+				accbuffer->appendMeasurement(measurement);
+				measurements.push_back(measurement);
+			}
 		}
 
 		root.iqbit = -1;
@@ -560,7 +566,7 @@ void ITensorMPSVisitor::visit(Swap& gate) {
 	legMats[min_iqbit] = legMat;
 	bondMats[min_iqbit] = bondMat;
 	kickback_ind(restTensor, restTensor.inds()[1]);
-	assert(restTensor.r()==3);
+	assert(restTensor.r() == 3);
 	legMats[max_iqbit] = restTensor;
 	if (iqbit_in0_ori < iqbit_in1_ori - 1) {
 		permute_to(iqbit_in1_ori - 1, iqbit_in0_ori);
@@ -636,8 +642,8 @@ void ITensorMPSVisitor::initWavefunc_bysvd(int n_qbits) {
 	}
 	reduce_to_MPS();
 //	for (int i = 0; i < n_qbits - 1; ++i) {
-		// itensor::PrintData(legMats[i]);
-		// itensor::PrintData(bondMats[i]);
+	// itensor::PrintData(legMats[i]);
+	// itensor::PrintData(bondMats[i]);
 //	}
 	// itensor::PrintData(legMats[n_qbits-1]);
 }

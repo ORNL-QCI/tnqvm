@@ -63,7 +63,8 @@ public:
 		auto desc = std::make_shared<options_description>(
 				"ITensor MPS Visitor Options");
 		desc->add_options()("itensor-samples", value<std::string>(),
-				"Provide the number of measurement samples.");
+				"Provide the number of measurement samples.")
+				("itensor-compute-samples", "Compute measurement samples.");
 		return desc;
     	}
 
