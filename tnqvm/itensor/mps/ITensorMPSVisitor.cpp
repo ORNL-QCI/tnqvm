@@ -613,11 +613,11 @@ void ITensorMPSVisitor::initWavefunc(int n_qbits) {
 	legMat.set(qbit(1), prev_rbond(1), tail(1), 1.);
 	legMats.push_back(legMat);
 
-	for (int i = 0; i < n_qbits - 1; ++i) {
-		// itensor::PrintData(legMats[i]);
-		// itensor::PrintData(bondMats[i]);
-	}
-	// itensor::PrintData(legMats[n_qbits-1]);
+//	for (int i = 0; i < n_qbits - 1; ++i) {
+//		 itensor::PrintData(legMats[i]);
+//		 itensor::PrintData(bondMats[i]);
+//	}
+//	 itensor::PrintData(legMats[n_qbits-1]);
 }
 
 void ITensorMPSVisitor::initWavefunc_bysvd(int n_qbits) {
@@ -638,10 +638,10 @@ void ITensorMPSVisitor::initWavefunc_bysvd(int n_qbits) {
 		wavefunc = wavefunc / tInitQbits[i];
 	}
 	reduce_to_MPS();
-	for (int i = 0; i < n_qbits - 1; ++i) {
+//	for (int i = 0; i < n_qbits - 1; ++i) {
 		// itensor::PrintData(legMats[i]);
 		// itensor::PrintData(bondMats[i]);
-	}
+//	}
 	// itensor::PrintData(legMats[n_qbits-1]);
 }
 

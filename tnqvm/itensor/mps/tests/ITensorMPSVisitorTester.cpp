@@ -146,3 +146,79 @@ BOOST_AUTO_TEST_CASE(checkSimpleSimulation) {
 	BOOST_VERIFY(std::fabs(-1 - run(visitor, pi)) < 1e-8);
 
 }
+
+BOOST_AUTO_TEST_CASE(checkOneQubitBug) {
+
+	auto gateRegistry = GateInstructionRegistry::instance();
+
+	auto statePrep =
+			std::make_shared<GateFunction>("statePrep",
+					std::vector<InstructionParameter> { InstructionParameter(
+							"theta") });
+
+	auto term0 =
+			std::make_shared<GateFunction>("term0",
+					std::vector<InstructionParameter> { InstructionParameter(
+							"theta") });
+
+	auto rx = gateRegistry->create("Rx", std::vector<int>{0});
+	InstructionParameter p0("theta");
+	rx->setParameter(0, p0);
+
+	auto ry = gateRegistry->create("Ry", std::vector<int> { 1 });
+	InstructionParameter p1(3.1415926 / 2.0);
+	ry->setParameter(0, p1);
+	auto rz = gateRegistry->create("Rz", std::vector<int> { 0 });
+	InstructionParameter p3("theta");
+	rz->setParameter(0, p3);
+
+	auto h = gateRegistry->create("H", std::vector<int>{0});
+
+	auto meas = gateRegistry->create("Measure", std::vector<int> { 0 });
+	InstructionParameter p6(0);
+	meas->setParameter(0, p6);
+
+	statePrep->addInstruction(rx);
+	statePrep->addInstruction(rz);
+
+	term0->addInstruction(statePrep);
+	term0->addInstruction(h);
+	term0->addInstruction(meas);
+
+	auto buffer = std::make_shared<TNQVMBuffer>("qreg", 1);
+	buffer->set_verbose(0);
+
+	// Get the visitor backend
+	auto visitor = std::make_shared<ITensorMPSVisitor>();
+	auto visCast =
+				std::dynamic_pointer_cast<BaseInstructionVisitor>(visitor);
+
+	auto run =
+			[&](std::shared_ptr<ITensorMPSVisitor> visitor, double theta) -> double {
+				buffer->resetBuffer();
+				// Initialize the visitor
+				visitor->initialize(buffer);
+
+				term0->evaluateVariableParameters(std::vector<InstructionParameter> {
+							InstructionParameter(theta)});
+
+				// Walk the IR tree, and visit each node
+				InstructionIterator it(term0);
+				while (it.hasNext()) {
+					auto nextInst = it.next();
+					if (nextInst->isEnabled()) {
+						nextInst->accept(visCast);
+					}
+				}
+
+				// Finalize the visitor
+				visitor->finalize();
+				return buffer->getExpectationValueZ();
+			};
+
+	auto pi = boost::math::constants::pi<double>();
+
+	// UNCOMMENT TO SEE BUG
+//	run(visitor, pi);
+
+}
