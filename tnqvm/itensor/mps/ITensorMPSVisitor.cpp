@@ -36,6 +36,7 @@
 #include <ctime>
 #include <cassert>
 #include <stack>
+#include "XACC.hpp"
 
 using namespace xacc::quantum;
 
@@ -358,6 +359,9 @@ void ITensorMPSVisitor::snap_wavefunc() {
 
 		// walk the probability tree to sample
 		int n_samples = 20;
+		if (xacc::optionExists("itensor-samples")) {
+			n_samples = std::stoi(xacc::getOption("itensor-samples"));
+		}
 		double rv;
 
 		std::vector<boost::dynamic_bitset<> > measurements;

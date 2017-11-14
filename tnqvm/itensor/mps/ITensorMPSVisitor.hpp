@@ -37,11 +37,12 @@
 #include "itensor/all.h"
 #include <queue>
 #include "ProbNode.hpp"
+#include "OptionsProvider.hpp"
 
 using namespace xacc::quantum;
 
 namespace tnqvm{
-class ITensorMPSVisitor: public TNQVMVisitor {
+class ITensorMPSVisitor: public TNQVMVisitor, public OptionsProvider {
     using ITensor = itensor::ITensor;
     using Index = itensor::Index;
     using IndexVal = itensor::IndexVal;
@@ -53,6 +54,30 @@ public:
     virtual void initialize(std::shared_ptr<TNQVMBuffer> buffer);
     virtual void finalize() {}
 
+    /**
+    	 * Return a Boost options_description instance that
+    	 * describes the options available for this
+    	 * derived subclass.
+    	 */
+	virtual std::shared_ptr<options_description> getOptions() {
+		auto desc = std::make_shared<options_description>(
+				"ITensor MPS Visitor Options");
+		desc->add_options()("itensor-samples", value<std::string>(),
+				"Provide the number of measurement samples.");
+		return desc;
+    	}
+
+    	/**
+    	 * Given user-input command line options, perform
+    	 * some operation. Returns true if runtime should exit,
+    	 * false otherwise.
+    	 *
+    	 * @param map The mapping of options to values
+    	 * @return exit True if exit, false otherwise
+    	 */
+    	virtual bool handleOptions(variables_map& map) {
+    		return false;
+    	}
 	/**
 	 * Return the name of this instance.
 	 *
