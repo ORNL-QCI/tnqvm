@@ -304,6 +304,8 @@ void ITensorMPSVisitor::snap_wavefunc() {
 		// std::cout<<"wave function inner = "<<wavefunc_inner()<<std::endl;
 
 		if (xacc::optionExists("itensor-compute-samples")) {
+			int n_samples = std::stoi(xacc::getOption("itensor-compute-samples"));
+
 			// measure all possible
 			legMats_q.push(legMats);
 			probnode_q.push(&root);
@@ -363,10 +365,10 @@ void ITensorMPSVisitor::snap_wavefunc() {
 			legMats = legMats_m;
 
 			// walk the probability tree to sample
-			int n_samples = 20;
-			if (xacc::optionExists("itensor-samples")) {
-				n_samples = std::stoi(xacc::getOption("itensor-samples"));
-			}
+//			int n_samples = 20;
+//			if (xacc::optionExists("itensor-samples")) {
+//				n_samples = std::stoi(xacc::getOption("itensor-samples"));
+//			}
 			double rv;
 
 			std::vector<boost::dynamic_bitset<> > measurements;

@@ -62,9 +62,9 @@ public:
 	virtual std::shared_ptr<options_description> getOptions() {
 		auto desc = std::make_shared<options_description>(
 				"ITensor MPS Visitor Options");
-		desc->add_options()("itensor-samples", value<std::string>(),
-				"Provide the number of measurement samples.")
-				("itensor-compute-samples", "Compute measurement samples.");
+		desc->add_options()
+				("itensor-compute-samples", value<std::string>(),
+						"Compute measurement samples, provide number of samples.");
 		return desc;
     	}
 
