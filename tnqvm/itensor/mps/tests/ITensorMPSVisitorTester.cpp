@@ -222,3 +222,66 @@ BOOST_AUTO_TEST_CASE(checkOneQubitBug) {
 //	run(visitor, pi);
 
 }
+
+BOOST_AUTO_TEST_CASE(checkSampling) {
+
+	auto gateRegistry = GateInstructionRegistry::instance();
+
+	auto term0 =
+			std::make_shared<GateFunction>("term0",
+					std::vector<InstructionParameter> {});
+
+	auto x1 = gateRegistry->create("X", std::vector<int>{0});
+	auto x2 = gateRegistry->create("X", std::vector<int> { 1 });
+
+	term0->addInstruction(x1);
+	term0->addInstruction(x2);
+	auto meas1 = gateRegistry->create("Measure", std::vector<int> { 0 });
+	InstructionParameter p6(0);
+	meas1->setParameter(0, p6);
+
+	auto meas2 = gateRegistry->create("Measure", std::vector<int> { 1 });
+	InstructionParameter p7(1);
+	meas2->setParameter(0, p7);
+
+	term0->addInstruction(meas1);
+	term0->addInstruction(meas2);
+
+	auto buffer = std::make_shared<TNQVMBuffer>("qreg", 2);
+	buffer->set_verbose(0);
+
+	// Get the visitor backend
+	auto visitor = std::make_shared<ITensorMPSVisitor>();
+	auto visCast =
+				std::dynamic_pointer_cast<BaseInstructionVisitor>(visitor);
+
+	auto run =
+			[&](std::shared_ptr<ITensorMPSVisitor> visitor, double theta) -> double {
+				buffer->resetBuffer();
+				// Initialize the visitor
+				visitor->initialize(buffer);
+
+				term0->evaluateVariableParameters(std::vector<InstructionParameter> {
+							InstructionParameter(theta)});
+
+				// Walk the IR tree, and visit each node
+				InstructionIterator it(term0);
+				while (it.hasNext()) {
+					auto nextInst = it.next();
+					if (nextInst->isEnabled()) {
+						nextInst->accept(visCast);
+					}
+				}
+
+				// Finalize the visitor
+				visitor->finalize();
+				return buffer->getExpectationValueZ();
+			};
+
+	run(visitor, 0.0);
+
+	auto mstrs = buffer->getMeasurementStrings();
+	for (auto s : mstrs) {
+		BOOST_VERIFY(s == "11");
+	}
+}
