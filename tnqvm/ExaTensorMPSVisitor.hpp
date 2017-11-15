@@ -39,6 +39,7 @@
 #include "tensor_network.hpp"
 #include "TNQVMBuffer.hpp"
 
+using namespace tnqvm;
 namespace xacc {
 namespace quantum {
 
