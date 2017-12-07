@@ -38,8 +38,10 @@
 #include <complex>
 #include <vector>
 #include <utility>
+
 #include "AllGateVisitor.hpp"
 #include "TNQVMBuffer.hpp"
+
 #include "GateFactory.hpp"
 
 #include "tensornet.hpp"
@@ -52,8 +54,8 @@ class ExaTensorMPSVisitor : public AllGateVisitor {
 private:
 
 //Type aliases:
- using TensDataType = std::complex<double>;
- using Tensor = exatensor::TensorDenseAdpt<TensDataType>;
+ using TensDataType = GateFactory::TensDataType;
+ using Tensor = GateFactory::Tensor;
  using TensorLeg = exatensor::TensorLeg;
  using TensorNetwork = exatensor::TensorNetwork<TensDataType>;
  using WaveFunction = std::vector<Tensor>;
@@ -65,7 +67,7 @@ private:
  std::shared_ptr<TNQVMBuffer> Buffer;               //accelerator buffer
  WaveFunction StateMPS;                             //MPS wave-function of qubits (MPS tensors)
  TensorNetwork TensNet;                             //currently constructed tensor network
- std::pair<unsigned int, unsigned int> QubitRange;  //range of qubits in the current tensor network
+ std::pair<unsigned int, unsigned int> QubitRange;  //range of involved qubits in the current tensor network
  std::vector<unsigned int> OptimizedTensors;        //IDs of the tensors to be optimized in the closed tensor network
  bool EagerEval;                                    //if TRUE each gate will be applied immediately (defaults to FALSE)
 
@@ -79,14 +81,16 @@ private:
 
 public:
 
-//Constants:
- static const std::size_t BASE_SPACE_DIM = 2; //basic space dimension (2 for a qubit)
+//Static constants:
  static const std::size_t INITIAL_VALENCE = 2; //initial dimension extent for virtual MPS indices
 
 //Life cycle:
- ExaTensorMPSVisitor(std::shared_ptr<TNQVMBuffer> buffer, //accelerator buffer
-                     const std::size_t initialValence = INITIAL_VALENCE); //initial dimension extent for virtual dimensions
- virtual ~ExaTensorMPSVisitor(); //dtor
+ ExaTensorMPSVisitor(const bool eagerEval = false);
+ virtual ~ExaTensorMPSVisitor();
+
+ int initialize(std::shared_ptr<TNQVMBuffer> buffer, //accelerator buffer
+                const std::size_t initialValence = INITIAL_VALENCE); //initial dimension extent for virtual dimensions
+ int finalize();
 
 //Visitor methods:
  void visit(Hadamard & gate);

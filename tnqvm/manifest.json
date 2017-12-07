@@ -1,6 +1,6 @@
 {
   "bundle.symbolic_name" : "xacc_tnqvm_accelerator",
   "bundle.activator" : true,
-  "bundle.name" : "XACC tensor netowrk quantum virtual machine (TNQVM) Accelerator",
-  "bundle.description" : "This bundle provides a tensor netowrk Accelerator for Gate Model QC."
+  "bundle.name" : "XACC tensor network quantum virtual machine (TN-QVM) Accelerator",
+  "bundle.description" : "This bundle provides a tensor network Accelerator for Gate Model QC."
 }

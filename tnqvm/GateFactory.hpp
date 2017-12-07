@@ -33,11 +33,22 @@
 
 #include <cstdlib>
 #include <complex>
+
 #include "AllGateVisitor.hpp"
 
 namespace xacc {
 namespace quantum {
 
+//Constants:
+
+static const std::size_t BASE_SPACE_DIM = 2; //basic space dimension (2 for a qubit)
+static const unsigned int ONE_BODY_RANK = 2; //rank of a one-body tensor
+static const std::size_t ONE_BODY_VOL = BASE_SPACE_DIM * BASE_SPACE_DIM; //volume of a one-body tensor
+static const unsigned int TWO_BODY_RANK = 4; //rank of a two-body tensor
+static const std::size_t TWO_BODY_VOL = BASE_SPACE_DIM * BASE_SPACE_DIM * BASE_SPACE_DIM * BASE_SPACE_DIM; //volume of a two-body tensor
+
+
+/** This class computes and/or caches gate tensor bodies. **/
 class GateBodyFactory{
 
 public:
@@ -48,58 +59,58 @@ public:
 
 private:
 
-//Static data (gate tensor bodies):
+//Static data declaration (gate tensor bodies):
 
- static constexpr const TensDataType HBody[4] = {
+ static constexpr const TensDataType HBody[ONE_BODY_VOL] = {
   TensDataType(1.0,0.0), TensDataType( 1.0,0.0),
   TensDataType(1.0,0.0), TensDataType(-1.0,0.0)
  };
 
- static constexpr const TensDataType XBody[4] = {
+ static constexpr const TensDataType XBody[ONE_BODY_VOL] = {
   TensDataType(0.0,0.0), TensDataType(1.0,0.0),
   TensDataType(1.0,0.0), TensDataType(0.0,0.0)
  };
 
- static constexpr const TensDataType YBody[4] = {
+ static constexpr const TensDataType YBody[ONE_BODY_VOL] = {
   TensDataType(0.0,0.0), TensDataType(0.0,-1.0),
   TensDataType(0.0,1.0), TensDataType(0.0, 0.0)
  };
 
- static constexpr const TensDataType ZBody[4] = {
+ static constexpr const TensDataType ZBody[ONE_BODY_VOL] = {
   TensDataType(1.0,0.0), TensDataType( 0.0,0.0),
   TensDataType(0.0,0.0), TensDataType(-1.0,0.0)
  };
 
- static constexpr const TensDataType RxBody[4] = {
+ static constexpr const TensDataType RxBody[ONE_BODY_VOL] = {
   TensDataType(0.0,0.0), TensDataType(0.0,0.0),
   TensDataType(0.0,0.0), TensDataType(0.0,0.0)
  };
 
- static constexpr const TensDataType RyBody[4] = {
+ static constexpr const TensDataType RyBody[ONE_BODY_VOL] = {
   TensDataType(0.0,0.0), TensDataType(0.0,0.0),
   TensDataType(0.0,0.0), TensDataType(0.0,0.0)
  };
 
- static constexpr const TensDataType RzBody[4] = {
+ static constexpr const TensDataType RzBody[ONE_BODY_VOL] = {
   TensDataType(0.0,0.0), TensDataType(0.0,0.0),
   TensDataType(0.0,0.0), TensDataType(0.0,0.0)
  };
 
- static constexpr const TensDataType CPBody[16] = {
+ static constexpr const TensDataType CPBody[TWO_BODY_VOL] = {
   TensDataType(1.0,0.0), TensDataType(0.0,0.0), TensDataType(0.0,0.0), TensDataType(0.0,0.0),
   TensDataType(0.0,0.0), TensDataType(1.0,0.0), TensDataType(0.0,0.0), TensDataType(0.0,0.0),
   TensDataType(0.0,0.0), TensDataType(0.0,0.0), TensDataType(0.0,0.0), TensDataType(1.0,0.0),
   TensDataType(0.0,0.0), TensDataType(0.0,0.0), TensDataType(1.0,0.0), TensDataType(0.0,0.0)
  };
 
- static constexpr const TensDataType CNBody[16] = {
+ static constexpr const TensDataType CNBody[TWO_BODY_VOL] = {
   TensDataType(1.0,0.0), TensDataType(0.0,0.0), TensDataType(0.0,0.0), TensDataType(0.0,0.0),
   TensDataType(0.0,0.0), TensDataType(1.0,0.0), TensDataType(0.0,0.0), TensDataType(0.0,0.0),
   TensDataType(0.0,0.0), TensDataType(0.0,0.0), TensDataType(0.0,0.0), TensDataType(1.0,0.0),
   TensDataType(0.0,0.0), TensDataType(0.0,0.0), TensDataType(1.0,0.0), TensDataType(0.0,0.0)
  };
 
- static constexpr const TensDataType SWBody[16] = {
+ static constexpr const TensDataType SWBody[TWO_BODY_VOL] = {
   TensDataType(1.0,0.0), TensDataType(0.0,0.0), TensDataType(0.0,0.0), TensDataType(0.0,0.0),
   TensDataType(0.0,0.0), TensDataType(0.0,0.0), TensDataType(1.0,0.0), TensDataType(0.0,0.0),
   TensDataType(0.0,0.0), TensDataType(1.0,0.0), TensDataType(0.0,0.0), TensDataType(0.0,0.0),
@@ -124,41 +135,41 @@ public:
 //Life cycle:
 
  GateBodyFactory():
-  HTensor(new TensDataType[4], [](TensDataType * ptr){delete[] ptr;}),
-  XTensor(new TensDataType[4], [](TensDataType * ptr){delete[] ptr;}),
-  YTensor(new TensDataType[4], [](TensDataType * ptr){delete[] ptr;}),
-  ZTensor(new TensDataType[4], [](TensDataType * ptr){delete[] ptr;}),
-  RxTensor(new TensDataType[4], [](TensDataType * ptr){delete[] ptr;}),
-  RyTensor(new TensDataType[4], [](TensDataType * ptr){delete[] ptr;}),
-  RzTensor(new TensDataType[4], [](TensDataType * ptr){delete[] ptr;}),
-  CPTensor(new TensDataType[16], [](TensDataType * ptr){delete[] ptr;}),
-  CNTensor(new TensDataType[16], [](TensDataType * ptr){delete[] ptr;}),
-  SWTensor(new TensDataType[16], [](TensDataType * ptr){delete[] ptr;})
+  HTensor(new TensDataType[ONE_BODY_VOL], [](TensDataType * ptr){delete[] ptr;}),
+  XTensor(new TensDataType[ONE_BODY_VOL], [](TensDataType * ptr){delete[] ptr;}),
+  YTensor(new TensDataType[ONE_BODY_VOL], [](TensDataType * ptr){delete[] ptr;}),
+  ZTensor(new TensDataType[ONE_BODY_VOL], [](TensDataType * ptr){delete[] ptr;}),
+  RxTensor(new TensDataType[ONE_BODY_VOL], [](TensDataType * ptr){delete[] ptr;}),
+  RyTensor(new TensDataType[ONE_BODY_VOL], [](TensDataType * ptr){delete[] ptr;}),
+  RzTensor(new TensDataType[ONE_BODY_VOL], [](TensDataType * ptr){delete[] ptr;}),
+  CPTensor(new TensDataType[TWO_BODY_VOL], [](TensDataType * ptr){delete[] ptr;}),
+  CNTensor(new TensDataType[TWO_BODY_VOL], [](TensDataType * ptr){delete[] ptr;}),
+  SWTensor(new TensDataType[TWO_BODY_VOL], [](TensDataType * ptr){delete[] ptr;})
  {
-  {auto body = HTensor.get(); for(unsigned int i = 0; i < 4; ++i) body[i]=HBody[i];}
-  {auto body = XTensor.get(); for(unsigned int i = 0; i < 4; ++i) body[i]=XBody[i];}
-  {auto body = YTensor.get(); for(unsigned int i = 0; i < 4; ++i) body[i]=YBody[i];}
-  {auto body = ZTensor.get(); for(unsigned int i = 0; i < 4; ++i) body[i]=ZBody[i];}
-  {auto body = RxTensor.get(); for(unsigned int i = 0; i < 4; ++i) body[i]=RxBody[i];}
-  {auto body = RyTensor.get(); for(unsigned int i = 0; i < 4; ++i) body[i]=RyBody[i];}
-  {auto body = RzTensor.get(); for(unsigned int i = 0; i < 4; ++i) body[i]=RzBody[i];}
-  {auto body = CPTensor.get(); for(unsigned int i = 0; i < 16; ++i) body[i]=CPBody[i];}
-  {auto body = CNTensor.get(); for(unsigned int i = 0; i < 16; ++i) body[i]=CNBody[i];}
-  {auto body = SWTensor.get(); for(unsigned int i = 0; i < 16; ++i) body[i]=SWBody[i];}
+  {auto body = HTensor.get(); for(unsigned int i = 0; i < ONE_BODY_VOL; ++i) body[i]=HBody[i];}
+  {auto body = XTensor.get(); for(unsigned int i = 0; i < ONE_BODY_VOL; ++i) body[i]=XBody[i];}
+  {auto body = YTensor.get(); for(unsigned int i = 0; i < ONE_BODY_VOL; ++i) body[i]=YBody[i];}
+  {auto body = ZTensor.get(); for(unsigned int i = 0; i < ONE_BODY_VOL; ++i) body[i]=ZBody[i];}
+  {auto body = RxTensor.get(); for(unsigned int i = 0; i < ONE_BODY_VOL; ++i) body[i]=RxBody[i];}
+  {auto body = RyTensor.get(); for(unsigned int i = 0; i < ONE_BODY_VOL; ++i) body[i]=RyBody[i];}
+  {auto body = RzTensor.get(); for(unsigned int i = 0; i < ONE_BODY_VOL; ++i) body[i]=RzBody[i];}
+  {auto body = CPTensor.get(); for(unsigned int i = 0; i < TWO_BODY_VOL; ++i) body[i]=CPBody[i];}
+  {auto body = CNTensor.get(); for(unsigned int i = 0; i < TWO_BODY_VOL; ++i) body[i]=CNBody[i];}
+  {auto body = SWTensor.get(); for(unsigned int i = 0; i < TWO_BODY_VOL; ++i) body[i]=SWBody[i];}
  }
 
 //Returns the body of each concrete gate tensor:
 
- std::shared_ptr<TensDataType> getBody(const Hadamard & gate){return HTensor;}
- std::shared_ptr<TensDataType> getBody(const X & gate){return XTensor;}
- std::shared_ptr<TensDataType> getBody(const Y & gate){return YTensor;}
- std::shared_ptr<TensDataType> getBody(const Z & gate){return ZTensor;}
- std::shared_ptr<TensDataType> getBody(const Rx & gate){return RxTensor;}
- std::shared_ptr<TensDataType> getBody(const Ry & gate){return RyTensor;}
- std::shared_ptr<TensDataType> getBody(const Rz & gate){return RzTensor;}
- std::shared_ptr<TensDataType> getBody(const CPhase & gate){return CPTensor;}
- std::shared_ptr<TensDataType> getBody(const CNOT & gate){return CNTensor;}
- std::shared_ptr<TensDataType> getBody(const Swap & gate){return SWTensor;}
+ const std::shared_ptr<TensDataType> getBody(const Hadamard & gate){return HTensor;}
+ const std::shared_ptr<TensDataType> getBody(const X & gate){return XTensor;}
+ const std::shared_ptr<TensDataType> getBody(const Y & gate){return YTensor;}
+ const std::shared_ptr<TensDataType> getBody(const Z & gate){return ZTensor;}
+ const std::shared_ptr<TensDataType> getBody(const Rx & gate){return RxTensor;}
+ const std::shared_ptr<TensDataType> getBody(const Ry & gate){return RyTensor;}
+ const std::shared_ptr<TensDataType> getBody(const Rz & gate){return RzTensor;}
+ const std::shared_ptr<TensDataType> getBody(const CPhase & gate){return CPTensor;}
+ const std::shared_ptr<TensDataType> getBody(const CNOT & gate){return CNTensor;}
+ const std::shared_ptr<TensDataType> getBody(const Swap & gate){return SWTensor;}
 
 }; //end class GateBodyFactory
 
@@ -175,20 +186,19 @@ namespace quantum {
 
 class GateFactory{
 
-private:
+public:
 
 //Type aliases:
 
- using TensDataType = std::complex<double>;
+ using TensDataType = GateBodyFactory::TensDataType;
  using Tensor = exatensor::TensorDenseAdpt<TensDataType>;
 
-//Constants:
+private:
 
- static const unsigned int OneBodyRank = 2;
- static constexpr const std::size_t OneBodyShape[OneBodyRank] = {2,2};
+//Static constants declaration:
 
- static const unsigned int TwoBodyRank = 4;
- static constexpr const std::size_t TwoBodyShape[TwoBodyRank] = {2,2,2,2};
+ static constexpr const std::size_t OneBodyShape[ONE_BODY_RANK] = {BASE_SPACE_DIM,BASE_SPACE_DIM};
+ static constexpr const std::size_t TwoBodyShape[TWO_BODY_RANK] = {BASE_SPACE_DIM,BASE_SPACE_DIM,BASE_SPACE_DIM,BASE_SPACE_DIM};
 
 //Gate body factory member:
 
@@ -212,16 +222,16 @@ public:
 //Life cycle:
 
  GateFactory():
-  HadamardTensor(OneBodyRank,OneBodyShape),
-  XTensor(OneBodyRank,OneBodyShape),
-  YTensor(OneBodyRank,OneBodyShape),
-  ZTensor(OneBodyRank,OneBodyShape),
-  RxTensor(OneBodyRank,OneBodyShape),
-  RyTensor(OneBodyRank,OneBodyShape),
-  RzTensor(OneBodyRank,OneBodyShape),
-  CPhaseTensor(TwoBodyRank,TwoBodyShape),
-  CNOTTensor(TwoBodyRank,TwoBodyShape),
-  SwapTensor(TwoBodyRank,TwoBodyShape)
+  HadamardTensor(ONE_BODY_RANK,OneBodyShape),
+  XTensor(ONE_BODY_RANK,OneBodyShape),
+  YTensor(ONE_BODY_RANK,OneBodyShape),
+  ZTensor(ONE_BODY_RANK,OneBodyShape),
+  RxTensor(ONE_BODY_RANK,OneBodyShape),
+  RyTensor(ONE_BODY_RANK,OneBodyShape),
+  RzTensor(ONE_BODY_RANK,OneBodyShape),
+  CPhaseTensor(TWO_BODY_RANK,TwoBodyShape),
+  CNOTTensor(TWO_BODY_RANK,TwoBodyShape),
+  SwapTensor(TWO_BODY_RANK,TwoBodyShape)
  {
  }
 
@@ -278,8 +288,6 @@ public:
  }
 
 }; //end class GateFactory
-
-//constexpr const std::size_t GateFactory::OneBodyShape[GateFactory::OneBodyRank];
 
 } //end namespace quantum
 } //end namespace xacc

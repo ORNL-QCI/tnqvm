@@ -35,20 +35,21 @@ namespace xacc {
 namespace quantum {
 
 //Static class member storage:
-constexpr const GateBodyFactory::TensDataType GateBodyFactory::HBody[4];
-constexpr const GateBodyFactory::TensDataType GateBodyFactory::XBody[4];
-constexpr const GateBodyFactory::TensDataType GateBodyFactory::YBody[4];
-constexpr const GateBodyFactory::TensDataType GateBodyFactory::ZBody[4];
-constexpr const GateBodyFactory::TensDataType GateBodyFactory::RxBody[4];
-constexpr const GateBodyFactory::TensDataType GateBodyFactory::RyBody[4];
-constexpr const GateBodyFactory::TensDataType GateBodyFactory::RzBody[4];
-constexpr const GateBodyFactory::TensDataType GateBodyFactory::CPBody[16];
-constexpr const GateBodyFactory::TensDataType GateBodyFactory::CNBody[16];
-constexpr const GateBodyFactory::TensDataType GateBodyFactory::SWBody[16];
+
+constexpr const GateBodyFactory::TensDataType GateBodyFactory::HBody[ONE_BODY_VOL];
+constexpr const GateBodyFactory::TensDataType GateBodyFactory::XBody[ONE_BODY_VOL];
+constexpr const GateBodyFactory::TensDataType GateBodyFactory::YBody[ONE_BODY_VOL];
+constexpr const GateBodyFactory::TensDataType GateBodyFactory::ZBody[ONE_BODY_VOL];
+constexpr const GateBodyFactory::TensDataType GateBodyFactory::RxBody[ONE_BODY_VOL];
+constexpr const GateBodyFactory::TensDataType GateBodyFactory::RyBody[ONE_BODY_VOL];
+constexpr const GateBodyFactory::TensDataType GateBodyFactory::RzBody[ONE_BODY_VOL];
+constexpr const GateBodyFactory::TensDataType GateBodyFactory::CPBody[TWO_BODY_VOL];
+constexpr const GateBodyFactory::TensDataType GateBodyFactory::CNBody[TWO_BODY_VOL];
+constexpr const GateBodyFactory::TensDataType GateBodyFactory::SWBody[TWO_BODY_VOL];
 
 #ifdef TNQVM_HAS_EXATENSOR
-constexpr const std::size_t GateFactory::OneBodyShape[GateFactory::OneBodyRank];
-constexpr const std::size_t GateFactory::TwoBodyShape[GateFactory::TwoBodyRank];
+constexpr const std::size_t GateFactory::OneBodyShape[ONE_BODY_RANK];
+constexpr const std::size_t GateFactory::TwoBodyShape[TWO_BODY_RANK];
 #endif //TNQVM_HAS_EXATENSOR
 
 } //namespace quantum

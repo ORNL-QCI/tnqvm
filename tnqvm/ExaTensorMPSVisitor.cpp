@@ -40,8 +40,17 @@ namespace quantum {
 
 //Life cycle:
 
-ExaTensorMPSVisitor::ExaTensorMPSVisitor(std::shared_ptr<TNQVMBuffer> buffer, const std::size_t initialValence):
- Buffer(buffer), EagerEval(false)
+ExaTensorMPSVisitor::ExaTensorMPSVisitor(const bool eagerEval):
+ EagerEval(eagerEval)
+{
+}
+
+ExaTensorMPSVisitor::~ExaTensorMPSVisitor()
+{
+}
+
+int ExaTensorMPSVisitor::initialize(std::shared_ptr<TNQVMBuffer> buffer, const std::size_t initialValence):
+ Buffer(buffer)
 {
  assert(initialValence > 0);
  const auto numQubits = buffer->size();
@@ -59,10 +68,14 @@ ExaTensorMPSVisitor::ExaTensorMPSVisitor(std::shared_ptr<TNQVMBuffer> buffer, co
 #ifdef _DEBUG_DIL
  std::cout << "Done" << std::endl; //debug
 #endif
+ return 0;
 }
 
-ExaTensorMPSVisitor::~ExaTensorMPSVisitor()
+int ExaTensorMPSVisitor::finalize()
 {
+ int error_code=0;
+ if(!(TensNet.isEmpty())) error_code = this->evaluate();
+ return error_code;
 }
 
 //Private member functions:
@@ -305,7 +318,7 @@ int ExaTensorMPSVisitor::evaluate()
  int error_code = 0;
  assert(!(TensNet.isEmpty()));
  closeCircuitNetwork(); //close the circuit tensor network with the output wavefunction tensors (those to be optimized)
- std::vector<TensDataType> norms(OptimizedTensors.size(),TensDataType(1.0,0.0));
+ std::vector<double> norms(OptimizedTensors.size(),1.0);
  exatensor::optimizeOverlapMax(TensNet,OptimizedTensors,norms); //optimize output MPS wavefunction tensors
  //`Update the WaveFunction tensors with the optimized output tensors and destroy old wavefunction tensors
  //`Destroy the tensor network object, optimized tensors, and qubit range
