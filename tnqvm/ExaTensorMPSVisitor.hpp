@@ -64,12 +64,12 @@ private:
  GateFactory GateTensors;
 
 //Data members:
- std::shared_ptr<TNQVMBuffer> Buffer;               //accelerator buffer
- WaveFunction StateMPS;                             //MPS wave-function of qubits (MPS tensors)
- TensorNetwork TensNet;                             //currently constructed tensor network
- std::pair<unsigned int, unsigned int> QubitRange;  //range of involved qubits in the current tensor network
- std::vector<unsigned int> OptimizedTensors;        //IDs of the tensors to be optimized in the closed tensor network
- bool EagerEval;                                    //if TRUE each gate will be applied immediately (defaults to FALSE)
+ std::shared_ptr<TNQVMBuffer> Buffer;              //accelerator buffer
+ WaveFunction StateMPS;                            //MPS wave-function of qubits (MPS tensors)
+ TensorNetwork TensNet;                            //currently constructed tensor network
+ std::pair<unsigned int, unsigned int> QubitRange; //range of involved qubits in the current tensor network
+ std::vector<unsigned int> OptimizedTensors;       //IDs of the tensors to be optimized in the closed tensor network
+ bool EagerEval;                                   //if TRUE each gate will be applied immediately (defaults to FALSE)
 
 //Private member functions:
  void initMPSTensor(Tensor & tensor); //initializes an MPS tensor to a pure |0> state
@@ -88,9 +88,9 @@ public:
  ExaTensorMPSVisitor(const bool eagerEval = false); //eager tensor network evaluation policy
  virtual ~ExaTensorMPSVisitor();
 
- int initialize(std::shared_ptr<TNQVMBuffer> buffer, //accelerator buffer
-                const std::size_t initialValence = INITIAL_VALENCE); //initial dimension extent for virtual dimensions
- int finalize();
+ void initialize(std::shared_ptr<TNQVMBuffer> buffer, //accelerator buffer
+                 const std::size_t initialValence = INITIAL_VALENCE); //initial dimension extent for virtual dimensions
+ void finalize();
 
 //Visitor methods:
  void visit(Hadamard & gate);

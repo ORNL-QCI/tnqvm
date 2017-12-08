@@ -49,7 +49,7 @@ ExaTensorMPSVisitor::~ExaTensorMPSVisitor()
 {
 }
 
-int ExaTensorMPSVisitor::initialize(std::shared_ptr<TNQVMBuffer> buffer, const std::size_t initialValence)
+void ExaTensorMPSVisitor::initialize(std::shared_ptr<TNQVMBuffer> buffer, const std::size_t initialValence)
 {
  assert(initialValence > 0);
  Buffer = buffer;
@@ -68,14 +68,15 @@ int ExaTensorMPSVisitor::initialize(std::shared_ptr<TNQVMBuffer> buffer, const s
 #ifdef _DEBUG_DIL
  std::cout << "Done" << std::endl; //debug
 #endif
- return 0;
+ return;
 }
 
-int ExaTensorMPSVisitor::finalize()
+void ExaTensorMPSVisitor::finalize()
 {
  int error_code=0;
  if(!(TensNet.isEmpty())) error_code = this->evaluate();
- return error_code;
+ assert(error_code == 0);
+ return;
 }
 
 //Private member functions:
