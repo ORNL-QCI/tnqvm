@@ -51,8 +51,9 @@ ExaTensorMPSVisitor::~ExaTensorMPSVisitor()
 
 void ExaTensorMPSVisitor::initialize(std::shared_ptr<TNQVMBuffer> buffer)
 {
+ assert(!(this->isInitialized()));
  Buffer = buffer;
- const auto numQubits = Buffer->size();
+ const auto numQubits = Buffer->size(); //total number of qubits in the system
 #ifdef _DEBUG_DIL
  std::cout << "[ExaTensorMPSVisitor]: Constructing an MPS wavefunction for " << numQubits << " qubits ... "; //debug
 #endif
@@ -72,9 +73,11 @@ void ExaTensorMPSVisitor::initialize(std::shared_ptr<TNQVMBuffer> buffer)
 
 void ExaTensorMPSVisitor::finalize()
 {
- int error_code=0;
- if(!(TensNet.isEmpty())) error_code = this->evaluate();
- assert(error_code == 0);
+ assert(this->isInitialized());
+ if(!(this->isEvaluated())){
+  int error_code = this->evaluate();
+  assert(error_code == 0);
+ }
  return;
 }
 
@@ -89,9 +92,11 @@ void ExaTensorMPSVisitor::initMPSTensor(Tensor & tensor)
  return;
 }
 
-/** Builds a tensor network for the wavefunction representation for qubits [firstQubit:lastQubit]. **/
+/** Builds a tensor network for the wavefunction representation for qubits [firstQubit:lastQubit].
+    Inside the constructed tensor network, qubit#0 is the real qubit#firstQubit, and so on. **/
 void ExaTensorMPSVisitor::buildWaveFunctionNetwork(int firstQubit, int lastQubit)
 {
+ assert(this->isInitialized());
  assert(TensNet.isEmpty());
  unsigned int numQubitsTotal = StateMPS.size(); //total number of MPS tensors = total number of qubits
  if(lastQubit < 0) lastQubit = numQubitsTotal - 1; //default last qubit
@@ -116,11 +121,20 @@ void ExaTensorMPSVisitor::buildWaveFunctionNetwork(int firstQubit, int lastQubit
  return;
 }
 
+/** Appends gate tensors from the current gate sequence to the wavefunction tensor network of qubits. **/
+void ExaTensorMPSVisitor::appendGateSequence()
+{
+ assert(!(TensNet.isEmpty()));
+ assert(OptimizedTensors.empty());
+ //`Implement
+ return;
+}
+
 /** Closes the circuit tensor network with output tensors (those to be optimized). **/
 void ExaTensorMPSVisitor::closeCircuitNetwork()
 {
  assert(!(TensNet.isEmpty()));
- assert(OptimizedTensors.size() == 0);
+ assert(OptimizedTensors.empty());
  const auto numOutLegs = TensNet.getTensor(0).getRank(); //total number of open legs in the tensor network
  auto numTensors = TensNet.getNumTensors(); //number of the r.h.s. tensors in the tensor network
  //Construct the tensor network for the output WaveFunction:
@@ -138,9 +152,9 @@ void ExaTensorMPSVisitor::closeCircuitNetwork()
   legs.emplace_back(TensorLeg(prevTensId,1)); //connection to the previous MPS tensor
   legs.emplace_back(TensorLeg(nextTensId,0)); //connection to the next MPS tensor
   legs.emplace_back(TensorLeg(0,i-1)); //connection to the output tensor
-  const auto tensRank = TensNet.getTensor(i).getRank(); //tensor i is the i-th MPS tensor, i=[1..numMPSTensors]
-  const auto dimExts = TensNet.getTensor(i).getDimExtents(); //tensor i is the i-th MPS tensor, i=[1..numMPSTensors]
-  optNet.appendTensor(Tensor(tensRank,dimExts),legs); //append a wavefunction MPS tensor to the tensor network
+  const auto tensRank = TensNet.getTensor(i).getRank(); //tensor i is the i-th input MPS tensor, i=[1..numMPSTensors]
+  const auto dimExts = TensNet.getTensor(i).getDimExtents(); //tensor i is the i-th input MPS tensor, i=[1..numMPSTensors]
+  optNet.appendTensor(Tensor(tensRank,dimExts),legs); //append a wavefunction MPS tensor to the optimized wavefunction tensor network
  }
  //Define output leg matching:
  std::vector<std::pair<unsigned int, unsigned int>> legPairs;
@@ -153,6 +167,7 @@ void ExaTensorMPSVisitor::closeCircuitNetwork()
  return;
 }
 
+/*
 int ExaTensorMPSVisitor::apply1BodyGate(const Tensor & gate, const unsigned int q0)
 {
  int error_code = 0;
@@ -179,12 +194,14 @@ int ExaTensorMPSVisitor::apply2BodyGate(const Tensor & gate, const unsigned int 
  if(EagerEval) error_code = this->evaluate(); //eager evaluation
  return error_code;
 }
+*/
 
-int ExaTensorMPSVisitor::applyNBodyGate(const Tensor & gate, const unsigned int q[])
+int ExaTensorMPSVisitor::appendNBodyGate(const Tensor & gate, const unsigned int qubit_id[])
 {
  int error_code = 0;
- const unsigned int numQubits = gate.getRank(); //N-body gate
- assert(numQubits > 0 && numQubits%2 == 0);
+ const unsigned int gateRank = gate.getRank(); //N-body gate (rank-2N)
+ assert(gateRank > 0 && gateRank%2 == 0);
+ const auto numQubits = gateRank/2;
  //`Implement
  return error_code;
 }
@@ -305,6 +322,16 @@ void ExaTensorMPSVisitor::visit(GateFunction & gateFunc)
 }
 
 //Numerical evaluation:
+
+bool ExaTensorMPSVisitor::isInitialized()
+{
+ return !StateMPS.empty();
+}
+
+bool ExaTensorMPSVisitor::isEvaluated()
+{
+ return GateSequence.empty();
+}
 
 void ExaTensorMPSVisitor::setEvaluationStrategy(const bool eagerEval)
 {
