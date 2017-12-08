@@ -48,19 +48,20 @@ public:
         aver_from_manytime = 1.;
     }
 
-    virtual const double getExpectationValueZ() {
+    virtual const double getExpectationValueZ(){
         return aver_from_wavefunc;
     }
 
-    int verbose() const {return __verbose; }
+    int verbose() const {return __verbose;}
     void verbose(int level) {__verbose = level;}
-	void set_verbose(int level) {__verbose = level;}
+    void set_verbose(int level) {__verbose = level;}
 
-    void mute  () { __verbose = 0; }
+    void mute  () { __verbose = 0;}
     void unmute() { __verbose = 1;} // default to 1
 
     double aver_from_wavefunc;
     double aver_from_manytime;
+
 private:
     int __verbose; // verbose level of visitors using this buffer
 };

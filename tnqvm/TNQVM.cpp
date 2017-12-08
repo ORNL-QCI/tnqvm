@@ -29,9 +29,7 @@
  *
  **********************************************************************************/
 #include "TNQVM.hpp"
-#ifdef TNQVM_HAS_EXATENSOR
 #include "ExaTensorMPSVisitor.hpp"
-#endif
 #include "ITensorVisitor.hpp"
 #include "ITensorMPSVisitor.hpp"
 

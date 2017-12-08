@@ -61,7 +61,7 @@ endif()
 include_directories(${ITENSOR_ROOT})
 
 if (EXATENSOR_ROOT)
-   if (EXISTS ${EXATENSOR_ROOT}/include/tensor_network.hpp)
+   if (EXISTS ${EXATENSOR_ROOT}/include/tensornet.hpp)
       message(STATUS "ExaTensor found at ${EXATENSOR_ROOT}")
       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DTNQVM_HAS_EXATENSOR")
       include_directories(${EXATENSOR_ROOT}/include)
@@ -117,3 +117,4 @@ install(TARGETS ${LIBRARY_NAME} DESTINATION ${XACC_LIBRARY_DIR}/plugins/accelera
 
 # Gather tests
 file (GLOB test_files tests/*.cpp)
+add_tests("${test_files}" "${CMAKE_CURRENT_SOURCE_DIR}" "${LIBRARY_NAME}")

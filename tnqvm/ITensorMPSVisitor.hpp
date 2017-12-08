@@ -38,6 +38,7 @@
 
 namespace xacc{
 namespace quantum{
+
 class ITensorMPSVisitor: public AllGateVisitor {
     using ITensor = itensor::ITensor;
     using Index = itensor::Index;
@@ -47,21 +48,21 @@ public:
     virtual ~ITensorMPSVisitor();
 
     // one-qubit gates
-	void visit(Hadamard& gate);
-	void visit(X& gate);
-	void visit(Y& gate);
-	void visit(Z& gate);
-	void visit(Rx& gate);
-	void visit(Ry& gate);
-	void visit(Rz& gate);
-	void visit(CPhase& cp);
+    void visit(Hadamard& gate);
+    void visit(X& gate);
+    void visit(Y& gate);
+    void visit(Z& gate);
+    void visit(Rx& gate);
+    void visit(Ry& gate);
+    void visit(Rz& gate);
+    void visit(CPhase& cp);
     // two-qubit gates
-	void visit(CNOT& gate);
-	void visit(Swap& gate);
+    void visit(CNOT& gate);
+    void visit(Swap& gate);
     // others
-	void visit(Measure& gate);
-	void visit(ConditionalFunction& c);
-	void visit(GateFunction& f);
+    void visit(Measure& gate);
+    void visit(ConditionalFunction& c);
+    void visit(GateFunction& f);
 
 private:
     itensor::ITensor wavefunc;

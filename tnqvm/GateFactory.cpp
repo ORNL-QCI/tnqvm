@@ -25,41 +25,32 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Contributors:
- *   Initial API and implementation - Alex McCaskey
+ *   Implementation - Dmitry Lyakh 2017/11/04;
  *
  **********************************************************************************/
-#define BOOST_TEST_DYN_LINK
-#define BOOST_TEST_MODULE TNQVMTester
 
-#include <memory>
-#include <boost/test/included/unit_test.hpp>
-#include "TNQVM.hpp"
-#include "GateFunction.hpp"
-#include "Hadamard.hpp"
-#include "CNOT.hpp"
-#include "X.hpp"
+#include "GateFactory.hpp"
 
-BOOST_AUTO_TEST_CASE(checkKernelExecution) {
+namespace xacc {
+namespace quantum {
 
-	using namespace xacc::tnqvm;
-	using namespace xacc::quantum;
+//Static class member storage:
 
-	TNQVM acc;
-	auto qreg1 = acc.createBuffer("qreg", 3);
-	auto f = std::make_shared<GateFunction>("foo");
+constexpr const GateBodyFactory::TensDataType GateBodyFactory::HBody[ONE_BODY_VOL];
+constexpr const GateBodyFactory::TensDataType GateBodyFactory::XBody[ONE_BODY_VOL];
+constexpr const GateBodyFactory::TensDataType GateBodyFactory::YBody[ONE_BODY_VOL];
+constexpr const GateBodyFactory::TensDataType GateBodyFactory::ZBody[ONE_BODY_VOL];
+constexpr const GateBodyFactory::TensDataType GateBodyFactory::RxBody[ONE_BODY_VOL];
+constexpr const GateBodyFactory::TensDataType GateBodyFactory::RyBody[ONE_BODY_VOL];
+constexpr const GateBodyFactory::TensDataType GateBodyFactory::RzBody[ONE_BODY_VOL];
+constexpr const GateBodyFactory::TensDataType GateBodyFactory::CPBody[TWO_BODY_VOL];
+constexpr const GateBodyFactory::TensDataType GateBodyFactory::CNBody[TWO_BODY_VOL];
+constexpr const GateBodyFactory::TensDataType GateBodyFactory::SWBody[TWO_BODY_VOL];
 
-	auto x = std::make_shared<X>(0);
-	auto h = std::make_shared<Hadamard>(1);
-	auto cn1 = std::make_shared<CNOT>(1, 2);
-	auto cn2 = std::make_shared<CNOT>(0, 1);
-	auto h2 = std::make_shared<Hadamard>(0);
+#ifdef TNQVM_HAS_EXATENSOR
+constexpr const std::size_t GateFactory::OneBodyShape[ONE_BODY_RANK];
+constexpr const std::size_t GateFactory::TwoBodyShape[TWO_BODY_RANK];
+#endif //TNQVM_HAS_EXATENSOR
 
-	f->addInstruction(x);
-	f->addInstruction(h);
-	f->addInstruction(cn1);
-	f->addInstruction(cn2);
-	f->addInstruction(h2);
-
-	acc.execute(qreg1, f);
-
-}
+} //namespace quantum
+} //namespace xacc
