@@ -49,11 +49,11 @@ ExaTensorMPSVisitor::~ExaTensorMPSVisitor()
 {
 }
 
-int ExaTensorMPSVisitor::initialize(std::shared_ptr<TNQVMBuffer> buffer, const std::size_t initialValence):
- Buffer(buffer)
+int ExaTensorMPSVisitor::initialize(std::shared_ptr<TNQVMBuffer> buffer, const std::size_t initialValence)
 {
  assert(initialValence > 0);
- const auto numQubits = buffer->size();
+ Buffer = buffer;
+ const auto numQubits = Buffer->size();
 #ifdef _DEBUG_DIL
  std::cout << "[ExaTensorMPSVisitor]: Constructing an MPS wavefunction for " << numQubits << " qubits ... "; //debug
 #endif

@@ -85,7 +85,7 @@ public:
  static const std::size_t INITIAL_VALENCE = 2; //initial dimension extent for virtual MPS indices
 
 //Life cycle:
- ExaTensorMPSVisitor(const bool eagerEval = false);
+ ExaTensorMPSVisitor(const bool eagerEval = false); //eager tensor network evaluation policy
  virtual ~ExaTensorMPSVisitor();
 
  int initialize(std::shared_ptr<TNQVMBuffer> buffer, //accelerator buffer
