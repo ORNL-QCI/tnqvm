@@ -40,8 +40,8 @@ namespace quantum {
 
 //Life cycle:
 
-ExaTensorMPSVisitor::ExaTensorMPSVisitor(const bool eagerEval):
- EagerEval(eagerEval)
+ExaTensorMPSVisitor::ExaTensorMPSVisitor():
+ EagerEval(false), InitialValence(INITIAL_VALENCE)
 {
 }
 
@@ -49,9 +49,8 @@ ExaTensorMPSVisitor::~ExaTensorMPSVisitor()
 {
 }
 
-void ExaTensorMPSVisitor::initialize(std::shared_ptr<TNQVMBuffer> buffer, const std::size_t initialValence)
+void ExaTensorMPSVisitor::initialize(std::shared_ptr<TNQVMBuffer> buffer)
 {
- assert(initialValence > 0);
  Buffer = buffer;
  const auto numQubits = Buffer->size();
 #ifdef _DEBUG_DIL
@@ -59,11 +58,11 @@ void ExaTensorMPSVisitor::initialize(std::shared_ptr<TNQVMBuffer> buffer, const 
 #endif
  //Construct initial MPS tensors for all qubits:
  const unsigned int rankMPS = 3; //MPS tensor rank
- const std::size_t dimExts[] = {initialValence,initialValence,BASE_SPACE_DIM}; //initial MPS tensor shape
+ const std::size_t dimExts[] = {InitialValence,InitialValence,BASE_SPACE_DIM}; //initial MPS tensor shape: [virtual,virtual,real]
  for(unsigned int i = 0; i < numQubits; ++i){
   StateMPS.emplace_back(Tensor(rankMPS,dimExts)); //construct a bodyless MPS tensor
   StateMPS[i].allocateBody(); //allocates MPS tensor body
-  this->initMPSTensor(StateMPS[i]); //initializes the MPS tensor body to a pure state
+  this->initMPSTensor(StateMPS[i]); //initializes the MPS tensor to a pure state
  }
 #ifdef _DEBUG_DIL
  std::cout << "Done" << std::endl; //debug
@@ -311,6 +310,14 @@ void ExaTensorMPSVisitor::setEvaluationStrategy(const bool eagerEval)
 {
  assert(TensNet.isEmpty());
  EagerEval = eagerEval;
+ return;
+}
+
+void ExaTensorMPSVisitor::setInitialMPSValence(const std::size_t initialValence)
+{
+ assert(TensNet.isEmpty());
+ assert(initialValence > 0);
+ InitialValence = initialValence;
  return;
 }
 

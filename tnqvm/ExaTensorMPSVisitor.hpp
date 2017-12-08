@@ -51,45 +51,16 @@ namespace quantum {
 
 class ExaTensorMPSVisitor : public AllGateVisitor {
 
-private:
-
-//Type aliases:
- using TensDataType = GateFactory::TensDataType;
- using Tensor = GateFactory::Tensor;
- using TensorLeg = exatensor::TensorLeg;
- using TensorNetwork = exatensor::TensorNetwork<TensDataType>;
- using WaveFunction = std::vector<Tensor>;
-
-//Gate factory member:
- GateFactory GateTensors;
-
-//Data members:
- std::shared_ptr<TNQVMBuffer> Buffer;              //accelerator buffer
- WaveFunction StateMPS;                            //MPS wave-function of qubits (MPS tensors)
- TensorNetwork TensNet;                            //currently constructed tensor network
- std::pair<unsigned int, unsigned int> QubitRange; //range of involved qubits in the current tensor network
- std::vector<unsigned int> OptimizedTensors;       //IDs of the tensors to be optimized in the closed tensor network
- bool EagerEval;                                   //if TRUE each gate will be applied immediately (defaults to FALSE)
-
-//Private member functions:
- void initMPSTensor(Tensor & tensor); //initializes an MPS tensor to a pure |0> state
- void buildWaveFunctionNetwork(int firstQubit = 0, int lastQubit = -1); //builds a TensorNetwork object for the wavefunction of qubits [first:last]
- void closeCircuitNetwork(); //closes the circuit TensorNetwork object with output tensors (those to be optimized)
- int apply1BodyGate(const Tensor & gate, const unsigned int q0); //applies a 1-body gate to a qubit
- int apply2BodyGate(const Tensor & gate, const unsigned int q0, const unsigned int q1); //applies a 2-body gate to a pair of qubits
- int applyNBodyGate(const Tensor & gate, const unsigned int q[]); //applies an arbitrary N-body gate to N qubits
-
 public:
 
 //Static constants:
- static const std::size_t INITIAL_VALENCE = 2; //initial dimension extent for virtual MPS indices
+ static const std::size_t INITIAL_VALENCE = 2; //default initial dimension extent for virtual MPS indices
 
 //Life cycle:
- ExaTensorMPSVisitor(const bool eagerEval = false); //eager tensor network evaluation policy
+ ExaTensorMPSVisitor();
  virtual ~ExaTensorMPSVisitor();
 
- void initialize(std::shared_ptr<TNQVMBuffer> buffer, //accelerator buffer
-                 const std::size_t initialValence = INITIAL_VALENCE); //initial dimension extent for virtual dimensions
+ void initialize(std::shared_ptr<TNQVMBuffer> buffer); //accelerator buffer
  void finalize();
 
 //Visitor methods:
@@ -108,8 +79,38 @@ public:
  void visit(GateFunction & gateFunc);
 
 //Numerical evaluation:
- void setEvaluationStrategy(const bool eagerEval); //sets EagerEval member
+ void setEvaluationStrategy(const bool eagerEval); //sets tensor network evaluation strategy
+ void setInitialMPSValence(const std::size_t initialValence); //initial dimension extent for virtual MPS indices
  int evaluate(); //evaluates the constructed tensor network (returns an error or 0)
+
+private:
+
+//Type aliases:
+ using TensDataType = GateFactory::TensDataType;
+ using Tensor = GateFactory::Tensor;
+ using TensorLeg = exatensor::TensorLeg;
+ using TensorNetwork = exatensor::TensorNetwork<TensDataType>;
+ using WaveFunction = std::vector<Tensor>;
+
+//Gate factory member:
+ GateFactory GateTensors;
+
+//Data members:
+ std::shared_ptr<TNQVMBuffer> Buffer;              //accelerator buffer
+ WaveFunction StateMPS;                            //MPS wave-function of qubits (MPS tensors)
+ TensorNetwork TensNet;                            //currently constructed tensor network
+ std::pair<unsigned int, unsigned int> QubitRange; //range of involved qubits in the current tensor network
+ std::vector<unsigned int> OptimizedTensors;       //IDs of the tensors to be optimized in the closed tensor network
+ std::size_t InitialValence;                       //initial dimension extent for virtual dimensions of MPS tensors
+ bool EagerEval;                                   //if TRUE each gate will be applied immediately (defaults to FALSE)
+
+//Private member functions:
+ void initMPSTensor(Tensor & tensor); //initializes an MPS tensor to a pure |0> state
+ void buildWaveFunctionNetwork(int firstQubit = 0, int lastQubit = -1); //builds a TensorNetwork object for the wavefunction of qubits [first:last]
+ void closeCircuitNetwork(); //closes the circuit TensorNetwork object with output tensors (those to be optimized)
+ int apply1BodyGate(const Tensor & gate, const unsigned int q0); //applies a 1-body gate to a qubit
+ int apply2BodyGate(const Tensor & gate, const unsigned int q0, const unsigned int q1); //applies a 2-body gate to a pair of qubits
+ int applyNBodyGate(const Tensor & gate, const unsigned int q[]); //applies an arbitrary N-body gate to N qubits
 
 }; //end class ExaTensorMPSVisitor
 
