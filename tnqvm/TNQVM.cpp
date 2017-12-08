@@ -94,8 +94,9 @@ void TNQVM::execute(std::shared_ptr<AcceleratorBuffer> buffer,
 				std::dynamic_pointer_cast<TNQVMBuffer>(buffer));
 	} else if (visitorType == "exatensor") {
 #ifdef TNQVM_HAS_EXATENSOR
-		visitor = std::make_shared<xacc::quantum::ExaTensorMPSVisitor>(
-				std::dynamic_pointer_cast<TNQVMBuffer>(buffer));
+		visitor = std::make_shared<xacc::quantum::ExaTensorMPSVisitor>();
+		std::dynamic_pointer_cast<xacc::quantum::ExaTensorMPSVisitor>(visitor)->initialize(std::dynamic_pointer_cast<TNQVMBuffer>(buffer));
+//				std::dynamic_pointer_cast<TNQVMBuffer>(buffer));
 #else
 		XACCError("Cannot use ExaTensor MPS Visitor since TNQVM not built with ExaTensor.");
 #endif

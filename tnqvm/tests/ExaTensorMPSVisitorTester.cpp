@@ -39,11 +39,16 @@
 #include "CNOT.hpp"
 #include "X.hpp"
 #include "ExaTensorMPSVisitor.hpp"
+#include "XACC.hpp"
 
 BOOST_AUTO_TEST_CASE(checkExaTensorMPSVisitor) {
 
  using namespace xacc::tnqvm;
  using namespace xacc::quantum;
+
+ xacc::Initialize();
+
+ xacc::setOption("tnqvm-visitor", "exatensor");
 
  TNQVM acc;
  auto qreg1 = acc.createBuffer("qreg",3); //3-qubit accelerator buffer
