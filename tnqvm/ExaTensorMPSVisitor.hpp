@@ -55,6 +55,7 @@ public:
 
 //Static constants:
  static const std::size_t INITIAL_VALENCE = 2; //default initial dimension extent for virtual MPS indices
+ static const unsigned int MAX_GATES = 8; //max number of gates in the gate sequence before evaluation
 
 //Life cycle:
  ExaTensorMPSVisitor();
@@ -102,7 +103,7 @@ private:
  WaveFunction StateMPS;                            //MPS wave-function of qubits (MPS tensors)
  TensorNetwork TensNet;                            //currently constructed tensor network
  std::vector<std::pair<Tensor, unsigned int *>> GateSequence; //sequence of visited quantum gates before evaluation
- std::pair<unsigned int, unsigned int> QubitRange; //range of involved qubits in the current tensor network
+ std::pair<int, int> QubitRange;                   //range of involved qubits in the current tensor network
  std::vector<unsigned int> OptimizedTensors;       //IDs of the tensors to be optimized in the closed tensor network
  std::size_t InitialValence;                       //initial dimension extent for virtual dimensions of MPS tensors
  bool EagerEval;                                   //if TRUE each gate will be applied immediately (defaults to FALSE)

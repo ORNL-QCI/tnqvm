@@ -41,7 +41,7 @@ namespace quantum {
 //Life cycle:
 
 ExaTensorMPSVisitor::ExaTensorMPSVisitor():
- EagerEval(false), InitialValence(INITIAL_VALENCE)
+ EagerEval(false), InitialValence(INITIAL_VALENCE), QubitRange(std::make_pair(-1,-1))
 {
 }
 
@@ -117,16 +117,24 @@ void ExaTensorMPSVisitor::buildWaveFunctionNetwork(int firstQubit, int lastQubit
   legs.emplace_back(TensorLeg(0,i-1)); //connection to the output tensor
   TensNet.appendTensor(StateMPS[firstQubit+i-1],legs); //append a wavefunction MPS tensor to the tensor network
  }
- QubitRange = std::make_pair(static_cast<unsigned int>(firstQubit),static_cast<unsigned int>(lastQubit)); //range of qubits involved in the tensor network
  return;
 }
 
-/** Appends gate tensors from the current gate sequence to the wavefunction tensor network of qubits. **/
+/** Appends gate tensors from the current gate sequence to the wavefunction tensor network. **/
 void ExaTensorMPSVisitor::appendGateSequence()
 {
  assert(!(TensNet.isEmpty()));
  assert(OptimizedTensors.empty());
- //`Implement
+ std::vector<unsigned int> legIds;
+ for(auto & it: GateSequence){
+  const Tensor & tensor = it.first;
+  const unsigned int * qids = it.second;
+  for(unsigned int i = 0; i < tensor.getRank()/2; ++i) legIds.push_back(qids[i]-QubitRange.first);
+  TensNet.appendTensor(tensor,legIds); //append the unitary tensor to the tensor network
+  legIds.clear();
+  delete[] qids;
+ }
+ GateSequence.clear();
  return;
 }
 
@@ -167,42 +175,23 @@ void ExaTensorMPSVisitor::closeCircuitNetwork()
  return;
 }
 
-/*
-int ExaTensorMPSVisitor::apply1BodyGate(const Tensor & gate, const unsigned int q0)
-{
- int error_code = 0;
- assert(gate.getRank() == 2); //1-body gate
- if(TensNet.isEmpty()) buildWaveFunctionNetwork(); //`Here I always construct the full wavefunction, but may need partial as well
- assert(QubitRange.first <= q0 && q0 <= QubitRange.second);
- std::initializer_list<unsigned int> qubits {q0-QubitRange.first};
- std::vector<unsigned int> legIds(qubits);
- TensNet.appendTensor(gate,legIds); //append the unitary tensor to the tensor network
- if(EagerEval) error_code = this->evaluate(); //eager evaluation
- return error_code;
-}
-
-int ExaTensorMPSVisitor::apply2BodyGate(const Tensor & gate, const unsigned int q0, const unsigned int q1)
-{
- int error_code = 0;
- assert(gate.getRank() == 4); //2-body gate
- if(TensNet.isEmpty()) buildWaveFunctionNetwork(); //`Here I always construct the full wavefunction, but may need partial as well
- assert(QubitRange.first <= q0 && q0 <= QubitRange.second &&
-        QubitRange.first <= q1 && q1 <= QubitRange.second && q0 != q1);
- std::initializer_list<unsigned int> qubits {q0-QubitRange.first,q1-QubitRange.first};
- std::vector<unsigned int> legIds(qubits);
- TensNet.appendTensor(gate,legIds); //append the unitary tensor to the tensor network
- if(EagerEval) error_code = this->evaluate(); //eager evaluation
- return error_code;
-}
-*/
-
 int ExaTensorMPSVisitor::appendNBodyGate(const Tensor & gate, const unsigned int qubit_id[])
 {
  int error_code = 0;
  const unsigned int gateRank = gate.getRank(); //N-body gate (rank-2N)
  assert(gateRank > 0 && gateRank%2 == 0);
  const auto numQubits = gateRank/2;
- //`Implement
+ if(QubitRange.first < 0) QubitRange.first = StateMPS.size();
+ if(QubitRange.second < 0) QubitRange.second = 0;
+ unsigned int * qids = new unsigned int [numQubits];
+ for(unsigned int i = 0; i < numQubits; ++i){
+  assert(qubit_id[i] < StateMPS.size());
+  qids[i] = qubit_id[i];
+  if(qids[i] < QubitRange.first) QubitRange.first = qids[i];
+  if(qids[i] > QubitRange.second) QubitRange.second = qids[i];
+ }
+ GateSequence.push_back(std::make_pair(gate,qids));
+ if(EagerEval || GateSequence.size() >= MAX_GATES) error_code = this->evaluate();
  return error_code;
 }
 
@@ -210,101 +199,96 @@ int ExaTensorMPSVisitor::appendNBodyGate(const Tensor & gate, const unsigned int
 
 void ExaTensorMPSVisitor::visit(Hadamard & gate)
 {
- auto qbit0 = gate.bits()[0];
- std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
+ unsigned int qbits[] = {static_cast<unsigned int>(gate.bits()[0])};
+ std::cout << "Applying " << gate.getName() << " @ {" << qbits[0] << "}" << std::endl;
  const Tensor & gateTensor = GateTensors.getTensor(gate);
- int error_code = this->apply1BodyGate(gateTensor,qbit0); assert(error_code == 0);
+ int error_code = this->appendNBodyGate(gateTensor,qbits); assert(error_code == 0);
  return;
 }
 
 void ExaTensorMPSVisitor::visit(X & gate)
 {
- auto qbit0 = gate.bits()[0];
- std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
+ unsigned int qbits[] = {static_cast<unsigned int>(gate.bits()[0])};
+ std::cout << "Applying " << gate.getName() << " @ {" << qbits[0] << "}" << std::endl;
  const Tensor & gateTensor = GateTensors.getTensor(gate);
- int error_code = this->apply1BodyGate(gateTensor,qbit0); assert(error_code == 0);
+ int error_code = this->appendNBodyGate(gateTensor,qbits); assert(error_code == 0);
  return;
 }
 
 void ExaTensorMPSVisitor::visit(Y & gate)
 {
- auto qbit0 = gate.bits()[0];
- std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
+ unsigned int qbits[] = {static_cast<unsigned int>(gate.bits()[0])};
+ std::cout << "Applying " << gate.getName() << " @ {" << qbits[0] << "}" << std::endl;
  const Tensor & gateTensor = GateTensors.getTensor(gate);
- int error_code = this->apply1BodyGate(gateTensor,qbit0); assert(error_code == 0);
+ int error_code = this->appendNBodyGate(gateTensor,qbits); assert(error_code == 0);
  return;
 }
 
 void ExaTensorMPSVisitor::visit(Z & gate)
 {
- auto qbit0 = gate.bits()[0];
- std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
+ unsigned int qbits[] = {static_cast<unsigned int>(gate.bits()[0])};
+ std::cout << "Applying " << gate.getName() << " @ {" << qbits[0] << "}" << std::endl;
  const Tensor & gateTensor = GateTensors.getTensor(gate);
- int error_code = this->apply1BodyGate(gateTensor,qbit0); assert(error_code == 0);
+ int error_code = this->appendNBodyGate(gateTensor,qbits); assert(error_code == 0);
  return;
 }
 
 void ExaTensorMPSVisitor::visit(Rx & gate)
 {
- auto qbit0 = gate.bits()[0];
- std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
+ unsigned int qbits[] = {static_cast<unsigned int>(gate.bits()[0])};
+ std::cout << "Applying " << gate.getName() << " @ {" << qbits[0] << "}" << std::endl;
  const Tensor & gateTensor = GateTensors.getTensor(gate);
- int error_code = this->apply1BodyGate(gateTensor,qbit0); assert(error_code == 0);
+ int error_code = this->appendNBodyGate(gateTensor,qbits); assert(error_code == 0);
  return;
 }
 
 void ExaTensorMPSVisitor::visit(Ry & gate)
 {
- auto qbit0 = gate.bits()[0];
- std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
+ unsigned int qbits[] = {static_cast<unsigned int>(gate.bits()[0])};
+ std::cout << "Applying " << gate.getName() << " @ {" << qbits[0] << "}" << std::endl;
  const Tensor & gateTensor = GateTensors.getTensor(gate);
- int error_code = this->apply1BodyGate(gateTensor,qbit0); assert(error_code == 0);
+ int error_code = this->appendNBodyGate(gateTensor,qbits); assert(error_code == 0);
  return;
 }
 
 void ExaTensorMPSVisitor::visit(Rz & gate)
 {
- auto qbit0 = gate.bits()[0];
- std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
+ unsigned int qbits[] = {static_cast<unsigned int>(gate.bits()[0])};
+ std::cout << "Applying " << gate.getName() << " @ {" << qbits[0] << "}" << std::endl;
  const Tensor & gateTensor = GateTensors.getTensor(gate);
- int error_code = this->apply1BodyGate(gateTensor,qbit0); assert(error_code == 0);
+ int error_code = this->appendNBodyGate(gateTensor,qbits); assert(error_code == 0);
  return;
 }
 
 void ExaTensorMPSVisitor::visit(CPhase & gate)
 {
- auto qbit0 = gate.bits()[0];
- auto qbit1 = gate.bits()[1];
- std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "," << qbit1 << "}" << std::endl;
+ unsigned int qbits[] = {static_cast<unsigned int>(gate.bits()[0]), static_cast<unsigned int>(gate.bits()[1])};
+ std::cout << "Applying " << gate.getName() << " @ {" << qbits[0] << "," << qbits[1] << "}" << std::endl;
  const Tensor & gateTensor = GateTensors.getTensor(gate);
- int error_code = this->apply2BodyGate(gateTensor,qbit0,qbit1); assert(error_code == 0);
+ int error_code = this->appendNBodyGate(gateTensor,qbits); assert(error_code == 0);
  return;
 }
 
 void ExaTensorMPSVisitor::visit(CNOT & gate)
 {
- auto qbit0 = gate.bits()[0];
- auto qbit1 = gate.bits()[1];
- std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "," << qbit1 << "}" << std::endl;
+ unsigned int qbits[] = {static_cast<unsigned int>(gate.bits()[0]), static_cast<unsigned int>(gate.bits()[1])};
+ std::cout << "Applying " << gate.getName() << " @ {" << qbits[0] << "," << qbits[1] << "}" << std::endl;
  const Tensor & gateTensor = GateTensors.getTensor(gate);
- int error_code = this->apply2BodyGate(gateTensor,qbit0,qbit1); assert(error_code == 0);
+ int error_code = this->appendNBodyGate(gateTensor,qbits); assert(error_code == 0);
  return;
 }
 
 void ExaTensorMPSVisitor::visit(Swap & gate)
 {
- auto qbit0 = gate.bits()[0];
- auto qbit1 = gate.bits()[1];
- std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "," << qbit1 << "}" << std::endl;
+ unsigned int qbits[] = {static_cast<unsigned int>(gate.bits()[0]), static_cast<unsigned int>(gate.bits()[1])};
+ std::cout << "Applying " << gate.getName() << " @ {" << qbits[0] << "," << qbits[1] << "}" << std::endl;
  const Tensor & gateTensor = GateTensors.getTensor(gate);
- int error_code = this->apply2BodyGate(gateTensor,qbit0,qbit1); assert(error_code == 0);
+ int error_code = this->appendNBodyGate(gateTensor,qbits); assert(error_code == 0);
  return;
 }
 
 void ExaTensorMPSVisitor::visit(Measure & gate)
 {
- auto qbit0 = gate.bits()[0];
- std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
  //`Implement
  return;
 }
@@ -351,12 +335,18 @@ void ExaTensorMPSVisitor::setInitialMPSValence(const std::size_t initialValence)
 int ExaTensorMPSVisitor::evaluate()
 {
  int error_code = 0;
- assert(!(TensNet.isEmpty()));
- closeCircuitNetwork(); //close the circuit tensor network with the output wavefunction tensors (those to be optimized)
- std::vector<double> norms(OptimizedTensors.size(),1.0);
- exatensor::optimizeOverlapMax(TensNet,OptimizedTensors,norms); //optimize output MPS wavefunction tensors
- //`Update the WaveFunction tensors with the optimized output tensors and destroy old wavefunction tensors
- //`Destroy the tensor network object, optimized tensors, and qubit range
+ assert(this->isInitialized());
+ assert(TensNet.isEmpty());
+ if(!(GateSequence.empty())){
+  buildWaveFunctionNetwork(QubitRange.first,QubitRange.second); //build the wavefunction tensor network
+  appendGateSequence(); //apply gate tensors
+  closeCircuitNetwork(); //close the circuit tensor network with the output wavefunction tensors (those to be optimized)
+  std::vector<double> norms(OptimizedTensors.size(),1.0); //all optimized tensors are normalized to unity
+  error_code = exatensor::optimizeOverlapMax(TensNet,OptimizedTensors,norms); //optimize output MPS wavefunction tensors
+  //`Update the WaveFunction tensors with the optimized output tensors and destroy old wavefunction tensors
+  //`Destroy the tensor network object, optimized tensors
+  QubitRange.first = -1; QubitRange.second = -1;
+ }
  return error_code;
 }
 
