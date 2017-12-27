@@ -48,6 +48,7 @@ public:
     virtual ~ITensorMPSVisitor();
 
     // one-qubit gates
+    void visit(Identity& gate) {}
     void visit(Hadamard& gate);
     void visit(X& gate);
     void visit(Y& gate);

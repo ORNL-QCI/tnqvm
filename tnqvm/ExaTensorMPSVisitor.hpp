@@ -93,6 +93,7 @@ public:
  int finalize();
 
 //Visitor methods:
+ void visit(Identity& gate) {}
  void visit(Hadamard & gate);
  void visit(X & gate);
  void visit(Y & gate);
