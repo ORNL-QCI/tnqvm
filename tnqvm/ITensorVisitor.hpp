@@ -127,6 +127,9 @@ public:
         cbits.resize(n_qbits);
     }
 
+	void visit(CZ& gate) {
+		XACCError("CZ not supported yet.");
+	}
 
 	void visit(Hadamard& gate) {
         auto iqbit_in = gate.bits()[0];

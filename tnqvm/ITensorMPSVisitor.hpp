@@ -60,6 +60,7 @@ public:
     // two-qubit gates
     void visit(CNOT& gate);
     void visit(Swap& gate);
+    void visit(CZ& gate);
     // others
     void visit(Measure& gate);
     void visit(ConditionalFunction& c);

@@ -108,6 +108,10 @@ public:
  void visit(ConditionalFunction & condFunc);
  void visit(GateFunction & gateFunc);
 
+	void visit(CZ& gate) {
+		XACCError("CZ not supported yet.");
+	}
+
 //Numerical evaluation:
  void setEvaluationStrategy(const bool eagerEval); //sets EagerEval member
  int evaluate(); //evaluates the constructed tensor network (returns an error or 0)

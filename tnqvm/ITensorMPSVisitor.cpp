@@ -70,6 +70,10 @@ namespace quantum{
         printWavefunc();
 	}
 
+	void ITensorMPSVisitor::visit(CZ& gate) {
+		XACCError("CZ not supported yet.");
+	}
+
 	void ITensorMPSVisitor::visit(CNOT& gate) {
         auto iqbit_in0_ori = gate.bits()[0];
         auto iqbit_in1_ori = gate.bits()[1];
