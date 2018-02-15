@@ -45,7 +45,7 @@ std::shared_ptr<AcceleratorBuffer> TNQVM::createBuffer(
 std::shared_ptr<AcceleratorBuffer> TNQVM::createBuffer(
 		const std::string& varId, const int size) {
 	if (!isValidBufferSize(size)) {
-		XACCError("Invalid buffer size.");
+		xacc::error("TNQVM - Invalid buffer size.");
 	}
 	auto derived_buffer = std::make_shared<TNQVMBuffer>(varId, size);
 	derived_buffer->set_verbose(__verbose);
@@ -78,7 +78,7 @@ void TNQVM::execute(std::shared_ptr<AcceleratorBuffer> buffer,
 		const std::shared_ptr<xacc::Function> kernel) {
 
 	if (!std::dynamic_pointer_cast<TNQVMBuffer>(buffer)) {
-		XACCError("Invalid AcceleratorBuffer, must be a TNQVMBuffer.");
+		xacc::error("Invalid AcceleratorBuffer, must be a TNQVMBuffer.");
 	}
 
 	auto options = RuntimeOptions::instance();
@@ -98,10 +98,10 @@ void TNQVM::execute(std::shared_ptr<AcceleratorBuffer> buffer,
 		std::dynamic_pointer_cast<xacc::quantum::ExaTensorMPSVisitor>(visitor)->initialize(std::dynamic_pointer_cast<TNQVMBuffer>(buffer));
 //				std::dynamic_pointer_cast<TNQVMBuffer>(buffer));
 #else
-		XACCError("Cannot use ExaTensor MPS Visitor since TNQVM not built with ExaTensor.");
+		xacc::error("Cannot use ExaTensor MPS Visitor since TNQVM not built with ExaTensor.");
 #endif
 	} else {
-		XACCError("Invalid TNQVM visitor string.");
+		xacc::error("Invalid TNQVM visitor string.");
 	}
 
 	InstructionIterator it(kernel);

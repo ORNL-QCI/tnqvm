@@ -128,7 +128,7 @@ public:
     }
 
 	void visit(CZ& gate) {
-		XACCError("CZ not supported yet.");
+		xacc::error("CZ not supported yet.");
 	}
 
 	void visit(Hadamard& gate) {

@@ -31,8 +31,7 @@
 #ifndef TNQVM_TNQVM_HPP_
 #define TNQVM_TNQVM_HPP_
 
-#include "Accelerator.hpp"
-#include "InstructionIterator.hpp"
+#include "XACC.hpp"
 
 namespace xacc{
 
@@ -113,8 +112,8 @@ public:
 
 	virtual bool handleOptions(variables_map& map) {
 		if (map.count("tnqvm-list-visitors")) {
-			XACCInfo("Available TNQVM Visitor: itensor-mps");
-			XACCInfo("Available TNQVM Visitor: exatensor-mps");
+			xacc::info("Available TNQVM Visitor: itensor-mps");
+			xacc::info("Available TNQVM Visitor: exatensor-mps");
 			return true;
 		}
 		return false;
