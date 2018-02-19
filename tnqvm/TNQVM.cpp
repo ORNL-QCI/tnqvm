@@ -43,9 +43,8 @@ std::shared_ptr<AcceleratorBuffer> TNQVM::createBuffer(
 	if (!isValidBufferSize(size)) {
 		xacc::error("TNQVM - Invalid buffer size.");
 	}
-	auto derived_buffer = std::make_shared<TNQVMBuffer>(varId, size);
-	derived_buffer->set_verbose(__verbose);
-	std::shared_ptr<AcceleratorBuffer> buffer = derived_buffer;
+	auto buffer = std::make_shared<TNQVMBuffer>(varId, size);
+	buffer->set_verbose(__verbose);
 	storeBuffer(varId, buffer);
 	return buffer;
 }
@@ -83,8 +82,7 @@ void TNQVM::execute(std::shared_ptr<AcceleratorBuffer> buffer,
 	}
 
 	// Get the visitor backend
-	visitor = ServiceRegistry::instance()->getService<TNQVMVisitor>(
-			visitorType);
+	visitor = xacc::getService<TNQVMVisitor>(visitorType);
 
 	// Initialize the visitor
 	visitor->initialize(buffer);

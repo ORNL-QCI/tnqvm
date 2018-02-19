@@ -40,7 +40,11 @@ class TNQVM: public Accelerator {
 public:
 
 	virtual void initialize(){
-		__verbose = 0;
+		if (xacc::optionExists("tnqvm-verbose")) {
+			__verbose = 1;
+		} else {
+			__verbose = 0;
+		}
 	}
 
 	/**
@@ -105,7 +109,7 @@ public:
 				"TNQVM Accelerator Options");
 		desc->add_options()("tnqvm-visitor", value<std::string>(),
 				"Provide visitor to be used in mapping IR to a Tensor Network.")
-				("tnqvm-list-visitors", "List the available visitors.");
+				("tnqvm-list-visitors", "List the available visitors.")("tnqvm-verbose","");
 		return desc;
 	}
 
