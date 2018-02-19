@@ -208,7 +208,15 @@ double ITensorMPSVisitor::wavefunc_inner() {
 	}
 	inner = inner * itensor::conj(legMats[n_qbits - 1]) * bondMats[n_qbits - 2]
 			* legMats[n_qbits - 1];
-	return inner.real();
+
+	double val =  0.0;
+	try {
+		val = inner.real();
+	} catch(std::exception& e) {
+		xacc::warning("Warning, possible error in ITensorMPSVisitor.wavefunc_inner():\n" + std::string(e.what()));
+		val = std::real(inner.cplx());
+	}
+	return val;
 }
 
 double ITensorMPSVisitor::average(int iqbit, const ITensor& op_tensor) {
