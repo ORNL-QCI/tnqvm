@@ -29,11 +29,7 @@
  *
  **********************************************************************************/
 #include "TNQVM.hpp"
-#include "ExaTensorMPSVisitor.hpp"
-#include "ITensorVisitor.hpp"
-#include "ITensorMPSVisitor.hpp"
-
-namespace xacc{
+//#include "ExaTensorMPSVisitor.hpp"
 
 namespace tnqvm {
 
@@ -81,46 +77,30 @@ void TNQVM::execute(std::shared_ptr<AcceleratorBuffer> buffer,
 		xacc::error("Invalid AcceleratorBuffer, must be a TNQVMBuffer.");
 	}
 
-	auto options = RuntimeOptions::instance();
 	std::string visitorType = "itensor-mps";
-	if (options->exists("tnqvm-visitor")) {
-		visitorType = (*options)["tnqvm-visitor"];
+	if (xacc::optionExists("tnqvm-visitor")) {
+		visitorType = xacc::getOption("tnqvm-visitor");
 	}
 
-	std::shared_ptr<BaseInstructionVisitor> visitor;
-	if (visitorType == "itensor-mps") {
+	// Get the visitor backend
+	visitor = ServiceRegistry::instance()->getService<TNQVMVisitor>(
+			visitorType);
 
-		visitor = std::make_shared<xacc::quantum::ITensorMPSVisitor>(
-				std::dynamic_pointer_cast<TNQVMBuffer>(buffer));
-	} else if (visitorType == "exatensor") {
-#ifdef TNQVM_HAS_EXATENSOR
-		visitor = std::make_shared<xacc::quantum::ExaTensorMPSVisitor>();
-		std::dynamic_pointer_cast<xacc::quantum::ExaTensorMPSVisitor>(visitor)->initialize(std::dynamic_pointer_cast<TNQVMBuffer>(buffer));
-//				std::dynamic_pointer_cast<TNQVMBuffer>(buffer));
-#else
-		xacc::error("Cannot use ExaTensor MPS Visitor since TNQVM not built with ExaTensor.");
-#endif
-	} else {
-		xacc::error("Invalid TNQVM visitor string.");
-	}
+	// Initialize the visitor
+	visitor->initialize(buffer);
 
+	// Walk the IR tree, and visit each node
 	InstructionIterator it(kernel);
 	while (it.hasNext()) {
 		auto nextInst = it.next();
 		if (nextInst->isEnabled()) {
-			nextInst->accept(visitor);
+			nextInst->accept(
+					visitor);
 		}
 	}
 
-	// If we made it here with this exatensor string, then
-	// we don't have to re-check that we built with ExaTensor
-	if (visitorType == "exatensor") {
-#ifdef TNQVM_HAS_EXATENSOR
-		std::dynamic_pointer_cast<xacc::quantum::ExaTensorMPSVisitor>(visitor)->evaluate();
-#endif
-	}
-
+	// Finalize the visitor
+	visitor->finalize();
 }
 
-}
 }

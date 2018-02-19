@@ -29,31 +29,46 @@
 #
 #**********************************************************************************/
 
-set (PACKAGE_NAME "TNQVM Tensor Network XACC Accelerator")
-set (PACKAGE_DESCIPTION "TNQVM Tensor Network XACC Accelerator Framework")
-set (LIBRARY_NAME tnqvm)
+set (PACKAGE_NAME "TNQVM ITensor Visitors")
+set (PACKAGE_DESCIPTION "TNQVM ITensor backend")
+set (LIBRARY_NAME tnqvm-itensor)
 
-if (EXATENSOR_ROOT)
-   if (EXISTS ${EXATENSOR_ROOT}/include/tensor_network.hpp)
-      message(STATUS "ExaTensor found at ${EXATENSOR_ROOT}")
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DTNQVM_HAS_EXATENSOR")
-      include_directories(${EXATENSOR_ROOT}/include)
-   else()
-      message(FATAL_ERROR "Invalid EXATENSOR_ROOT path")
-   endif()
+include(ProcessorCount)
+ProcessorCount(N)
+if (N EQUAL 0)
+   set(N 1)
 endif()
+
+include(ExternalProject)
+set(ITENSOR_ROOT ${CMAKE_SOURCE_DIR}/ITensor)
+if (OPENMP_FOUND)
+ExternalProject_Add(projitensor
+    SOURCE_DIR ${ITENSOR_ROOT}
+    BINARY_DIR ${ITENSOR_ROOT}
+    CONFIGURE_COMMAND cp optionsopenmp.mk.sample options.mk
+    BUILD_COMMAND make -j${N} PLATFORM=lapack
+    INSTALL_COMMAND ""
+)
+else()
+ExternalProject_Add(projitensor
+	SOURCE_DIR ${ITENSOR_ROOT}
+	BINARY_DIR ${ITENSOR_ROOT}
+	CONFIGURE_COMMAND cp options.mk.sample options.mk
+	BUILD_COMMAND make -j${N} PLATFORM=lapack
+	INSTALL_COMMAND ""
+	)
+endif()
+include_directories(${ITENSOR_ROOT})
 
 find_package(XACC REQUIRED)
 
-include_directories(${CMAKE_CURRENT_SOURCE_DIR})
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/visitors)
 include_directories(${XACC_INCLUDE_DIRS})
-link_directories   (${XACC_LIBRARY_DIRS})
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/mps)
+include_directories(${CMAKE_SOURCE_DIR}/tnqvm)
+link_directories(${XACC_LIBRARY_DIRS})
 
-file (GLOB HEADERS *.hpp)
-file (GLOB SRC *.cpp)
-
-add_subdirectory(visitors)
+file (GLOB HEADERS mps/*.hpp)
+file (GLOB SRC mps/*.cpp *.cpp)
 
 usFunctionGetResourceSource(TARGET ${LIBRARY_NAME} OUT SRC)
 usFunctionGenerateBundleInit(TARGET ${LIBRARY_NAME} OUT SRC)
@@ -61,7 +76,7 @@ usFunctionGenerateBundleInit(TARGET ${LIBRARY_NAME} OUT SRC)
 add_library(${LIBRARY_NAME} SHARED ${SRC})
 add_dependencies(${LIBRARY_NAME} projitensor)
 
-set(_bundle_name xacc_tnqvm_accelerator)
+set(_bundle_name tnqvm_itensor)
 set_target_properties(${LIBRARY_NAME} PROPERTIES
     # This is required for every bundle
     COMPILE_DEFINITIONS US_BUNDLE_NAME=${_bundle_name}
@@ -82,15 +97,14 @@ usFunctionEmbedResources(TARGET ${LIBRARY_NAME}
     manifest.json
     )
 
-if (EXATENSOR_ROOT)
-   link_directories(${EXATENSOR_ROOT}/lib)
-   target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} lapack ${Boost_LIBRARIES} blas ${EXATENSOR_ROOT}/lib/libtensornet.a ${EXATENSOR_ROOT}/lib/libtalsh.a)
-else()
-   target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} lapack ${Boost_LIBRARIES} blas)
-endif()
+target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} ${ITENSOR_ROOT}/lib/libitensor-g.a lapack ${Boost_LIBRARIES} blas)
 
-install(TARGETS ${LIBRARY_NAME} DESTINATION ${XACC_LIBRARY_DIR}/plugins/accelerators)
+install(TARGETS ${LIBRARY_NAME} DESTINATION ${XACC_LIBRARY_DIR}/plugins/visitors)
 
 
 # Gather tests
-file (GLOB test_files tests/*.cpp)
+file (GLOB test_files mps/tests/*.cpp)
+
+# Add the tests
+add_tests("${test_files}" "${CMAKE_CURRENT_SOURCE_DIR}/mps" "${LIBRARY_NAME};${Boost_LIBRARIES};${XACC_LIBRARIES}")
+

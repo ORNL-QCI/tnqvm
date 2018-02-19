@@ -32,8 +32,7 @@
 #define TNQVM_TNQVM_HPP_
 
 #include "XACC.hpp"
-
-namespace xacc{
+#include "TNQVMVisitor.hpp"
 
 namespace tnqvm {
 
@@ -162,10 +161,13 @@ public:
     void mute  () { __verbose = 0; }
     void unmute() { __verbose = 1;} // default to 1
 
+protected:
+
+    std::shared_ptr<TNQVMVisitor> visitor;
+
 private:
 	int __verbose;
 };
-}
 }
 
 #endif

@@ -1,5 +1,5 @@
 /***********************************************************************************
- * Copyright (c) 2017, UT-Battelle
+ * Copyright (c) 2018, UT-Battelle
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -25,46 +25,26 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Contributors:
- *   Initial implementation - Mengsu Chen 2017.7
+ *   Initial API and implementation - Alex McCaskey
  *
  **********************************************************************************/
-#ifndef TNQVM_TNQVMBUFFER_HPP_
-#define TNQVM_TNQVMBUFFER_HPP_
+#ifndef TNQVM_TNQVMVISITOR_HPP_
+#define TNQVM_TNQVMVISITOR_HPP_
 
-#include "AcceleratorBuffer.hpp"
+#include "Identifiable.hpp"
+#include "TNQVMBuffer.hpp"
+#include "AllGateVisitor.hpp"
+
+using namespace xacc;
+using namespace xacc::quantum;
 
 namespace tnqvm {
-class TNQVMBuffer : public xacc::AcceleratorBuffer{
+class TNQVMVisitor : public AllGateVisitor {
 public:
-
-    TNQVMBuffer(const std::string& str, const int N)
-        : xacc::AcceleratorBuffer(str,N),
-        aver_from_wavefunc (1.),
-        aver_from_manytime (1.),
-        __verbose (1) {}
-
-    virtual void resetBuffer(){
-        xacc::AcceleratorBuffer::resetBuffer();
-        aver_from_wavefunc = 1.;
-        aver_from_manytime = 1.;
-    }
-
-    virtual const double getExpectationValueZ(){
-        return aver_from_wavefunc;
-    }
-
-    int verbose() const {return __verbose;}
-    void verbose(int level) {__verbose = level;}
-    void set_verbose(int level) {__verbose = level;}
-
-    void mute  () { __verbose = 0;}
-    void unmute() { __verbose = 1;} // default to 1
-
-    double aver_from_wavefunc;
-    double aver_from_manytime;
-
-private:
-    int __verbose; // verbose level of visitors using this buffer
+	virtual void initialize(std::shared_ptr<AcceleratorBuffer> buffer) = 0;
+	virtual void finalize() = 0;
 };
+
 }
-#endif
+
+#endif /* TNQVM_TNQVMVISITOR_HPP_ */

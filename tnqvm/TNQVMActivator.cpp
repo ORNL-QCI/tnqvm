@@ -11,7 +11,7 @@ public:
     TNQVMActivator(){}
 
     void Start(BundleContext context){
-        auto acc = std::make_shared<xacc::tnqvm::TNQVM>();
+        auto acc = std::make_shared<tnqvm::TNQVM>();
         context.RegisterService<xacc::Accelerator>(acc);
         context.RegisterService<xacc::OptionsProvider>(acc);
     }

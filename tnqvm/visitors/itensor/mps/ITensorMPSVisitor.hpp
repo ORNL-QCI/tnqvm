@@ -32,20 +32,37 @@
 #define QUANTUM_GATE_ACCELERATORS_TNQVM_ITensorMPSVisitor_HPP_
 
 #include <cstdlib>
-#include "AllGateVisitor.hpp"
-#include "TNQVMBuffer.hpp"
+#include "XACC.hpp"
+#include "TNQVMVisitor.hpp"
+#include "Cloneable.hpp"
 #include "itensor/all.h"
 
-namespace xacc{
-namespace quantum{
+namespace tnqvm{
 
-class ITensorMPSVisitor: public AllGateVisitor {
+class ITensorMPSVisitor: public TNQVMVisitor, public Cloneable<TNQVMVisitor> {
     using ITensor = itensor::ITensor;
     using Index = itensor::Index;
     using IndexVal = itensor::IndexVal;
 public:
-    ITensorMPSVisitor(std::shared_ptr<TNQVMBuffer> buffer);
+    ITensorMPSVisitor();
     virtual ~ITensorMPSVisitor();
+
+	virtual std::shared_ptr<TNQVMVisitor> clone() {
+		return std::make_shared<ITensorMPSVisitor>();
+	}
+
+    virtual void initialize(std::shared_ptr<AcceleratorBuffer> buffer);
+    virtual void finalize() {
+
+    }
+
+	virtual const std::string name() const {
+		return "itensor-mps";
+	}
+
+	virtual const std::string description() const {
+		return "";
+	}
 
     // one-qubit gates
     void visit(Identity& gate) {}
@@ -99,6 +116,5 @@ private:
     void snap_wavefunc();
 };
 
-} // end namespace quantum
 } // end namespace xacc
 #endif

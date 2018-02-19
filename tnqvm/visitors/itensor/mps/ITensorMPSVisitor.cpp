@@ -37,14 +37,18 @@
 #include <ctime>
 #include <cassert>
 
-namespace xacc {
-namespace quantum {
+namespace tnqvm {
 
 /// Constructor
-ITensorMPSVisitor::ITensorMPSVisitor(std::shared_ptr<TNQVMBuffer> accbuffer_in) :
-		n_qbits(accbuffer_in->size()), accbuffer(accbuffer_in), snapped(false) {
+ITensorMPSVisitor::ITensorMPSVisitor() :
+		n_qbits(0), snapped(false) {
+}
+
+void ITensorMPSVisitor::initialize(std::shared_ptr<AcceleratorBuffer> accbuffer_in) {
+	n_qbits = accbuffer_in->size();
+	accbuffer = std::dynamic_pointer_cast<TNQVMBuffer>(accbuffer_in);
+	snapped = false;
 	initWavefunc(n_qbits);
-	// printWavefunc();
 	std::srand(std::time(0));
 	cbits.resize(n_qbits);
 }
@@ -615,5 +619,4 @@ void ITensorMPSVisitor::reduce_to_MPS() {
 	printWavefunc();
 }
 
-} // end namespace quantum
 } // end namespace xacc
