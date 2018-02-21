@@ -46,4 +46,4 @@ include_directories(${XACC_INCLUDE_DIRS})
 include_directories(${Boost_INCLUDE_DIRS})
 
 add_subdirectory(tnqvm)
-#add_subdirectory(examples)
+add_subdirectory(examples)

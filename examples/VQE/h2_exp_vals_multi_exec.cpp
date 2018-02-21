@@ -29,7 +29,6 @@
  *
  **********************************************************************************/
 #include "XACC.hpp"
-#include "tnqvm/TNQVMBuffer.hpp"
 
 // Quantum Kernel executing teleportation of
 // qubit state to another.

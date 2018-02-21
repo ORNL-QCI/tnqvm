@@ -29,7 +29,6 @@
  *
  **********************************************************************************/
 #include "XACC.hpp"
-#include "tnqvm/TNQVMBuffer.hpp"
 
 // Quantum Kernel executing teleportation of
 // qubit state to another.
@@ -75,8 +74,7 @@ int main (int argc, char** argv) {
 	auto qpu = xacc::getAccelerator("tnqvm");
 
 	// Allocate a register of 2 qubits
-	auto qubitReg = qpu->createBuffer("qreg", 2);
-	auto buffer = std::dynamic_pointer_cast<TNQVMBuffer>(qubitReg);
+	auto buffer = qpu->createBuffer("qreg", 2);
 	// Create a Program
 	xacc::Program program(qpu, src);
 
@@ -103,7 +101,7 @@ int main (int argc, char** argv) {
 	}
 	file.close();
 	
-	qubitReg->print(std::cout);
+	buffer->print(std::cout);
 
 	// Finalize the XACC Framework
 	xacc::Finalize();

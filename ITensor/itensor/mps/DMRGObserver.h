@@ -117,7 +117,7 @@ measure(const Args& args)
             Real S = 0;
             for(auto& p : center_eigs)
                 {
-                if(p > 1E-13) S += p*log(p);
+                if(p > 1E-13) S += p*std::log(p);
                 }
             S *= -1;
             printfln("    vN Entropy at center bond b=%d = %.12f",N/2,S);

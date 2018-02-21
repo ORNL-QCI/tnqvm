@@ -19,7 +19,7 @@ template <typename T>
 T 
 sqr(T x) { return x*x; }
 
-const Real maxlogdouble = log(std::numeric_limits<double>::max());
+const Real maxlogdouble = std::log(std::numeric_limits<double>::max());
 
 const Real LogNum_Accuracy = 1E-12;
 
@@ -85,12 +85,12 @@ class LogNum
         if(r < 0)
             { 
             sign_ = -1; 
-            lognum_ = log(-r); 
+            lognum_ = std::log(-r); 
             }
         else
             { 
             sign_ = 1;  
-            lognum_ = log(r); 
+            lognum_ = std::log(r); 
             }
         }
 
