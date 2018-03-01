@@ -107,7 +107,6 @@ BOOST_AUTO_TEST_CASE(checkSimpleSimulation) {
 	term0->addInstruction(meas);
 
 	auto buffer = std::make_shared<TNQVMBuffer>("qreg", 2);
-	buffer->set_verbose(0);
 
 	// Get the visitor backend
 	auto visitor = std::make_shared<ITensorMPSVisitor>();
@@ -186,7 +185,6 @@ BOOST_AUTO_TEST_CASE(checkOneQubitBug) {
 	term0->addInstruction(meas);
 
 	auto buffer = std::make_shared<TNQVMBuffer>("qreg", 1);
-	buffer->set_verbose(0);
 
 	// Get the visitor backend
 	auto visitor = std::make_shared<ITensorMPSVisitor>();
@@ -248,7 +246,6 @@ BOOST_AUTO_TEST_CASE(checkSampling) {
 	term0->addInstruction(meas2);
 
 	auto buffer = std::make_shared<TNQVMBuffer>("qreg", 2);
-	buffer->set_verbose(0);
 
 	// Get the visitor backend
 	auto visitor = std::make_shared<ITensorMPSVisitor>();

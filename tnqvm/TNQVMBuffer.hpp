@@ -34,14 +34,13 @@
 #include "AcceleratorBuffer.hpp"
 
 namespace tnqvm {
-class TNQVMBuffer : public xacc::AcceleratorBuffer{
+class TNQVMBuffer : public xacc::AcceleratorBuffer {
 public:
 
     TNQVMBuffer(const std::string& str, const int N)
         : xacc::AcceleratorBuffer(str,N),
         aver_from_wavefunc (1.),
-        aver_from_manytime (1.),
-        __verbose (1) {}
+        aver_from_manytime (1.) {}
 
     virtual void resetBuffer(){
         xacc::AcceleratorBuffer::resetBuffer();
@@ -53,18 +52,13 @@ public:
         return aver_from_wavefunc;
     }
 
-    int verbose() const {return __verbose;}
-    void verbose(int level) {__verbose = level;}
-    void set_verbose(int level) {__verbose = level;}
-
-    void mute  () { __verbose = 0;}
-    void unmute() { __verbose = 1;} // default to 1
+	virtual void setExpectationValueZ(const double exp) {
+		aver_from_wavefunc = exp;
+	}
 
     double aver_from_wavefunc;
     double aver_from_manytime;
 
-private:
-    int __verbose; // verbose level of visitors using this buffer
 };
 }
 #endif

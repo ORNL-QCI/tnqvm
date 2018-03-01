@@ -45,8 +45,9 @@ ITensorMPSVisitor::ITensorMPSVisitor() :
 }
 
 void ITensorMPSVisitor::initialize(std::shared_ptr<AcceleratorBuffer> accbuffer_in) {
+	verbose = xacc::optionExists("tnqvm-verbose");
+	buffer = accbuffer_in;
 	n_qbits = accbuffer_in->size();
-	accbuffer = std::dynamic_pointer_cast<TNQVMBuffer>(accbuffer_in);
 	snapped = false;
 	initWavefunc(n_qbits);
 	std::srand(std::time(0));
@@ -55,7 +56,7 @@ void ITensorMPSVisitor::initialize(std::shared_ptr<AcceleratorBuffer> accbuffer_
 
 void ITensorMPSVisitor::visit(Hadamard& gate) {
 	auto iqbit_in = gate.bits()[0];
-	if ((accbuffer->verbose()) >= 1) {
+	if (verbose) {
 		std::cout << "applying " << gate.getName() << " @ " << iqbit_in
 				<< std::endl;
 	}
@@ -93,7 +94,7 @@ void ITensorMPSVisitor::visit(CNOT& gate) {
 		iqbit_in0 = iqbit_in0_ori;
 		iqbit_in1 = iqbit_in1_ori;
 	}
-	if ((accbuffer->verbose()) >= 1) {
+	if (verbose) {
 		std::cout << "applying " << gate.getName() << " @ " << iqbit_in0
 				<< " , " << iqbit_in1 << std::endl;
 	}
@@ -141,7 +142,7 @@ void ITensorMPSVisitor::visit(CNOT& gate) {
 
 void ITensorMPSVisitor::visit(X& gate) {
 	auto iqbit_in = gate.bits()[0];
-	if ((accbuffer->verbose()) >= 1) {
+	if (verbose) {
 		std::cout << "applying " << gate.getName() << " @ " << iqbit_in
 				<< std::endl;
 	}
@@ -156,7 +157,7 @@ void ITensorMPSVisitor::visit(X& gate) {
 
 void ITensorMPSVisitor::visit(Y& gate) {
 	auto iqbit_in = gate.bits()[0];
-	if ((accbuffer->verbose()) >= 1) {
+	if (verbose) {
 		std::cout << "applying " << gate.getName() << " @ " << iqbit_in
 				<< std::endl;
 	}
@@ -171,7 +172,7 @@ void ITensorMPSVisitor::visit(Y& gate) {
 
 void ITensorMPSVisitor::visit(Z& gate) {
 	auto iqbit_in = gate.bits()[0];
-	if ((accbuffer->verbose()) >= 1) {
+	if (verbose) {
 		std::cout << "applying " << gate.getName() << " @ " << iqbit_in
 				<< std::endl;
 	}
@@ -312,11 +313,12 @@ void ITensorMPSVisitor::visit(Measure& gate) {
 	snap_wavefunc();
 	auto iqbit_measured = gate.bits()[0];
 	iqbits_m.insert(iqbit_measured);
-	accbuffer->aver_from_wavefunc = averZs(iqbits_m);
+	auto expVal = averZs(iqbits_m);
+	buffer->setExpectationValueZ(expVal);
 	auto ind_measured = ind_for_qbit(iqbit_measured);
-	if ((accbuffer->verbose()) >= 1) {
+	if (verbose) {
 		std::cout << "applying " << gate.getName() << " @ " << iqbit_measured
-				<< ", " << accbuffer->aver_from_wavefunc << std::endl;
+				<< ", " << expVal << std::endl;
 	}
 	auto ind_measured_p = ind_for_qbit(iqbit_measured);
 	ind_measured_p.prime();
@@ -345,7 +347,7 @@ void ITensorMPSVisitor::visit(Measure& gate) {
 
 void ITensorMPSVisitor::visit(ConditionalFunction& c) {
 	auto classicalBitIdx = c.getConditionalQubit();
-	if ((accbuffer->verbose()) >= 1) {
+	if (verbose) {
 		std::cout << "applying " << c.getName() << " @ " << classicalBitIdx
 				<< std::endl;
 	}
@@ -359,7 +361,7 @@ void ITensorMPSVisitor::visit(ConditionalFunction& c) {
 void ITensorMPSVisitor::visit(Rx& gate) {
 	auto iqbit_in = gate.bits()[0];
 	double theta = boost::get<double>(gate.getParameter(0));
-	if ((accbuffer->verbose()) >= 1) {
+	if (verbose) {
 		std::cout << "applying " << gate.getName() << "(" << theta << ") @ "
 				<< iqbit_in << std::endl;
 	}
@@ -379,7 +381,7 @@ void ITensorMPSVisitor::visit(Rx& gate) {
 void ITensorMPSVisitor::visit(Ry& gate) {
 	auto iqbit_in = gate.bits()[0];
 	double theta = boost::get<double>(gate.getParameter(0));
-	if ((accbuffer->verbose()) >= 1) {
+	if (verbose) {
 		std::cout << "applying " << gate.getName() << "(" << theta << ") @ "
 				<< iqbit_in << std::endl;
 	}
@@ -397,7 +399,7 @@ void ITensorMPSVisitor::visit(Ry& gate) {
 void ITensorMPSVisitor::visit(Rz& gate) {
 	auto iqbit_in = gate.bits()[0];
 	double theta = boost::get<double>(gate.getParameter(0));
-	if ((accbuffer->verbose()) >= 1) {
+	if (verbose) {
 		std::cout << "applying " << gate.getName() << "(" << theta << ") @ "
 				<< iqbit_in << std::endl;
 	}
@@ -413,15 +415,11 @@ void ITensorMPSVisitor::visit(Rz& gate) {
 }
 
 void ITensorMPSVisitor::visit(CPhase& cp) {
-	std::cerr << "UNIMPLEMENTED!" << std::endl;
-	// auto angleStr = boost::lexical_cast<std::string>(cp.getParameter(0));
-	// quilStr += "CPHASE("
-	// 		+ angleStr
-	// 		+ ") " + std::to_string(cp.bits()[0]) + " " + std::to_string(cp.bits()[1]) + "\n";
+	xacc::error("ITensorMPS Visitor CPhase visit unimplemented.");
 }
 
 void ITensorMPSVisitor::permute_to(int iqbit, int iqbit_to) {
-	if ((accbuffer->verbose()) >= 1) {
+	if (verbose) {
 		std::cout << "permute " << iqbit << " to " << iqbit_to << std::endl;
 	}
 	int delta = iqbit < iqbit_to ? 1 : -1;

@@ -87,7 +87,6 @@ private:
     itensor::ITensor wavefunc;
     std::vector<int> iqbit2iind;
     std::vector<int> cbits;
-    std::shared_ptr<TNQVMBuffer> accbuffer;
 
     std::vector<ITensor> bondMats;    // singular matricies
     std::vector<ITensor> legMats;     // matricies with physical legs
@@ -100,6 +99,8 @@ private:
     itensor::IndexSet legs;           // physical degree of freedom
     int n_qbits;
     bool snapped;
+
+    bool verbose = false;
 
     /// init the wave function tensor
     void initWavefunc(int n_qbits);

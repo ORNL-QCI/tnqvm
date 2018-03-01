@@ -43,6 +43,8 @@ class TNQVMVisitor : public AllGateVisitor {
 public:
 	virtual void initialize(std::shared_ptr<AcceleratorBuffer> buffer) = 0;
 	virtual void finalize() = 0;
+protected:
+	std::shared_ptr<AcceleratorBuffer> buffer;
 };
 
 }

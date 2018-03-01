@@ -44,7 +44,6 @@ std::shared_ptr<AcceleratorBuffer> TNQVM::createBuffer(
 		xacc::error("TNQVM - Invalid buffer size.");
 	}
 	auto buffer = std::make_shared<TNQVMBuffer>(varId, size);
-	buffer->set_verbose(__verbose);
 	storeBuffer(varId, buffer);
 	return buffer;
 }

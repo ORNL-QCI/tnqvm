@@ -33,36 +33,33 @@
 // Quantum Kernel executing teleportation of
 // qubit state to another.
 // test
-    const char* src = R"src(
-__qpu__ prepare_ansatz(qbit qreg, double theta){
-	Rx(qreg[0], 3.1415926);
-	Ry(qreg[1], 1.57079);
-	Rx(qreg[0], 7.8539752);
-	CNOT(qreg[1], qreg[0]);
-	Rz(qreg[0], theta);
-	CNOT(qreg[1], qreg[0]);
-	Ry(qreg[1], 7.8539752);
-	Rx(qreg[0], 1.57079);
+const char* src = R"src(
+__qpu__ prepare_ansatz(AcceleratorBuffer qreg, double theta){
+        RX(3.1415926) 0
+        RY(1.57079) 1
+        RX(7.8539752) 0
+        CNOT 1 0
+        RZ(theta) 0
+        CNOT 1 0
+        RY(7.8539752) 1
+        RX(1.57079) 0
 }
 
 // measure the 1st term of Hamiltonian on the ansatz
-__qpu__ term0(qbit qreg, double theta){
-	prepare_ansatz(qreg, theta);
-	cbit creg[1];
-	creg[0] = MeasZ(qreg[0]);
+__qpu__ term0(AcceleratorBuffer qreg, double theta){
+        prepare_ansatz(qreg, theta)
+        MEASURE 0 [0]
 }
 
-__qpu__ term1(qbit qreg, double theta){
-	prepare_ansatz(qreg, theta);
-	cbit creg[1];
-	creg[0] = MeasZ(qreg[1]);
+__qpu__ term1(AcceleratorBuffer qreg, double theta){
+        prepare_ansatz(qreg, theta)
+        MEASURE 1 [0]
 }
 
-__qpu__ term2(qbit qreg, double theta){
-	prepare_ansatz(qreg, theta);
-	cbit creg[2];
-	creg[0] = MeasZ(qreg[0]);
-	creg[1] = MeasZ(qreg[1]);
+__qpu__ term2(AcceleratorBuffer qreg, double theta){
+        prepare_ansatz(qreg, theta)
+        MEASURE 0 [0]
+        MEASURE 1 [1]
 }
 )src";
 
@@ -70,6 +67,8 @@ int main (int argc, char** argv) {
 
 	// Initialize the XACC Framework
 	xacc::Initialize(argc, argv);
+
+	xacc::setCompiler("quil");
 
 	auto qpu = xacc::getAccelerator("tnqvm");
 
@@ -89,10 +88,8 @@ int main (int argc, char** argv) {
 		file<<theta;
 		for(int i=0; i<n_terms; ++i){
 			std::string kernel_name = "term"+std::to_string(i);
-			std::cout<<kernel_name<<std::endl;
 			auto measure_term = program.getKernel<double>(kernel_name);
 			buffer->resetBuffer();
-			std::cout<<"measring"<<std::endl;
 			measure_term(buffer, theta);
 			auto aver = buffer->getExpectationValueZ();
 			file<<", "<<aver;
