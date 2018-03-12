@@ -52,6 +52,13 @@ void ITensorMPSVisitor::initialize(std::shared_ptr<AcceleratorBuffer> accbuffer_
 	initWavefunc(n_qbits);
 	std::srand(std::time(0));
 	cbits.resize(n_qbits);
+	execTime = 0.0;
+	if (xacc::optionExists("tnqvm-one-qubit-gatetime")) {
+		singleQubitTime = std::stod(xacc::getOption("tnqvm-one-qubit-gatetime"));
+	}
+	if (xacc::optionExists("tnqvm-two-qubit-gatetime")) {
+		twoQubitTime = std::stod(xacc::getOption("tnqvm-two-qubit-gatetime"));
+	}
 }
 
 void ITensorMPSVisitor::visit(Hadamard& gate) {
@@ -72,6 +79,7 @@ void ITensorMPSVisitor::visit(Hadamard& gate) {
 	tGate.set(ind_in(2), ind_out(2), -half_sqrt2);
 	legMats[iqbit_in] = tGate * legMats[iqbit_in];
 	printWavefunc();
+	execTime += singleQubitTime;
 }
 
 void ITensorMPSVisitor::visit(CZ& gate) {
@@ -138,6 +146,7 @@ void ITensorMPSVisitor::visit(CNOT& gate) {
 		permute_to(iqbit_in0_ori - 1, iqbit_in1_ori);
 	}
 	printWavefunc();
+	execTime += twoQubitTime;
 }
 
 void ITensorMPSVisitor::visit(X& gate) {
@@ -153,6 +162,7 @@ void ITensorMPSVisitor::visit(X& gate) {
 	tGate.set(ind_out(2), ind_in(1), 1.);
 	legMats[iqbit_in] = tGate * legMats[iqbit_in];
 	printWavefunc();
+	execTime += singleQubitTime;
 }
 
 void ITensorMPSVisitor::visit(Y& gate) {
@@ -168,6 +178,7 @@ void ITensorMPSVisitor::visit(Y& gate) {
 	tGate.set(ind_out(2), ind_in(1), std::complex<double>(0, 1.));
 	legMats[iqbit_in] = tGate * legMats[iqbit_in];
 	printWavefunc();
+	execTime += singleQubitTime;
 }
 
 void ITensorMPSVisitor::visit(Z& gate) {
@@ -183,6 +194,7 @@ void ITensorMPSVisitor::visit(Z& gate) {
 	tGate.set(ind_out(2), ind_in(2), -1.);
 	legMats[iqbit_in] = tGate * legMats[iqbit_in];
 	printWavefunc();
+	execTime += singleQubitTime;
 }
 
 /** The inner product is carried out in the following way
@@ -343,6 +355,7 @@ void ITensorMPSVisitor::visit(Measure& gate) {
 		legMats[iqbit_measured].prime(ind_measured_p, -1);
 	}
 	printWavefunc();
+	execTime += twoQubitTime;
 }
 
 void ITensorMPSVisitor::visit(ConditionalFunction& c) {
@@ -376,6 +389,7 @@ void ITensorMPSVisitor::visit(Rx& gate) {
 	tGate.set(ind_out(2), ind_in(2), std::cos(.5 * theta));
 	legMats[iqbit_in] = tGate * legMats[iqbit_in];
 	printWavefunc();
+	execTime += singleQubitTime;
 }
 
 void ITensorMPSVisitor::visit(Ry& gate) {
@@ -394,6 +408,7 @@ void ITensorMPSVisitor::visit(Ry& gate) {
 	tGate.set(ind_out(2), ind_in(2), std::cos(.5 * theta));
 	legMats[iqbit_in] = tGate * legMats[iqbit_in];
 	printWavefunc();
+	execTime += singleQubitTime;
 }
 
 void ITensorMPSVisitor::visit(Rz& gate) {
@@ -412,6 +427,7 @@ void ITensorMPSVisitor::visit(Rz& gate) {
 			std::exp(std::complex<double>(0, .5 * theta)));
 	legMats[iqbit_in] = tGate * legMats[iqbit_in];
 	printWavefunc();
+	execTime += singleQubitTime;
 }
 
 void ITensorMPSVisitor::visit(CPhase& cp) {

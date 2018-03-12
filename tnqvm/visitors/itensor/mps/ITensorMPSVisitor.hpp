@@ -64,6 +64,15 @@ public:
 		return "";
 	}
 
+	/**
+	 * Return the last execute call's execution time in seconds.
+	 *
+	 * @return runtime The execution time in seconds.
+	 */
+	virtual const double getExecutionTime() {
+		return execTime;
+	}
+
     // one-qubit gates
     void visit(Identity& gate) {}
     void visit(Hadamard& gate);
@@ -84,6 +93,10 @@ public:
     void visit(GateFunction& f);
 
 private:
+    double execTime = 0.0;
+    double singleQubitTime = 1e-8;
+    double twoQubitTime = 1e-7;
+
     itensor::ITensor wavefunc;
     std::vector<int> iqbit2iind;
     std::vector<int> cbits;

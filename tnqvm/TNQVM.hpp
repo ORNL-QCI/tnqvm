@@ -79,6 +79,15 @@ public:
 	virtual bool isValidBufferSize(const int NBits);
 
 	/**
+	 * Return the last execute call's execution time in seconds.
+	 *
+	 * @return runtime The execution time in seconds.
+	 */
+	virtual const double getExecutionTime() {
+		return visitor->getExecutionTime();
+	}
+
+	/**
 	 * Execute the simulation. Requires both a valid SimulatedQubits buffer and
 	 * XACC IR Function instance modeling the quantum circuit.
 	 *
@@ -109,7 +118,10 @@ public:
 				"TNQVM Accelerator Options");
 		desc->add_options()("tnqvm-visitor", value<std::string>(),
 				"Provide visitor to be used in mapping IR to a Tensor Network.")
-				("tnqvm-list-visitors", "List the available visitors.")("tnqvm-verbose","");
+				("tnqvm-list-visitors", "List the available visitors.")("tnqvm-verbose","")
+				("tnqvm-one-qubit-gatetime", value<std::string>(), "The runtime in seconds for a single qubit gate.")
+				("tnqvm-two-qubit-gatetime", value<std::string>(), "The runtime in seconds for a two qubit gate.");
+
 		return desc;
 	}
 
