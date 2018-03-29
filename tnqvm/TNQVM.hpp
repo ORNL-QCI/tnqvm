@@ -45,6 +45,7 @@ public:
 		} else {
 			__verbose = 0;
 		}
+
 	}
 
 	/**
@@ -84,7 +85,8 @@ public:
 	 * @return runtime The execution time in seconds.
 	 */
 	virtual const double getExecutionTime() {
-		return visitor->getExecutionTime();
+		if (visitor) return visitor->getExecutionTime();
+		else return 0.0;
 	}
 
 	/**

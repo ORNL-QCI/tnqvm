@@ -89,7 +89,7 @@ else()
    target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} lapack ${Boost_LIBRARIES} blas)
 endif()
 
-install(TARGETS ${LIBRARY_NAME} DESTINATION ${XACC_LIBRARY_DIR}/plugins/accelerators)
+install(TARGETS ${LIBRARY_NAME} DESTINATION $ENV{HOME}/.xacc/plugins/accelerators)
 
 
 # Gather tests

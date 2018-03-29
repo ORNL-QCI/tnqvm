@@ -39,7 +39,7 @@
 
 namespace tnqvm{
 
-class ITensorMPSVisitor: public TNQVMVisitor, public Cloneable<TNQVMVisitor> {
+class ITensorMPSVisitor: public TNQVMVisitor, public xacc::Cloneable<TNQVMVisitor> {
     using ITensor = itensor::ITensor;
     using Index = itensor::Index;
     using IndexVal = itensor::IndexVal;

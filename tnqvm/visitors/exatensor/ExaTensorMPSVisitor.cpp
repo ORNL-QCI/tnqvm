@@ -194,7 +194,7 @@ int ExaTensorMPSVisitor::applyNBodyGate(const Tensor & gate, const unsigned int 
 void ExaTensorMPSVisitor::visit(Hadamard & gate)
 {
  auto qbit0 = gate.bits()[0];
- std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
+ std::cout << "Applying " << gate.name() << " @ {" << qbit0 << "}" << std::endl;
  const Tensor & gateTensor = GateTensors.getTensor(gate);
  int error_code = this->apply1BodyGate(gateTensor,qbit0); assert(error_code == 0);
  return;
@@ -203,7 +203,7 @@ void ExaTensorMPSVisitor::visit(Hadamard & gate)
 void ExaTensorMPSVisitor::visit(X & gate)
 {
  auto qbit0 = gate.bits()[0];
- std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
+ std::cout << "Applying " << gate.name() << " @ {" << qbit0 << "}" << std::endl;
  const Tensor & gateTensor = GateTensors.getTensor(gate);
  int error_code = this->apply1BodyGate(gateTensor,qbit0); assert(error_code == 0);
  return;
@@ -212,7 +212,7 @@ void ExaTensorMPSVisitor::visit(X & gate)
 void ExaTensorMPSVisitor::visit(Y & gate)
 {
  auto qbit0 = gate.bits()[0];
- std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
+ std::cout << "Applying " << gate.name() << " @ {" << qbit0 << "}" << std::endl;
  const Tensor & gateTensor = GateTensors.getTensor(gate);
  int error_code = this->apply1BodyGate(gateTensor,qbit0); assert(error_code == 0);
  return;
@@ -221,7 +221,7 @@ void ExaTensorMPSVisitor::visit(Y & gate)
 void ExaTensorMPSVisitor::visit(Z & gate)
 {
  auto qbit0 = gate.bits()[0];
- std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
+ std::cout << "Applying " << gate.name() << " @ {" << qbit0 << "}" << std::endl;
  const Tensor & gateTensor = GateTensors.getTensor(gate);
  int error_code = this->apply1BodyGate(gateTensor,qbit0); assert(error_code == 0);
  return;
@@ -230,7 +230,7 @@ void ExaTensorMPSVisitor::visit(Z & gate)
 void ExaTensorMPSVisitor::visit(Rx & gate)
 {
  auto qbit0 = gate.bits()[0];
- std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
+ std::cout << "Applying " << gate.name() << " @ {" << qbit0 << "}" << std::endl;
  const Tensor & gateTensor = GateTensors.getTensor(gate);
  int error_code = this->apply1BodyGate(gateTensor,qbit0); assert(error_code == 0);
  return;
@@ -239,7 +239,7 @@ void ExaTensorMPSVisitor::visit(Rx & gate)
 void ExaTensorMPSVisitor::visit(Ry & gate)
 {
  auto qbit0 = gate.bits()[0];
- std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
+ std::cout << "Applying " << gate.name() << " @ {" << qbit0 << "}" << std::endl;
  const Tensor & gateTensor = GateTensors.getTensor(gate);
  int error_code = this->apply1BodyGate(gateTensor,qbit0); assert(error_code == 0);
  return;
@@ -248,7 +248,7 @@ void ExaTensorMPSVisitor::visit(Ry & gate)
 void ExaTensorMPSVisitor::visit(Rz & gate)
 {
  auto qbit0 = gate.bits()[0];
- std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
+ std::cout << "Applying " << gate.name() << " @ {" << qbit0 << "}" << std::endl;
  const Tensor & gateTensor = GateTensors.getTensor(gate);
  int error_code = this->apply1BodyGate(gateTensor,qbit0); assert(error_code == 0);
  return;
@@ -258,7 +258,7 @@ void ExaTensorMPSVisitor::visit(CPhase & gate)
 {
  auto qbit0 = gate.bits()[0];
  auto qbit1 = gate.bits()[1];
- std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "," << qbit1 << "}" << std::endl;
+ std::cout << "Applying " << gate.name() << " @ {" << qbit0 << "," << qbit1 << "}" << std::endl;
  const Tensor & gateTensor = GateTensors.getTensor(gate);
  int error_code = this->apply2BodyGate(gateTensor,qbit0,qbit1); assert(error_code == 0);
  return;
@@ -268,7 +268,7 @@ void ExaTensorMPSVisitor::visit(CNOT & gate)
 {
  auto qbit0 = gate.bits()[0];
  auto qbit1 = gate.bits()[1];
- std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "," << qbit1 << "}" << std::endl;
+ std::cout << "Applying " << gate.name() << " @ {" << qbit0 << "," << qbit1 << "}" << std::endl;
  const Tensor & gateTensor = GateTensors.getTensor(gate);
  int error_code = this->apply2BodyGate(gateTensor,qbit0,qbit1); assert(error_code == 0);
  return;
@@ -278,7 +278,7 @@ void ExaTensorMPSVisitor::visit(Swap & gate)
 {
  auto qbit0 = gate.bits()[0];
  auto qbit1 = gate.bits()[1];
- std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "," << qbit1 << "}" << std::endl;
+ std::cout << "Applying " << gate.name() << " @ {" << qbit0 << "," << qbit1 << "}" << std::endl;
  const Tensor & gateTensor = GateTensors.getTensor(gate);
  int error_code = this->apply2BodyGate(gateTensor,qbit0,qbit1); assert(error_code == 0);
  return;
@@ -287,7 +287,7 @@ void ExaTensorMPSVisitor::visit(Swap & gate)
 void ExaTensorMPSVisitor::visit(Measure & gate)
 {
  auto qbit0 = gate.bits()[0];
- std::cout << "Applying " << gate.getName() << " @ {" << qbit0 << "}" << std::endl;
+ std::cout << "Applying " << gate.name() << " @ {" << qbit0 << "}" << std::endl;
  //`Implement
  return;
 }
