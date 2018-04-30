@@ -1,5 +1,6 @@
 #!/bin/bash
 
+yum -y install blas-devel lapack-devel
 export rpath_python=/opt/_internal/cpython-3.6.4/bin/python
 git clone --recursive -b mccaskey/cpr_build https://github.com/ornl-qci/tnqvm
 cd tnqvm
