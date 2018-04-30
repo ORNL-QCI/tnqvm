@@ -84,13 +84,20 @@ usFunctionEmbedResources(TARGET ${LIBRARY_NAME}
 
 if (EXATENSOR_ROOT)
    link_directories(${EXATENSOR_ROOT}/lib)
-   target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} lapack ${Boost_LIBRARIES} blas ${EXATENSOR_ROOT}/lib/libtensornet.a ${EXATENSOR_ROOT}/lib/libtalsh.a)
+   target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} lapack blas ${EXATENSOR_ROOT}/lib/libtensornet.a ${EXATENSOR_ROOT}/lib/libtalsh.a)
 else()
-   target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} lapack ${Boost_LIBRARIES} blas)
+   target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} lapack blas)
 endif()
 
-install(TARGETS ${LIBRARY_NAME} DESTINATION $ENV{HOME}/.xacc/plugins/accelerators)
+if(APPLE)
+   set_target_properties(${LIBRARY_NAME} PROPERTIES INSTALL_RPATH "@loader_path/../lib")
+   set_target_properties(${LIBRARY_NAME} PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
+else()
+   set_target_properties(${LIBRARY_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/../lib")
+   set_target_properties(${LIBRARY_NAME} PROPERTIES LINK_FLAGS "-shared")
+endif()
 
+install(TARGETS ${LIBRARY_NAME} DESTINATION ${CMAKE_INSTALL_PREFIX}/plugins)
 
 # Gather tests
 file (GLOB test_files tests/*.cpp)
