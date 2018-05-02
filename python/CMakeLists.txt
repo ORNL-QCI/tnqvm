@@ -1,6 +1,8 @@
 
 cmake_minimum_required(VERSION 3.2 FATAL_ERROR)
 
+#find_package(PythonLibs REQUIRED)
+
 include_directories(${PYTHON_INCLUDE_DIR})
 include_directories(${XACC_ROOT}/include/pybind11/include)
 
@@ -12,5 +14,13 @@ endif(APPLE)
 add_library(pytnqvm SHARED tnqvm-py.cpp)
 
 set_target_properties(pytnqvm PROPERTIES PREFIX "")
+
+if(APPLE)
+   set_target_properties(pytnqvm PROPERTIES INSTALL_RPATH "@loader_path/lib")
+   set_target_properties(pytnqvm PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
+else()
+   set_target_properties(pytnqvm PROPERTIES INSTALL_RPATH "$ORIGIN/lib")
+   set_target_properties(pytnqvm PROPERTIES LINK_FLAGS "-shared")
+endif()
 
 install(TARGETS pytnqvm DESTINATION ${CMAKE_INSTALL_PREFIX})

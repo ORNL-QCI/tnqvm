@@ -1,6 +1,5 @@
+#include "XACC.hpp"
 #include <pybind11/pybind11.h>
-
-namespace py = pybind11;
 
 PYBIND11_MODULE(pytnqvm, m) {
     m.doc() = "Python bindings for XACC. XACC provides a plugin infrastructure for "
