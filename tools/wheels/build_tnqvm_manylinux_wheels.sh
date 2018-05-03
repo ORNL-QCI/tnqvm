@@ -2,7 +2,7 @@
 
 yum -y install blas-devel lapack-devel
 export rpath_python=/opt/_internal/cpython-3.6.4/bin/python
-git clone --recursive -b mccaskey/cpr_build https://github.com/ornl-qci/tnqvm
+git clone --recursive https://github.com/ornl-qci/tnqvm
 cd tnqvm
 
 for version in cp36-cp36m cp35-cp35m cp34-cp34m cp33-cp33m cp27-cp27m cp27-cp27mu
