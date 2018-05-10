@@ -28,7 +28,6 @@
 #   Initial API and implementation - Alex McCaskey
 #
 #**********************************************************************************/
-
 set (PACKAGE_NAME "TNQVM Tensor Network XACC Accelerator")
 set (PACKAGE_DESCIPTION "TNQVM Tensor Network XACC Accelerator Framework")
 set (LIBRARY_NAME tnqvm)
@@ -43,12 +42,8 @@ if (EXATENSOR_ROOT)
    endif()
 endif()
 
-find_package(XACC REQUIRED)
-
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/visitors)
-include_directories(${XACC_INCLUDE_DIRS})
-link_directories   (${XACC_LIBRARY_DIRS})
 
 file (GLOB HEADERS *.hpp)
 file (GLOB SRC *.cpp)
@@ -69,10 +64,10 @@ set_target_properties(${LIBRARY_NAME} PROPERTIES
     US_BUNDLE_NAME ${_bundle_name}
     )
 if(BUILD_SHARED_LIBS)
-    set_target_properties(${LIBRARY_NAME} PROPERTIES
-    CXX_VISIBILITY_PRESET hidden
-    VISIBILITY_INLINES_HIDDEN 1
-    )
+	#    set_target_properties(${LIBRARY_NAME} PROPERTIES
+	#    CXX_VISIBILITY_PRESET hidden
+	#    VISIBILITY_INLINES_HIDDEN 1
+	#    )
 endif()
 # Embed meta-data from a manifest.json file
 usFunctionEmbedResources(TARGET ${LIBRARY_NAME}
@@ -100,4 +95,7 @@ endif()
 install(TARGETS ${LIBRARY_NAME} DESTINATION ${CMAKE_INSTALL_PREFIX}/plugins)
 
 # Gather tests
-file (GLOB test_files tests/*.cpp)
+#file (GLOB test_files tests/*.cpp)
+if(TNQVM_BUILD_TESTS)
+	add_subdirectory(tests)
+endif()

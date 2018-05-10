@@ -1,10 +1,10 @@
 project(TNQVM C CXX)
 cmake_minimum_required(VERSION 2.8)
-#set(CMAKE_DISABLE_IN_SOURCE_BUILDS ON)
-#set(CMAKE_DISABLE_SOURCE_CHANGES ON)
 set(CMAKE_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD 11)
 message(STATUS "C++ version ${CXX_STANDARD} configured.")
+
+option(TNQVM_BUILD_TESTS "Build test programs" OFF)
 
 find_package(XACC REQUIRED)
 
@@ -17,7 +17,7 @@ if(APPLE)
 endif()
 
 # Modify our CMAKE_MODULE_PATH
-set(CppMicroServicesConfig_DIR "${XACC_ROOT}/share/cppmicroservices3/cmake")
+set(CppMicroServicesConfig_DIR "${XACC_ROOT}/share/cppmicroservices4/cmake")
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${XACC_ROOT}/share/xacc")
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CppMicroServicesConfig_DIR}")
 include(tests)
@@ -40,4 +40,7 @@ add_subdirectory(tnqvm)
 if(PYTHON_INCLUDE_DIR)
    add_subdirectory(python)
 endif()
-add_subdirectory(examples)
+
+if(TNQVM_BUILD_TESTS)
+   add_subdirectory(examples) 
+endif()

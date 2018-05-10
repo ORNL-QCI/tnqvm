@@ -1,0 +1,2 @@
+add_xacc_test(ITensorMPSVisitor)
+target_link_libraries(ITensorMPSVisitorTester tnqvm-itensor)

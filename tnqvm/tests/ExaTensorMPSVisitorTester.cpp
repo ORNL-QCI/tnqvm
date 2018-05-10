@@ -28,11 +28,8 @@
  *   Initial API and implementation - Alex McCaskey
  *
  **********************************************************************************/
-#define BOOST_TEST_DYN_LINK
-#define BOOST_TEST_MODULE ExaTensorMPSVisitorTester
-
 #include <memory>
-#include <boost/test/included/unit_test.hpp>
+#include <gtest/gtest.h>
 #include "TNQVM.hpp"
 #include "GateFunction.hpp"
 #include "Hadamard.hpp"
@@ -41,7 +38,7 @@
 #include "ExaTensorMPSVisitor.hpp"
 #include "XACC.hpp"
 
-BOOST_AUTO_TEST_CASE(checkExaTensorMPSVisitor) {
+TEST(ExaTensorMPSVisitorTester,checkExaTensorMPSVisitor) {
 
  using namespace xacc::tnqvm;
  using namespace xacc::quantum;

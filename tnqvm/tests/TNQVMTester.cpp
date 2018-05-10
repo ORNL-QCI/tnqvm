@@ -28,22 +28,20 @@
  *   Initial API and implementation - Alex McCaskey
  *
  **********************************************************************************/
-#define BOOST_TEST_DYN_LINK
-#define BOOST_TEST_MODULE TNQVMTester
-
 #include <memory>
-#include <boost/test/included/unit_test.hpp>
+#include <gtest/gtest.h>
 #include "TNQVM.hpp"
 #include "GateFunction.hpp"
 #include "Hadamard.hpp"
 #include "CNOT.hpp"
 #include "X.hpp"
 
-BOOST_AUTO_TEST_CASE(checkKernelExecution) {
+TEST(TNQVMTester,checkKernelExecution) {
 
-	using namespace xacc::tnqvm;
+	using namespace tnqvm;
 	using namespace xacc::quantum;
 
+	xacc::Initialize();
 	TNQVM acc;
 	auto qreg1 = acc.createBuffer("qreg", 3);
 	auto f = std::make_shared<GateFunction>("foo");
@@ -62,4 +60,9 @@ BOOST_AUTO_TEST_CASE(checkKernelExecution) {
 
 	acc.execute(qreg1, f);
 
+	xacc::Finalize();
+}
+int main(int argc, char** argv) {
+   ::testing::InitGoogleTest(&argc, argv);
+   return RUN_ALL_TESTS();
 }
