@@ -15,5 +15,5 @@ do
 	cp /usr/lib64/libblas.so.3 build/lib.linux-x86_64-$ver/xacc/lib/
 	cp /usr/lib64/libgfortran.so.1 build/lib.linux-x86_64-$ver/xacc/lib
 	PYTHONPATH=/xacc/build/lib.linux-x86_64-$ver/xacc $myPython setup.py bdist_wheel --skip-build
-        $rpath_python /xacc/tools/wheels/null_rpaths.py -v repair dist/tnqvm-0.1.0-$version-linux_x86_64.whl
+        $rpath_python /xacc/tools/wheels/null_rpaths.py -v repair dist/tnqvm-0.1.1-$version-linux_x86_64.whl
 done
