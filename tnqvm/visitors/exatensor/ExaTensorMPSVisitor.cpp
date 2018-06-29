@@ -200,7 +200,7 @@ int ExaTensorMPSVisitor::appendNBodyGate(const Tensor & gate, const unsigned int
 void ExaTensorMPSVisitor::visit(Hadamard & gate)
 {
  unsigned int qbits[] = {static_cast<unsigned int>(gate.bits()[0])};
- std::cout << "Applying " << gate.getName() << " @ {" << qbits[0] << "}" << std::endl;
+ std::cout << "Applying " << gate.name() << " @ {" << qbits[0] << "}" << std::endl;
  const Tensor & gateTensor = GateTensors.getTensor(gate);
  int error_code = this->appendNBodyGate(gateTensor,qbits); assert(error_code == 0);
  return;
@@ -209,7 +209,7 @@ void ExaTensorMPSVisitor::visit(Hadamard & gate)
 void ExaTensorMPSVisitor::visit(X & gate)
 {
  unsigned int qbits[] = {static_cast<unsigned int>(gate.bits()[0])};
- std::cout << "Applying " << gate.getName() << " @ {" << qbits[0] << "}" << std::endl;
+ std::cout << "Applying " << gate.name() << " @ {" << qbits[0] << "}" << std::endl;
  const Tensor & gateTensor = GateTensors.getTensor(gate);
  int error_code = this->appendNBodyGate(gateTensor,qbits); assert(error_code == 0);
  return;
@@ -218,7 +218,7 @@ void ExaTensorMPSVisitor::visit(X & gate)
 void ExaTensorMPSVisitor::visit(Y & gate)
 {
  unsigned int qbits[] = {static_cast<unsigned int>(gate.bits()[0])};
- std::cout << "Applying " << gate.getName() << " @ {" << qbits[0] << "}" << std::endl;
+ std::cout << "Applying " << gate.name() << " @ {" << qbits[0] << "}" << std::endl;
  const Tensor & gateTensor = GateTensors.getTensor(gate);
  int error_code = this->appendNBodyGate(gateTensor,qbits); assert(error_code == 0);
  return;
@@ -227,7 +227,7 @@ void ExaTensorMPSVisitor::visit(Y & gate)
 void ExaTensorMPSVisitor::visit(Z & gate)
 {
  unsigned int qbits[] = {static_cast<unsigned int>(gate.bits()[0])};
- std::cout << "Applying " << gate.getName() << " @ {" << qbits[0] << "}" << std::endl;
+ std::cout << "Applying " << gate.name() << " @ {" << qbits[0] << "}" << std::endl;
  const Tensor & gateTensor = GateTensors.getTensor(gate);
  int error_code = this->appendNBodyGate(gateTensor,qbits); assert(error_code == 0);
  return;
@@ -236,7 +236,7 @@ void ExaTensorMPSVisitor::visit(Z & gate)
 void ExaTensorMPSVisitor::visit(Rx & gate)
 {
  unsigned int qbits[] = {static_cast<unsigned int>(gate.bits()[0])};
- std::cout << "Applying " << gate.getName() << " @ {" << qbits[0] << "}" << std::endl;
+ std::cout << "Applying " << gate.name() << " @ {" << qbits[0] << "}" << std::endl;
  const Tensor & gateTensor = GateTensors.getTensor(gate);
  int error_code = this->appendNBodyGate(gateTensor,qbits); assert(error_code == 0);
  return;
@@ -245,7 +245,7 @@ void ExaTensorMPSVisitor::visit(Rx & gate)
 void ExaTensorMPSVisitor::visit(Ry & gate)
 {
  unsigned int qbits[] = {static_cast<unsigned int>(gate.bits()[0])};
- std::cout << "Applying " << gate.getName() << " @ {" << qbits[0] << "}" << std::endl;
+ std::cout << "Applying " << gate.name() << " @ {" << qbits[0] << "}" << std::endl;
  const Tensor & gateTensor = GateTensors.getTensor(gate);
  int error_code = this->appendNBodyGate(gateTensor,qbits); assert(error_code == 0);
  return;
@@ -254,7 +254,7 @@ void ExaTensorMPSVisitor::visit(Ry & gate)
 void ExaTensorMPSVisitor::visit(Rz & gate)
 {
  unsigned int qbits[] = {static_cast<unsigned int>(gate.bits()[0])};
- std::cout << "Applying " << gate.getName() << " @ {" << qbits[0] << "}" << std::endl;
+ std::cout << "Applying " << gate.name() << " @ {" << qbits[0] << "}" << std::endl;
  const Tensor & gateTensor = GateTensors.getTensor(gate);
  int error_code = this->appendNBodyGate(gateTensor,qbits); assert(error_code == 0);
  return;
@@ -263,7 +263,7 @@ void ExaTensorMPSVisitor::visit(Rz & gate)
 void ExaTensorMPSVisitor::visit(CPhase & gate)
 {
  unsigned int qbits[] = {static_cast<unsigned int>(gate.bits()[0]), static_cast<unsigned int>(gate.bits()[1])};
- std::cout << "Applying " << gate.getName() << " @ {" << qbits[0] << "," << qbits[1] << "}" << std::endl;
+ std::cout << "Applying " << gate.name() << " @ {" << qbits[0] << "," << qbits[1] << "}" << std::endl;
  const Tensor & gateTensor = GateTensors.getTensor(gate);
  int error_code = this->appendNBodyGate(gateTensor,qbits); assert(error_code == 0);
  return;
@@ -272,7 +272,7 @@ void ExaTensorMPSVisitor::visit(CPhase & gate)
 void ExaTensorMPSVisitor::visit(CNOT & gate)
 {
  unsigned int qbits[] = {static_cast<unsigned int>(gate.bits()[0]), static_cast<unsigned int>(gate.bits()[1])};
- std::cout << "Applying " << gate.getName() << " @ {" << qbits[0] << "," << qbits[1] << "}" << std::endl;
+ std::cout << "Applying " << gate.name() << " @ {" << qbits[0] << "," << qbits[1] << "}" << std::endl;
  const Tensor & gateTensor = GateTensors.getTensor(gate);
  int error_code = this->appendNBodyGate(gateTensor,qbits); assert(error_code == 0);
  return;
@@ -281,7 +281,7 @@ void ExaTensorMPSVisitor::visit(CNOT & gate)
 void ExaTensorMPSVisitor::visit(Swap & gate)
 {
  unsigned int qbits[] = {static_cast<unsigned int>(gate.bits()[0]), static_cast<unsigned int>(gate.bits()[1])};
- std::cout << "Applying " << gate.getName() << " @ {" << qbits[0] << "," << qbits[1] << "}" << std::endl;
+ std::cout << "Applying " << gate.name() << " @ {" << qbits[0] << "," << qbits[1] << "}" << std::endl;
  const Tensor & gateTensor = GateTensors.getTensor(gate);
  int error_code = this->appendNBodyGate(gateTensor,qbits); assert(error_code == 0);
  return;

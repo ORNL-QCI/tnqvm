@@ -52,16 +52,23 @@ void ITensorMPSVisitor::initialize(std::shared_ptr<AcceleratorBuffer> accbuffer_
 	initWavefunc(n_qbits);
 	std::srand(std::time(0));
 	cbits.resize(n_qbits);
+	execTime = 0.0;
+	if (xacc::optionExists("tnqvm-one-qubit-gatetime")) {
+		singleQubitTime = std::stod(xacc::getOption("tnqvm-one-qubit-gatetime"));
+	}
+	if (xacc::optionExists("tnqvm-two-qubit-gatetime")) {
+		twoQubitTime = std::stod(xacc::getOption("tnqvm-two-qubit-gatetime"));
+	}
 }
 
 void ITensorMPSVisitor::visit(Hadamard& gate) {
 	auto iqbit_in = gate.bits()[0];
 	if (verbose) {
-		std::cout << "applying " << gate.getName() << " @ " << iqbit_in
+		std::cout << "applying " << gate.name() << " @ " << iqbit_in
 				<< std::endl;
 	}
 	auto ind_in = ind_for_qbit(iqbit_in);
-	auto ind_out = itensor::Index(gate.getName(), 2);
+	auto ind_out = itensor::Index(gate.name(), 2);
 	auto tGate = itensor::ITensor(ind_in, ind_out);
 	// 0 -> 0+1 where 0 is at position 1 of input axis(space)
 	const double half_sqrt2 = .5 * std::sqrt(2);
@@ -72,6 +79,7 @@ void ITensorMPSVisitor::visit(Hadamard& gate) {
 	tGate.set(ind_in(2), ind_out(2), -half_sqrt2);
 	legMats[iqbit_in] = tGate * legMats[iqbit_in];
 	printWavefunc();
+	execTime += singleQubitTime;
 }
 
 void ITensorMPSVisitor::visit(CZ& gate) {
@@ -95,13 +103,13 @@ void ITensorMPSVisitor::visit(CNOT& gate) {
 		iqbit_in1 = iqbit_in1_ori;
 	}
 	if (verbose) {
-		std::cout << "applying " << gate.getName() << " @ " << iqbit_in0
+		std::cout << "applying " << gate.name() << " @ " << iqbit_in0
 				<< " , " << iqbit_in1 << std::endl;
 	}
 	auto ind_in0 = ind_for_qbit(iqbit_in0); // control
 	auto ind_in1 = ind_for_qbit(iqbit_in1);
-	auto ind_out0 = itensor::Index(gate.getName(), 2);
-	auto ind_out1 = itensor::Index(gate.getName(), 2);
+	auto ind_out0 = itensor::Index(gate.name(), 2);
+	auto ind_out1 = itensor::Index(gate.name(), 2);
 	Index ind_lower;
 	if (iqbit_in0 < iqbit_in1) {
 		ind_lower = ind_out0;
@@ -138,51 +146,55 @@ void ITensorMPSVisitor::visit(CNOT& gate) {
 		permute_to(iqbit_in0_ori - 1, iqbit_in1_ori);
 	}
 	printWavefunc();
+	execTime += twoQubitTime;
 }
 
 void ITensorMPSVisitor::visit(X& gate) {
 	auto iqbit_in = gate.bits()[0];
 	if (verbose) {
-		std::cout << "applying " << gate.getName() << " @ " << iqbit_in
+		std::cout << "applying " << gate.name() << " @ " << iqbit_in
 				<< std::endl;
 	}
 	auto ind_in = ind_for_qbit(iqbit_in);
-	auto ind_out = itensor::Index(gate.getName(), 2);
+	auto ind_out = itensor::Index(gate.name(), 2);
 	auto tGate = itensor::ITensor(ind_in, ind_out);
 	tGate.set(ind_out(1), ind_in(2), 1.);
 	tGate.set(ind_out(2), ind_in(1), 1.);
 	legMats[iqbit_in] = tGate * legMats[iqbit_in];
 	printWavefunc();
+	execTime += singleQubitTime;
 }
 
 void ITensorMPSVisitor::visit(Y& gate) {
 	auto iqbit_in = gate.bits()[0];
 	if (verbose) {
-		std::cout << "applying " << gate.getName() << " @ " << iqbit_in
+		std::cout << "applying " << gate.name() << " @ " << iqbit_in
 				<< std::endl;
 	}
 	auto ind_in = ind_for_qbit(iqbit_in);
-	auto ind_out = itensor::Index(gate.getName(), 2);
+	auto ind_out = itensor::Index(gate.name(), 2);
 	auto tGate = itensor::ITensor(ind_in, ind_out);
 	tGate.set(ind_out(1), ind_in(2), std::complex<double>(0, -1.));
 	tGate.set(ind_out(2), ind_in(1), std::complex<double>(0, 1.));
 	legMats[iqbit_in] = tGate * legMats[iqbit_in];
 	printWavefunc();
+	execTime += singleQubitTime;
 }
 
 void ITensorMPSVisitor::visit(Z& gate) {
 	auto iqbit_in = gate.bits()[0];
 	if (verbose) {
-		std::cout << "applying " << gate.getName() << " @ " << iqbit_in
+		std::cout << "applying " << gate.name() << " @ " << iqbit_in
 				<< std::endl;
 	}
 	auto ind_in = ind_for_qbit(iqbit_in);
-	auto ind_out = itensor::Index(gate.getName(), 2);
+	auto ind_out = itensor::Index(gate.name(), 2);
 	auto tGate = itensor::ITensor(ind_in, ind_out);
 	tGate.set(ind_out(1), ind_in(1), 1.);
 	tGate.set(ind_out(2), ind_in(2), -1.);
 	legMats[iqbit_in] = tGate * legMats[iqbit_in];
 	printWavefunc();
+	execTime += singleQubitTime;
 }
 
 /** The inner product is carried out in the following way
@@ -317,7 +329,7 @@ void ITensorMPSVisitor::visit(Measure& gate) {
 	buffer->setExpectationValueZ(expVal);
 	auto ind_measured = ind_for_qbit(iqbit_measured);
 	if (verbose) {
-		std::cout << "applying " << gate.getName() << " @ " << iqbit_measured
+		std::cout << "applying " << gate.name() << " @ " << iqbit_measured
 				<< ", " << expVal << std::endl;
 	}
 	auto ind_measured_p = ind_for_qbit(iqbit_measured);
@@ -343,12 +355,13 @@ void ITensorMPSVisitor::visit(Measure& gate) {
 		legMats[iqbit_measured].prime(ind_measured_p, -1);
 	}
 	printWavefunc();
+	execTime += twoQubitTime;
 }
 
 void ITensorMPSVisitor::visit(ConditionalFunction& c) {
 	auto classicalBitIdx = c.getConditionalQubit();
 	if (verbose) {
-		std::cout << "applying " << c.getName() << " @ " << classicalBitIdx
+		std::cout << "applying " << c.name() << " @ " << classicalBitIdx
 				<< std::endl;
 	}
 	if (cbits[classicalBitIdx] == 1) { // TODO: add else
@@ -362,11 +375,11 @@ void ITensorMPSVisitor::visit(Rx& gate) {
 	auto iqbit_in = gate.bits()[0];
 	double theta = boost::get<double>(gate.getParameter(0));
 	if (verbose) {
-		std::cout << "applying " << gate.getName() << "(" << theta << ") @ "
+		std::cout << "applying " << gate.name() << "(" << theta << ") @ "
 				<< iqbit_in << std::endl;
 	}
 	auto ind_in = ind_for_qbit(iqbit_in);
-	auto ind_out = itensor::Index(gate.getName(), 2);
+	auto ind_out = itensor::Index(gate.name(), 2);
 	auto tGate = itensor::ITensor(ind_in, ind_out);
 	tGate.set(ind_out(1), ind_in(1), std::cos(.5 * theta));
 	tGate.set(ind_out(1), ind_in(2),
@@ -376,17 +389,18 @@ void ITensorMPSVisitor::visit(Rx& gate) {
 	tGate.set(ind_out(2), ind_in(2), std::cos(.5 * theta));
 	legMats[iqbit_in] = tGate * legMats[iqbit_in];
 	printWavefunc();
+	execTime += singleQubitTime;
 }
 
 void ITensorMPSVisitor::visit(Ry& gate) {
 	auto iqbit_in = gate.bits()[0];
 	double theta = boost::get<double>(gate.getParameter(0));
 	if (verbose) {
-		std::cout << "applying " << gate.getName() << "(" << theta << ") @ "
+		std::cout << "applying " << gate.name() << "(" << theta << ") @ "
 				<< iqbit_in << std::endl;
 	}
 	auto ind_in = ind_for_qbit(iqbit_in);
-	auto ind_out = itensor::Index(gate.getName(), 2);
+	auto ind_out = itensor::Index(gate.name(), 2);
 	auto tGate = itensor::ITensor(ind_in, ind_out);
 	tGate.set(ind_out(1), ind_in(1), std::cos(.5 * theta));
 	tGate.set(ind_out(1), ind_in(2), -std::sin(.5 * theta));
@@ -394,17 +408,18 @@ void ITensorMPSVisitor::visit(Ry& gate) {
 	tGate.set(ind_out(2), ind_in(2), std::cos(.5 * theta));
 	legMats[iqbit_in] = tGate * legMats[iqbit_in];
 	printWavefunc();
+	execTime += singleQubitTime;
 }
 
 void ITensorMPSVisitor::visit(Rz& gate) {
 	auto iqbit_in = gate.bits()[0];
 	double theta = boost::get<double>(gate.getParameter(0));
 	if (verbose) {
-		std::cout << "applying " << gate.getName() << "(" << theta << ") @ "
+		std::cout << "applying " << gate.name() << "(" << theta << ") @ "
 				<< iqbit_in << std::endl;
 	}
 	auto ind_in = ind_for_qbit(iqbit_in);
-	auto ind_out = itensor::Index(gate.getName(), 2);
+	auto ind_out = itensor::Index(gate.name(), 2);
 	auto tGate = itensor::ITensor(ind_in, ind_out);
 	tGate.set(ind_out(1), ind_in(1),
 			std::exp(std::complex<double>(0, -.5 * theta)));
@@ -412,6 +427,7 @@ void ITensorMPSVisitor::visit(Rz& gate) {
 			std::exp(std::complex<double>(0, .5 * theta)));
 	legMats[iqbit_in] = tGate * legMats[iqbit_in];
 	printWavefunc();
+	execTime += singleQubitTime;
 }
 
 void ITensorMPSVisitor::visit(CPhase& cp) {
@@ -433,7 +449,7 @@ void ITensorMPSVisitor::permute_to(int iqbit, int iqbit_to) {
 void ITensorMPSVisitor::visit(Swap& gate) {
 	auto iqbit_in0_ori = gate.bits()[0];
 	auto iqbit_in1_ori = gate.bits()[1];
-	// std::cout<<"applying "<<gate.getName()<<" @ "<<iqbit_in0_ori<<" , "<<iqbit_in1_ori<<std::endl;
+	// std::cout<<"applying "<<gate.name()<<" @ "<<iqbit_in0_ori<<" , "<<iqbit_in1_ori<<std::endl;
 	int iqbit_in0, iqbit_in1;
 	if (iqbit_in0_ori < iqbit_in1_ori - 1) {
 		permute_to(iqbit_in0_ori, iqbit_in1_ori - 1);
@@ -450,8 +466,8 @@ void ITensorMPSVisitor::visit(Swap& gate) {
 
 	auto ind_in0 = ind_for_qbit(iqbit_in0); // control
 	auto ind_in1 = ind_for_qbit(iqbit_in1);
-	auto ind_out0 = itensor::Index(gate.getName(), 2);
-	auto ind_out1 = itensor::Index(gate.getName(), 2);
+	auto ind_out0 = itensor::Index(gate.name(), 2);
+	auto ind_out1 = itensor::Index(gate.name(), 2);
 	Index ind_lower;
 	if (iqbit_in0 < iqbit_in1) {
 		ind_lower = ind_out0;

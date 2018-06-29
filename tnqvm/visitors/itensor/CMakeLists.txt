@@ -60,12 +60,8 @@ ExternalProject_Add(projitensor
 endif()
 include_directories(${ITENSOR_ROOT})
 
-find_package(XACC REQUIRED)
-
-include_directories(${XACC_INCLUDE_DIRS})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/mps)
 include_directories(${CMAKE_SOURCE_DIR}/tnqvm)
-link_directories(${XACC_LIBRARY_DIRS})
 
 file (GLOB HEADERS mps/*.hpp)
 file (GLOB SRC mps/*.cpp *.cpp)
@@ -84,10 +80,10 @@ set_target_properties(${LIBRARY_NAME} PROPERTIES
     US_BUNDLE_NAME ${_bundle_name}
     )
 if(BUILD_SHARED_LIBS)
-    set_target_properties(${LIBRARY_NAME} PROPERTIES
-    CXX_VISIBILITY_PRESET hidden
-    VISIBILITY_INLINES_HIDDEN 1
-    )
+	#    set_target_properties(${LIBRARY_NAME} PROPERTIES
+	#    CXX_VISIBILITY_PRESET hidden
+	#    VISIBILITY_INLINES_HIDDEN 1
+	#    )
 endif()
 # Embed meta-data from a manifest.json file
 usFunctionEmbedResources(TARGET ${LIBRARY_NAME}
@@ -97,14 +93,19 @@ usFunctionEmbedResources(TARGET ${LIBRARY_NAME}
     manifest.json
     )
 
-target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} ${ITENSOR_ROOT}/lib/libitensor-g.a lapack ${Boost_LIBRARIES} blas)
+target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} ${ITENSOR_ROOT}/lib/libitensor-g.a lapack blas)
 
-install(TARGETS ${LIBRARY_NAME} DESTINATION ${XACC_LIBRARY_DIR}/plugins/visitors)
+if(APPLE)
+   set_target_properties(${LIBRARY_NAME} PROPERTIES INSTALL_RPATH "@loader_path/../lib")
+   set_target_properties(${LIBRARY_NAME} PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
+else()
+   set_target_properties(${LIBRARY_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/../lib")
+   set_target_properties(${LIBRARY_NAME} PROPERTIES LINK_FLAGS "-shared")
+endif()
 
+install(TARGETS ${LIBRARY_NAME} DESTINATION ${CMAKE_INSTALL_PREFIX}/plugins)
 
-# Gather tests
-file (GLOB test_files mps/tests/*.cpp)
-
-# Add the tests
-add_tests("${test_files}" "${CMAKE_CURRENT_SOURCE_DIR}/mps" "${LIBRARY_NAME};${Boost_LIBRARIES};${XACC_LIBRARIES}")
+if(TNQVM_BUILD_TESTS)
+	add_subdirectory(mps/tests)
+endif()
 
