@@ -36,12 +36,10 @@
 #include "CNOT.hpp"
 #include "X.hpp"
 
+using namespace tnqvm;
+using namespace xacc::quantum;
+
 TEST(TNQVMTester,checkKernelExecution) {
-
-	using namespace tnqvm;
-	using namespace xacc::quantum;
-
-	xacc::Initialize();
 	TNQVM acc;
 	auto qreg1 = acc.createBuffer("qreg", 3);
 	auto f = std::make_shared<GateFunction>("foo");
@@ -60,9 +58,26 @@ TEST(TNQVMTester,checkKernelExecution) {
 
 	acc.execute(qreg1, f);
 
-	xacc::Finalize();
 }
+
+TEST(TNQVMTester, checkGetState) {
+    TNQVM acc;
+	
+    auto f = std::make_shared<GateFunction>("foo");
+	auto h = std::make_shared<Hadamard>(0);
+	f->addInstruction(h);
+
+	auto state = acc.getAcceleratorState(f);
+    EXPECT_TRUE(state.size() == 2);
+    for (auto s : state) {
+        EXPECT_NEAR(std::real(s), 1.0/std::sqrt(2.0), 1e-4);
+    }
+}
+
 int main(int argc, char** argv) {
+   xacc::Initialize();
    ::testing::InitGoogleTest(&argc, argv);
-   return RUN_ALL_TESTS();
+   auto ret = RUN_ALL_TESTS();
+   xacc::Finalize();
+   return ret;
 }

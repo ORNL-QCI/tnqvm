@@ -55,6 +55,8 @@ public:
     virtual void finalize() {
 
     }
+    
+   virtual const std::vector<std::complex<double>> getState();
 
 	virtual const std::string name() const {
 		return "itensor-mps";

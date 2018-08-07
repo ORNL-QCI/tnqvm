@@ -100,4 +100,50 @@ void TNQVM::execute(std::shared_ptr<AcceleratorBuffer> buffer,
 	visitor->finalize();
 }
 
+const std::vector<std::complex<double>> TNQVM::getAcceleratorState(std::shared_ptr<Function> program) {
+    std::string visitorType = "itensor-mps";
+	if (xacc::optionExists("tnqvm-visitor")) {
+		visitorType = xacc::getOption("tnqvm-visitor");
+	}
+
+	// Get the visitor backend
+	visitor = xacc::getService<TNQVMVisitor>(visitorType);
+
+    int maxBit = 0;
+	InstructionIterator it1(program);
+	while (it1.hasNext()) {
+		auto nextInst = it1.next();
+		if (nextInst->isEnabled() && !nextInst->isComposite()) {
+            auto maxElement = *std::max(nextInst->bits().begin(), nextInst->bits().end());
+            if (maxElement > maxBit) {
+                maxBit = maxElement;
+            }
+		}
+
+    }
+
+    // FIXME for bug #??
+    if(maxBit == 0) maxBit++;
+    
+    auto buffer = std::make_shared<TNQVMBuffer>("q",maxBit+1);
+
+	// Initialize the visitor
+	visitor->initialize(buffer);
+
+	// Walk the IR tree, and visit each node
+	InstructionIterator it(program);
+	while (it.hasNext()) {
+		auto nextInst = it.next();
+		if (nextInst->isEnabled()) {
+			nextInst->accept(
+					visitor);
+		}
+	}
+
+	// Finalize the visitor
+	visitor->finalize();
+    
+    return visitor->getState();
+}
+
 }

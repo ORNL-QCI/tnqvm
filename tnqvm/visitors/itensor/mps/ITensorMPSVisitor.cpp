@@ -610,6 +610,23 @@ void ITensorMPSVisitor::printWavefunc() const {
 //	  std::cout<<"<<<<<<<<---------------------<<<<<<<<<<\n"<<std::endl;
 }
 
+const std::vector<std::complex<double>> ITensorMPSVisitor::getState() {
+    auto mps = legMats[0];
+	for(int i=1; i<n_qbits;++i){
+        mps *= bondMats[i-1];
+	    mps *= legMats[i];
+	 }
+     std::vector<std::complex<double>> wf;
+	 auto store_wf = [&](itensor::Cplx c){
+	     if(std::norm(c)>0){
+              wf.push_back(std::complex<double>(c.real(),c.imag()));
+	     }
+	 };
+	 auto normed_wf = mps / itensor::norm(mps);
+	 normed_wf.visit(store_wf);
+     return wf;
+}
+
 /** The process of SVD is to decompose a tensor,
  *  for example, a rank 3 tensor T
  *  |                    |

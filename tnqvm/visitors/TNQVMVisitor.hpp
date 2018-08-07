@@ -46,6 +46,9 @@ public:
 		XACCLogger::instance()->error("getExecutionTime not implemented by this Visitor.");
 		return 0.0;
 	}
+    virtual const std::vector<std::complex<double>> getState() {
+        return std::vector<std::complex<double>>{};
+    }
 	virtual void finalize() = 0;
 protected:
 	std::shared_ptr<AcceleratorBuffer> buffer;
