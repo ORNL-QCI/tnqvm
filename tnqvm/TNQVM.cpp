@@ -114,10 +114,7 @@ const std::vector<std::complex<double>> TNQVM::getAcceleratorState(std::shared_p
 	while (it1.hasNext()) {
 		auto nextInst = it1.next();
 		if (nextInst->isEnabled() && !nextInst->isComposite()) {
-            auto maxElement = *std::max(nextInst->bits().begin(), nextInst->bits().end());
-            if (maxElement > maxBit) {
-                maxBit = maxElement;
-            }
+            for (auto& b : nextInst->bits()) if (b > maxBit) maxBit = b;
 		}
 
     }
