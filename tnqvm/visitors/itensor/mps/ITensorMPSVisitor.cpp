@@ -39,6 +39,22 @@
 
 namespace tnqvm {
 
+double ipToDouble(xacc::InstructionParameter p) {
+    if (p.which() == 0) {
+        return (double) boost::get<int>(p);
+    } else if (p.which() == 1) {
+        return boost::get<double>(p);
+    } else if (p.which() == 2) {
+        return boost::get<float>(p);
+    } else {
+        std::stringstream s;
+        s << p;
+        xacc::error("ITensorMPSVisitor: invalid gate parameter " + std::to_string(p.which()) + ", " + s.str());
+    }
+
+    return 0.0;
+}
+
 /// Constructor
 ITensorMPSVisitor::ITensorMPSVisitor() :
 		n_qbits(0), snapped(false) {
@@ -373,7 +389,7 @@ void ITensorMPSVisitor::visit(ConditionalFunction& c) {
 
 void ITensorMPSVisitor::visit(Rx& gate) {
 	auto iqbit_in = gate.bits()[0];
-	double theta = boost::get<double>(gate.getParameter(0));
+	double theta = ipToDouble(gate.getParameter(0));
 	if (verbose) {
 		std::cout << "applying " << gate.name() << "(" << theta << ") @ "
 				<< iqbit_in << std::endl;
@@ -394,7 +410,7 @@ void ITensorMPSVisitor::visit(Rx& gate) {
 
 void ITensorMPSVisitor::visit(Ry& gate) {
 	auto iqbit_in = gate.bits()[0];
-	double theta = boost::get<double>(gate.getParameter(0));
+	double theta = ipToDouble(gate.getParameter(0));
 	if (verbose) {
 		std::cout << "applying " << gate.name() << "(" << theta << ") @ "
 				<< iqbit_in << std::endl;
@@ -413,7 +429,7 @@ void ITensorMPSVisitor::visit(Ry& gate) {
 
 void ITensorMPSVisitor::visit(Rz& gate) {
 	auto iqbit_in = gate.bits()[0];
-	double theta = boost::get<double>(gate.getParameter(0));
+	double theta = ipToDouble(gate.getParameter(0));
 	if (verbose) {
 		std::cout << "applying " << gate.name() << "(" << theta << ") @ "
 				<< iqbit_in << std::endl;
