@@ -4,6 +4,10 @@ set(CMAKE_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD 11)
 message(STATUS "C++ version ${CXX_STANDARD} configured.")
 
+if (FROM_SETUP_PY)
+   message(STATUS "Running build from setup.py, linking to static libstdc++")
+   set (CMAKE_SHARED_LINKER_FLAGS "-static-libstdc++" CACHE INTERNAL "" FORCE)
+endif()
 option(TNQVM_BUILD_TESTS "Build test programs" OFF)
 
 find_package(XACC REQUIRED)
