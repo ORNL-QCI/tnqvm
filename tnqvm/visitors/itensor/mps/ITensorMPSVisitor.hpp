@@ -51,6 +51,8 @@ public:
 		return std::make_shared<ITensorMPSVisitor>();
 	}
 
+    virtual const double getExpectationValueZ(std::shared_ptr<Function> function);
+    
     virtual void initialize(std::shared_ptr<AcceleratorBuffer> buffer);
     virtual void finalize() {
 

@@ -280,6 +280,41 @@ double ITensorMPSVisitor::average(int iqbit, const ITensor& op_tensor) {
 	return inner.cplx().real();
 }
 
+const double ITensorMPSVisitor::getExpectationValueZ(std::shared_ptr<Function> function) {
+    // std::cout << "F:\n" << function->toString("q") << "\n";
+    std::map<std::string, std::pair<int, double>> reverseGates;
+    std::set<int> bitsToMeasure;
+    
+    // Snapshot of tensor network before 
+    // change of basis and measurement
+    auto copyLegMats = legMats;
+    auto copyBondMats = bondMats;
+    
+    // Walk the tree and execute the instructions
+    // This will be hadamards, rx, and measure
+    InstructionIterator it(function);
+	while (it.hasNext()) {
+	   auto nextInst = it.next();
+	   if (nextInst->isEnabled()) {
+           nextInst->accept(this);
+	   }
+	}
+
+    auto exp = buffer->getExpectationValueZ();
+    
+    snapped = false;
+    legMats_m.clear();
+    bondMats_m.clear();
+    legMats = copyLegMats;
+    bondMats = copyBondMats;
+    cbits.clear();
+    cbits.resize(buffer->size());
+    iqbits_m.clear();
+    
+    return exp;
+    
+}
+
 /// iqbits: the indecies of qits to measure
 double ITensorMPSVisitor::averZs(std::set<int> iqbits) {
 	ITensor inner;
@@ -302,6 +337,7 @@ double ITensorMPSVisitor::averZs(std::set<int> iqbits) {
 					* bondMats_m[i - 1] * legMats_m[i];
 		}
 	}
+
 	if (iqbits.find(n_qbits - 1) != iqbits.end()) {
 		auto bra = inner * itensor::conj(legMats_m[n_qbits - 1])
 				* tZ_measure_on(n_qbits - 1);

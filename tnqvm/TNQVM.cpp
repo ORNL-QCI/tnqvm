@@ -55,15 +55,53 @@ bool TNQVM::isValidBufferSize(const int NBits) {
 std::vector<std::shared_ptr<AcceleratorBuffer>> TNQVM::execute(
 		std::shared_ptr<AcceleratorBuffer> buffer,
 		const std::vector<std::shared_ptr<Function>> functions) {
+
 	int counter = 0;
 	std::vector<std::shared_ptr<AcceleratorBuffer>> tmpBuffers;
-	for (auto f : functions) {
-		auto tmpBuffer = createBuffer(
-				buffer->name() + std::to_string(counter), buffer->size());
-		execute(tmpBuffer, f);
-		tmpBuffers.push_back(tmpBuffer);
-		counter++;
-	}
+    
+    if (xacc::optionExists("run-and-measure")) {
+        // Here we assume we have one ansatz function, functions[0].
+        // The rest are measurements to be made.
+        // Get the visitor backend
+	    visitor = xacc::getService<TNQVMVisitor>("itensor-mps");
+
+	    // Initialize the visitor
+	    visitor->initialize(buffer);
+
+	    // Walk the IR tree, and visit each node
+	    InstructionIterator it(functions[0]);
+	    while (it.hasNext()) {
+		    auto nextInst = it.next();
+		    if (nextInst->isEnabled()) {
+			    nextInst->accept(
+					    visitor);
+		    }
+	    }
+
+        // Now we have a wavefunction that represents 
+        // execution of the ansatz. Make measurements
+        for (int i = 1; i < functions.size(); i++) {
+            double exp = 1.0;
+            auto tmpBuffer = createBuffer(
+                    buffer->name() + std::to_string(i-1), buffer->size());
+                    
+            if (functions[i]->nInstructions() > 0) {
+                exp = visitor->getExpectationValueZ(functions[i]);
+            }
+            
+            tmpBuffer->setExpectationValueZ(exp);
+            tmpBuffers.push_back(tmpBuffer);
+        }
+
+    } else {
+	    for (auto f : functions) {
+		    auto tmpBuffer = createBuffer(
+				    buffer->name() + std::to_string(counter), buffer->size());
+		    execute(tmpBuffer, f);
+		    tmpBuffers.push_back(tmpBuffer);
+		    counter++;
+	    }
+    }
 
 	return tmpBuffers;
 }
