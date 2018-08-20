@@ -4,6 +4,7 @@ services:
   - docker
 
 before_install:
-  - docker build -t tnqvmacc .
+  - docker pull xacc/base-plugin-ci
+  - docker run -it --rm xacc/base-plugin-ci bash -c "git clone https://github.com/ornl-qci/tnqvm && cd tnqvm && mkdir build && cd build && cmake .. -DXACC_DIR=~/.xacc -DTNQVM_BUILD_TESTS=TRUE && make -j4 install && ctest"
 script:
   - echo ""
