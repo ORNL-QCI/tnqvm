@@ -75,6 +75,16 @@ void ITensorMPSVisitor::initialize(std::shared_ptr<AcceleratorBuffer> accbuffer_
 	if (xacc::optionExists("tnqvm-two-qubit-gatetime")) {
 		twoQubitTime = std::stod(xacc::getOption("tnqvm-two-qubit-gatetime"));
 	}
+    if (xacc::optionExists("itensor-svd-cutoff")) {
+        std::string cutoffStr = "";
+        try {
+            cutoffStr = xacc::getOption("itensor-svd-cutoff");
+            svdCutoff = std::stod(cutoffStr);
+            xacc::info("ITensorMPSVisitor setting SVD cutoff to " + cutoffStr);
+        } catch (std::exception& e) {
+            xacc::error("ITensorMPSVisitor: invalid svd cutoff value " + cutoffStr);
+        }
+    }
 }
 
 void ITensorMPSVisitor::visit(Hadamard& gate) {
@@ -148,7 +158,7 @@ void ITensorMPSVisitor::visit(CNOT& gate) {
 	// itensor::PrintData(tobe_svd);
 	ITensor legMat(legMats[min_iqbit].inds()[1], ind_lower), bondMat,
 			restTensor;
-	itensor::svd(tobe_svd, legMat, bondMat, restTensor, { "Cutoff", 1E-4 });
+	itensor::svd(tobe_svd, legMat, bondMat, restTensor, { "Cutoff", svdCutoff });
 	// itensor::PrintData(legMat);
 	// std::cout<<"svd done"<<std::endl;
 	legMats[min_iqbit] = legMat;
@@ -349,6 +359,7 @@ double ITensorMPSVisitor::averZs(std::set<int> iqbits) {
 	}
 	// itensor::PrintData(inner);
 	std::complex<double> aver = inner.cplx();
+    // std::cout << "AVER: " << aver << "\n";
 	assert(aver.imag()<1e-10);
 	return aver.real();
 }

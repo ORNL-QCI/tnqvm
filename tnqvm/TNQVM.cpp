@@ -63,20 +63,30 @@ std::vector<std::shared_ptr<AcceleratorBuffer>> TNQVM::execute(
         // Here we assume we have one ansatz function, functions[0].
         // The rest are measurements to be made.
         // Get the visitor backend
-	    visitor = xacc::getService<TNQVMVisitor>("itensor-mps");
 
-	    // Initialize the visitor
-	    visitor->initialize(buffer);
+        if (xacc::optionExists("tnqvm-reset-visitor") 
+                    && xacc::getOption("tnqvm-reset-visitor") == "true") {
+            executedOnce = false;
+            xacc::setOption("tnqvm-reset-visitor", "false");
+        }
+        
+        if (!executedOnce) {
+	        visitor = xacc::getService<TNQVMVisitor>("itensor-mps");
 
-	    // Walk the IR tree, and visit each node
-	    InstructionIterator it(functions[0]);
-	    while (it.hasNext()) {
-		    auto nextInst = it.next();
-		    if (nextInst->isEnabled()) {
-			    nextInst->accept(
-					    visitor);
-		    }
-	    }
+	        // Initialize the visitor
+	        visitor->initialize(buffer);
+
+	        // Walk the IR tree, and visit each node
+	        InstructionIterator it(functions[0]);
+	        while (it.hasNext()) {
+		        auto nextInst = it.next();
+		        if (nextInst->isEnabled()) {
+			        nextInst->accept(
+					        visitor);
+		        }
+	        }
+            executedOnce = true;
+        }
 
         // Now we have a wavefunction that represents 
         // execution of the ansatz. Make measurements

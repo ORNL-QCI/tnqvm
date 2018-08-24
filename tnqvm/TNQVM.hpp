@@ -187,6 +187,7 @@ protected:
 
 private:
 	int __verbose;
+    bool executedOnce = false;
 };
 }
 

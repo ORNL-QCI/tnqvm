@@ -39,7 +39,7 @@ using namespace xacc;
 using namespace xacc::quantum;
 
 namespace tnqvm {
-class TNQVMVisitor : public AllGateVisitor {
+class TNQVMVisitor : public AllGateVisitor, public OptionsProvider {
 public:
 	virtual void initialize(std::shared_ptr<AcceleratorBuffer> buffer) = 0;
     virtual const double getExpectationValueZ(std::shared_ptr<Function> function) {
