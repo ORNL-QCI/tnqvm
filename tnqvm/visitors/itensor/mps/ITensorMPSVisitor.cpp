@@ -553,7 +553,7 @@ void ITensorMPSVisitor::visit(Swap& gate) {
 	// itensor::PrintData(tobe_svd);
 	ITensor legMat(legMats[min_iqbit].inds()[1], ind_lower), bondMat,
 			restTensor;
-	itensor::svd(tobe_svd, legMat, bondMat, restTensor, { "Cutoff", 1E-4 });
+	itensor::svd(tobe_svd, legMat, bondMat, restTensor, { "Cutoff", svdCutoff });
 	legMats[min_iqbit] = legMat;
 	bondMats[min_iqbit] = bondMat;
 	kickback_ind(restTensor, restTensor.inds()[1]);
