@@ -15,6 +15,7 @@ public:
     void Start(BundleContext context){
         auto vis = std::make_shared<tnqvm::ITensorMPSVisitor>();
         context.RegisterService<tnqvm::TNQVMVisitor>(vis);
+        context.RegisterService<xacc::OptionsProvider>(vis);
     }
 
     void Stop(BundleContext context){}

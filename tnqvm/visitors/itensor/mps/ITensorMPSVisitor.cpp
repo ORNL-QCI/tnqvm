@@ -80,7 +80,7 @@ void ITensorMPSVisitor::initialize(std::shared_ptr<AcceleratorBuffer> accbuffer_
         try {
             cutoffStr = xacc::getOption("itensor-svd-cutoff");
             svdCutoff = std::stod(cutoffStr);
-            xacc::info("ITensorMPSVisitor setting SVD cutoff to " + cutoffStr);
+            if (verbose) xacc::info("ITensorMPSVisitor setting SVD cutoff to " + cutoffStr);
         } catch (std::exception& e) {
             xacc::error("ITensorMPSVisitor: invalid svd cutoff value " + cutoffStr);
         }
