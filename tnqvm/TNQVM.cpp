@@ -158,17 +158,21 @@ const std::vector<std::complex<double>> TNQVM::getAcceleratorState(std::shared_p
 	visitor = xacc::getService<TNQVMVisitor>(visitorType);
 
     int maxBit = 0;
-	InstructionIterator it1(program);
-	while (it1.hasNext()) {
-		auto nextInst = it1.next();
-		if (nextInst->isEnabled() && !nextInst->isComposite()) {
-            for (auto& b : nextInst->bits()) if (b > maxBit) maxBit = b;
-		}
+    if (!xacc::optionExists("n-qubits")) {
+	    InstructionIterator it1(program);
+	    while (it1.hasNext()) {
+		    auto nextInst = it1.next();
+		    if (nextInst->isEnabled() && !nextInst->isComposite()) {
+                for (auto& b : nextInst->bits()) if (b > maxBit) maxBit = b;
+		    }
 
+        }
+
+        // FIXME for bug #??
+        if(maxBit == 0) maxBit++;
+    } else {
+        maxBit = std::stoi(xacc::getOption("n-qubits"))-1;
     }
-
-    // FIXME for bug #??
-    if(maxBit == 0) maxBit++;
     
     auto buffer = std::make_shared<TNQVMBuffer>("q",maxBit+1);
 

@@ -39,6 +39,167 @@
 using namespace tnqvm;
 using namespace xacc::quantum;
 
+const std::string uccsdSrc = R"uccsdSrc(def foo(theta0,theta1):
+   X(0)
+   X(1)
+   H(3)
+   Rx(1.5708, 1)
+   CNOT(1, 2)
+   CNOT(2, 3)
+   Rz(1 * theta0, 3)
+   CNOT(2, 3)
+   CNOT(1, 2)
+   H(3)
+   Rx(10.9956, 1)
+   Rx(1.5708, 3)
+   H(1)
+   CNOT(1, 2)
+   CNOT(2, 3)
+   Rz(-1 * theta0, 3)
+   CNOT(2, 3)
+   CNOT(1, 2)
+   Rx(10.9956, 3)
+   H(1)
+   H(3)
+   Rx(1.5708, 2)
+   H(1)
+   H(0)
+   CNOT(0, 1)
+   CNOT(1, 2)
+   CNOT(2, 3)
+   Rz(0.5 * theta1, 3)
+   CNOT(2, 3)
+   CNOT(1, 2)
+   CNOT(0, 1)
+   H(3)
+   Rx(10.9956, 2)
+   H(1)
+   H(0)
+   Rx(1.5708, 3)
+   Rx(1.5708, 2)
+   Rx(1.5708, 1)
+   H(0)
+   CNOT(0, 1)
+   CNOT(1, 2)
+   CNOT(2, 3)
+   Rz(0.5 * theta1, 3)
+   CNOT(2, 3)
+   CNOT(1, 2)
+   CNOT(0, 1)
+   Rx(10.9956, 3)
+   Rx(10.9956, 2)
+   Rx(10.9956, 1)
+   H(0)
+   H(3)
+   H(2)
+   H(1)
+   Rx(1.5708, 0)
+   CNOT(0, 1)
+   CNOT(1, 2)
+   CNOT(2, 3)
+   Rz(-0.5 * theta1, 3)
+   CNOT(2, 3)
+   CNOT(1, 2)
+   CNOT(0, 1)
+   H(3)
+   H(2)
+   H(1)
+   Rx(10.9956, 0)
+   Rx(1.5708, 3)
+   H(2)
+   Rx(1.5708, 1)
+   Rx(1.5708, 0)
+   CNOT(0, 1)
+   CNOT(1, 2)
+   CNOT(2, 3)
+   Rz(-0.5 * theta1, 3)
+   CNOT(2, 3)
+   CNOT(1, 2)
+   CNOT(0, 1)
+   Rx(10.9956, 3)
+   H(2)
+   Rx(10.9956, 1)
+   Rx(10.9956, 0)
+   Rx(1.5708, 3)
+   H(2)
+   H(1)
+   H(0)
+   CNOT(0, 1)
+   CNOT(1, 2)
+   CNOT(2, 3)
+   Rz(0.5 * theta1, 3)
+   CNOT(2, 3)
+   CNOT(1, 2)
+   CNOT(0, 1)
+   Rx(10.9956, 3)
+   H(2)
+   H(1)
+   H(0)
+   Rx(1.5708, 2)
+   H(0)
+   CNOT(0, 1)
+   CNOT(1, 2)
+   Rz(-1 * theta0, 2)
+   CNOT(1, 2)
+   CNOT(0, 1)
+   Rx(10.9956, 2)
+   H(0)
+   H(2)
+   Rx(1.5708, 0)
+   CNOT(0, 1)
+   CNOT(1, 2)
+   Rz(1 * theta0, 2)
+   CNOT(1, 2)
+   CNOT(0, 1)
+   H(2)
+   Rx(10.9956, 0)
+   Rx(1.5708, 3)
+   Rx(1.5708, 2)
+   H(1)
+   Rx(1.5708, 0)
+   CNOT(0, 1)
+   CNOT(1, 2)
+   CNOT(2, 3)
+   Rz(0.5 * theta1, 3)
+   CNOT(2, 3)
+   CNOT(1, 2)
+   CNOT(0, 1)
+   Rx(10.9956, 3)
+   Rx(10.9956, 2)
+   H(1)
+   Rx(10.9956, 0)
+   H(3)
+   Rx(1.5708, 2)
+   Rx(1.5708, 1)
+   Rx(1.5708, 0)
+   CNOT(0, 1)
+   CNOT(1, 2)
+   CNOT(2, 3)
+   Rz(-0.5 * theta1, 3)
+   CNOT(2, 3)
+   CNOT(1, 2)
+   CNOT(0, 1)
+   H(3)
+   Rx(10.9956, 2)
+   Rx(10.9956, 1)
+   Rx(10.9956, 0)
+   H(3)
+   H(2)
+   Rx(1.5708, 1)
+   H(0)
+   CNOT(0, 1)
+   CNOT(1, 2)
+   CNOT(2, 3)
+   Rz(-0.5 * theta1, 3)
+   CNOT(2, 3)
+   CNOT(1, 2)
+   CNOT(0, 1)
+   H(3)
+   H(2)
+   Rx(10.9956, 1)
+   H(0)
+)uccsdSrc";
+
 TEST(TNQVMTester,checkKernelExecution) {
 	TNQVM acc;
 	auto qreg1 = acc.createBuffer("qreg", 3);
@@ -63,19 +224,53 @@ TEST(TNQVMTester,checkKernelExecution) {
 TEST(TNQVMTester, checkGetState) {
     TNQVM acc;
 	
+    // 1 qubit problems become 2 qubit problems in TNQVM
+    // due to bug
     auto f = std::make_shared<GateFunction>("foo");
 	auto h = std::make_shared<Hadamard>(0);
 	f->addInstruction(h);
 
 	auto state = acc.getAcceleratorState(f);
-    EXPECT_TRUE(state.size() == 2);
-    for (auto s : state) {
-        EXPECT_NEAR(std::real(s), 1.0/std::sqrt(2.0), 1e-4);
+    EXPECT_EQ(4, state.size());
+    EXPECT_NEAR(1.0/std::sqrt(2.0), std::real(state[2]), 1e-4);
+    EXPECT_NEAR(1.0/std::sqrt(2.0), std::real(state[3]), 1e-4);
+    EXPECT_NEAR(0.0, std::real(state[0]), 1e-4);
+    EXPECT_NEAR(0.0, std::real(state[1]), 1e-4);
+
+    if (xacc::hasCompiler("xacc-py")) {
+        auto c = xacc::getService<Compiler>("xacc-py");
+        auto f = c->compile(uccsdSrc)->getKernels()[0];
+        
+        Eigen::VectorXd p(2);
+        p << 0, -.0571583356234;
+        auto fevaled = (*f)(p);
+
+        // std::cout << "F:\n" << f->toString("q") << "\n";
+
+        state = acc.getAcceleratorState(fevaled);
+        EXPECT_NEAR(-0.114068, std::real(state[3]), 1e-4);
+        EXPECT_NEAR(.993473, std::real(state[12]), 1e-4);
+
+        int count = 0;
+        for (auto s : state) {
+            if (count != 3 && count != 12) EXPECT_NEAR(0.0, std::real(s), 1e-4);
+            count++;
+        }
+
+        fevaled = (*f)(Eigen::VectorXd::Zero(2));
+        // should be hartree fock state
+        state = acc.getAcceleratorState(fevaled);
+        EXPECT_NEAR(1.0, std::real(state[12]), 1e-4);
+        count = 0;
+        for (auto s : state) {
+            if (count != 12) EXPECT_NEAR(0.0, std::real(s), 1e-4);
+            count++;
+        }
     }
 }
 
 int main(int argc, char** argv) {
-   xacc::Initialize();
+   xacc::Initialize(argc, argv);
    ::testing::InitGoogleTest(&argc, argv);
    auto ret = RUN_ALL_TESTS();
    xacc::Finalize();

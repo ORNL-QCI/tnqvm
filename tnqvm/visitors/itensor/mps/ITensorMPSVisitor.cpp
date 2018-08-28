@@ -681,13 +681,20 @@ const std::vector<std::complex<double>> ITensorMPSVisitor::getState() {
 	 }
      std::vector<std::complex<double>> wf;
 	 auto store_wf = [&](itensor::Cplx c){
-	     if(std::norm(c)>0){
-              wf.push_back(std::complex<double>(c.real(),c.imag()));
-	     }
+         auto real = c.real();
+         auto imag = c.imag();
+         
+         if (std::fabs(real) < 1e-12) real = 0.0;
+         if (std::fabs(imag) < 1e-12) imag = 0.0;
+         
+          wf.push_back(std::complex<double>(real,imag));
 	 };
 	 auto normed_wf = mps / itensor::norm(mps);
 	 normed_wf.visit(store_wf);
-     return wf;
+     
+     auto vec = Eigen::Map<Eigen::VectorXcd>(wf.data(),wf.size());
+     vec.reverseInPlace();
+     return std::vector<std::complex<double>>(vec.data(), vec.data() + vec.size());
 }
 
 /** The process of SVD is to decompose a tensor,
