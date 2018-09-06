@@ -31,8 +31,7 @@
 
 #include "GateFactory.hpp"
 
-namespace xacc {
-namespace quantum {
+namespace tnqvm {
 
 //Static class member storage:
 
@@ -45,6 +44,7 @@ constexpr const GateBodyFactory::TensDataType GateBodyFactory::RyBody[ONE_BODY_V
 constexpr const GateBodyFactory::TensDataType GateBodyFactory::RzBody[ONE_BODY_VOL];
 constexpr const GateBodyFactory::TensDataType GateBodyFactory::CPBody[TWO_BODY_VOL];
 constexpr const GateBodyFactory::TensDataType GateBodyFactory::CNBody[TWO_BODY_VOL];
+constexpr const GateBodyFactory::TensDataType GateBodyFactory::CZBody[TWO_BODY_VOL];
 constexpr const GateBodyFactory::TensDataType GateBodyFactory::SWBody[TWO_BODY_VOL];
 
 #ifdef TNQVM_HAS_EXATENSOR
@@ -52,5 +52,4 @@ constexpr const std::size_t GateFactory::OneBodyShape[ONE_BODY_RANK];
 constexpr const std::size_t GateFactory::TwoBodyShape[TWO_BODY_RANK];
 #endif //TNQVM_HAS_EXATENSOR
 
-} //namespace quantum
-} //namespace xacc
+} //namespace tnqvm

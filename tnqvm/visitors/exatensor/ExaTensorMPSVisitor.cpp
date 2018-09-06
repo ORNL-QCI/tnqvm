@@ -35,8 +35,7 @@
 
 #define _DEBUG_DIL
 
-namespace xacc {
-namespace quantum {
+namespace tnqvm {
 
 //Life cycle:
 
@@ -49,7 +48,7 @@ ExaTensorMPSVisitor::~ExaTensorMPSVisitor()
 {
 }
 
-void ExaTensorMPSVisitor::initialize(std::shared_ptr<TNQVMBuffer> buffer)
+void ExaTensorMPSVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer)
 {
  assert(!(this->isInitialized()));
  Buffer = buffer;
@@ -278,6 +277,15 @@ void ExaTensorMPSVisitor::visit(CNOT & gate)
  return;
 }
 
+void ExaTensorMPSVisitor::visit(CZ & gate)
+{
+ unsigned int qbits[] = {static_cast<unsigned int>(gate.bits()[0]), static_cast<unsigned int>(gate.bits()[1])};
+ std::cout << "Applying " << gate.name() << " @ {" << qbits[0] << "," << qbits[1] << "}" << std::endl;
+ const Tensor & gateTensor = GateTensors.getTensor(gate);
+ int error_code = this->appendNBodyGate(gateTensor,qbits); assert(error_code == 0);
+ return;
+}
+
 void ExaTensorMPSVisitor::visit(Swap & gate)
 {
  unsigned int qbits[] = {static_cast<unsigned int>(gate.bits()[0]), static_cast<unsigned int>(gate.bits()[1])};
@@ -350,7 +358,6 @@ int ExaTensorMPSVisitor::evaluate()
  return error_code;
 }
 
-}  // end namespace quantum
-}  // end namespace xacc
+}  // end namespace tnqvm
 
 #endif //TNQVM_HAS_EXATENSOR

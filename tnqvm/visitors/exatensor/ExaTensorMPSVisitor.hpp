@@ -29,8 +29,8 @@
  *   Implementation - Dmitry Lyakh 2017/10/05 - active;
  *
  **********************************************************************************/
-#ifndef QUANTUM_GATE_ACCELERATORS_TNQVM_EXATENSORMPSVISITOR_HPP_
-#define QUANTUM_GATE_ACCELERATORS_TNQVM_EXATENSORMPSVISITOR_HPP_
+#ifndef TNQVM_EXATENSORMPSVISITOR_HPP_
+#define TNQVM_EXATENSORMPSVISITOR_HPP_
 
 #ifdef TNQVM_HAS_EXATENSOR
 
@@ -39,17 +39,18 @@
 #include <vector>
 #include <utility>
 
-#include "AllGateVisitor.hpp"
-#include "TNQVMBuffer.hpp"
+#include "TNQVMVisitor.hpp"
 
 #include "GateFactory.hpp"
 
 #include "tensornet.hpp"
 
-namespace xacc {
-namespace quantum {
+using namespace xacc;
+using namespace xacc::quantum;
 
-class ExaTensorMPSVisitor : public AllGateVisitor {
+namespace tnqvm {
+
+class ExaTensorMPSVisitor : public TNQVMVisitor {
 
 public:
 
@@ -61,7 +62,7 @@ public:
  ExaTensorMPSVisitor();
  virtual ~ExaTensorMPSVisitor();
 
- void initialize(std::shared_ptr<TNQVMBuffer> buffer); //accelerator buffer
+ void initialize(std::shared_ptr<AcceleratorBuffer> buffer); //accelerator buffer
  void finalize();
 
 //Visitor methods:
@@ -75,14 +76,11 @@ public:
  void visit(Rz & gate);
  void visit(CPhase & gate);
  void visit(CNOT & gate);
+ void visit(CZ & gate);
  void visit(Swap & gate);
  void visit(Measure & gate);
  void visit(ConditionalFunction & condFunc);
  void visit(GateFunction & gateFunc);
-
-	void visit(CZ& gate) {
-		XACCError("CZ not supported yet.");
-	}
 
 //Numerical evaluation:
  bool isInitialized(); //returns TRUE if the wavefunction has been initialized
@@ -104,7 +102,7 @@ private:
  GateFactory GateTensors;
 
 //Data members:
- std::shared_ptr<TNQVMBuffer> Buffer;              //accelerator buffer
+ std::shared_ptr<AcceleratorBuffer> Buffer;        //accelerator buffer
  WaveFunction StateMPS;                            //MPS wave-function of qubits (MPS tensors)
  TensorNetwork TensNet;                            //currently constructed tensor network
  std::vector<std::pair<Tensor, unsigned int *>> GateSequence; //sequence of visited quantum gates before evaluation
@@ -122,9 +120,8 @@ private:
 
 }; //end class ExaTensorMPSVisitor
 
-} //end namespace quantum
-} //end namespace xacc
+} //end namespace tnqvm
 
 #endif //TNQVM_HAS_EXATENSOR
 
-#endif //QUANTUM_GATE_ACCELERATORS_TNQVM_EXATENSORMPSVISITOR_HPP_
+#endif //TNQVM_EXATENSORMPSVISITOR_HPP_

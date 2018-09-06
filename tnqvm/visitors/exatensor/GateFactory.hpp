@@ -28,16 +28,18 @@
  *   Implementation - Dmitry Lyakh 2017/10/12;
  *
  **********************************************************************************/
-#ifndef QUANTUM_GATE_ACCELERATORS_TNQVM_GATEFACTORY_HPP_
-#define QUANTUM_GATE_ACCELERATORS_TNQVM_GATEFACTORY_HPP_
+#ifndef TNQVM_GATEFACTORY_HPP_
+#define TNQVM_GATEFACTORY_HPP_
 
 #include <cstdlib>
 #include <complex>
 
 #include "AllGateVisitor.hpp"
 
-namespace xacc {
-namespace quantum {
+using namespace xacc;
+using namespace xacc::quantum;
+
+namespace tnqvm {
 
 //Constants:
 
@@ -110,6 +112,13 @@ private:
   TensDataType(0.0,0.0), TensDataType(0.0,0.0), TensDataType(1.0,0.0), TensDataType(0.0,0.0)
  };
 
+ static constexpr const TensDataType CZBody[TWO_BODY_VOL] = {
+  TensDataType(1.0,0.0), TensDataType(0.0,0.0), TensDataType(0.0,0.0), TensDataType(0.0,0.0),
+  TensDataType(0.0,0.0), TensDataType(1.0,0.0), TensDataType(0.0,0.0), TensDataType(0.0,0.0),
+  TensDataType(0.0,0.0), TensDataType(0.0,0.0), TensDataType(0.0,0.0), TensDataType(1.0,0.0),
+  TensDataType(0.0,0.0), TensDataType(0.0,0.0), TensDataType(1.0,0.0), TensDataType(0.0,0.0)
+ };
+
  static constexpr const TensDataType SWBody[TWO_BODY_VOL] = {
   TensDataType(1.0,0.0), TensDataType(0.0,0.0), TensDataType(0.0,0.0), TensDataType(0.0,0.0),
   TensDataType(0.0,0.0), TensDataType(0.0,0.0), TensDataType(1.0,0.0), TensDataType(0.0,0.0),
@@ -128,6 +137,7 @@ private:
  std::shared_ptr<TensDataType> RzTensor; //Rz
  std::shared_ptr<TensDataType> CPTensor; //CPhase
  std::shared_ptr<TensDataType> CNTensor; //CNOT
+ std::shared_ptr<TensDataType> CZTensor; //CZ
  std::shared_ptr<TensDataType> SWTensor; //SWAP
 
 public:
@@ -144,6 +154,7 @@ public:
   RzTensor(new TensDataType[ONE_BODY_VOL], [](TensDataType * ptr){delete[] ptr;}),
   CPTensor(new TensDataType[TWO_BODY_VOL], [](TensDataType * ptr){delete[] ptr;}),
   CNTensor(new TensDataType[TWO_BODY_VOL], [](TensDataType * ptr){delete[] ptr;}),
+  CZTensor(new TensDataType[TWO_BODY_VOL], [](TensDataType * ptr){delete[] ptr;}),
   SWTensor(new TensDataType[TWO_BODY_VOL], [](TensDataType * ptr){delete[] ptr;})
  {
   {auto body = HTensor.get(); for(unsigned int i = 0; i < ONE_BODY_VOL; ++i) body[i]=HBody[i];}
@@ -155,6 +166,7 @@ public:
   {auto body = RzTensor.get(); for(unsigned int i = 0; i < ONE_BODY_VOL; ++i) body[i]=RzBody[i];}
   {auto body = CPTensor.get(); for(unsigned int i = 0; i < TWO_BODY_VOL; ++i) body[i]=CPBody[i];}
   {auto body = CNTensor.get(); for(unsigned int i = 0; i < TWO_BODY_VOL; ++i) body[i]=CNBody[i];}
+  {auto body = CZTensor.get(); for(unsigned int i = 0; i < TWO_BODY_VOL; ++i) body[i]=CZBody[i];}
   {auto body = SWTensor.get(); for(unsigned int i = 0; i < TWO_BODY_VOL; ++i) body[i]=SWBody[i];}
  }
 
@@ -169,20 +181,19 @@ public:
  const std::shared_ptr<TensDataType> getBody(const Rz & gate){return RzTensor;}
  const std::shared_ptr<TensDataType> getBody(const CPhase & gate){return CPTensor;}
  const std::shared_ptr<TensDataType> getBody(const CNOT & gate){return CNTensor;}
+ const std::shared_ptr<TensDataType> getBody(const CZ & gate){return CZTensor;}
  const std::shared_ptr<TensDataType> getBody(const Swap & gate){return SWTensor;}
 
 }; //end class GateBodyFactory
 
-} //end namespace quantum
-} //end namespace xacc
+} //end namespace tnqvm
 
 
 #ifdef TNQVM_HAS_EXATENSOR
 
 #include "tensornet.hpp"
 
-namespace xacc {
-namespace quantum {
+namespace tnqvm {
 
 class GateFactory{
 
@@ -215,6 +226,7 @@ private:
  Tensor RzTensor;
  Tensor CPhaseTensor;
  Tensor CNOTTensor;
+ Tensor CZTensor;
  Tensor SwapTensor;
 
 public:
@@ -231,6 +243,7 @@ public:
   RzTensor(ONE_BODY_RANK,OneBodyShape),
   CPhaseTensor(TWO_BODY_RANK,TwoBodyShape),
   CNOTTensor(TWO_BODY_RANK,TwoBodyShape),
+  CZTensor(TWO_BODY_RANK,TwoBodyShape),
   SwapTensor(TWO_BODY_RANK,TwoBodyShape)
  {
  }
@@ -282,6 +295,11 @@ public:
   return CNOTTensor;
  }
 
+ const Tensor & getTensor(const CZ & gate){
+  if(!(CZTensor.hasBody())) CZTensor.setBody(GateBodies.getBody(gate));
+  return CZTensor;
+ }
+
  const Tensor & getTensor(const Swap & gate){
   if(!(SwapTensor.hasBody())) SwapTensor.setBody(GateBodies.getBody(gate));
   return SwapTensor;
@@ -289,9 +307,8 @@ public:
 
 }; //end class GateFactory
 
-} //end namespace quantum
-} //end namespace xacc
+} //end namespace tnqvm
 
 #endif //TNQVM_HAS_EXATENSOR
 
-#endif //QUANTUM_GATE_ACCELERATORS_TNQVM_GATEFACTORY_HPP_
+#endif //TNQVM_GATEFACTORY_HPP_
