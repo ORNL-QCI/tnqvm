@@ -32,16 +32,6 @@ set (PACKAGE_NAME "TNQVM Tensor Network XACC Accelerator")
 set (PACKAGE_DESCIPTION "TNQVM Tensor Network XACC Accelerator Framework")
 set (LIBRARY_NAME tnqvm)
 
-if (EXATENSOR_ROOT)
-   if (EXISTS ${EXATENSOR_ROOT}/include/tensor_network.hpp)
-      message(STATUS "ExaTensor found at ${EXATENSOR_ROOT}")
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DTNQVM_HAS_EXATENSOR")
-      include_directories(${EXATENSOR_ROOT}/include)
-   else()
-      message(FATAL_ERROR "Invalid EXATENSOR_ROOT path")
-   endif()
-endif()
-
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/visitors)
 
@@ -63,12 +53,7 @@ set_target_properties(${LIBRARY_NAME} PROPERTIES
     # This is for convenience, used by other CMake functions
     US_BUNDLE_NAME ${_bundle_name}
     )
-if(BUILD_SHARED_LIBS)
-	#    set_target_properties(${LIBRARY_NAME} PROPERTIES
-	#    CXX_VISIBILITY_PRESET hidden
-	#    VISIBILITY_INLINES_HIDDEN 1
-	#    )
-endif()
+
 # Embed meta-data from a manifest.json file
 usFunctionEmbedResources(TARGET ${LIBRARY_NAME}
     WORKING_DIRECTORY
@@ -77,12 +62,7 @@ usFunctionEmbedResources(TARGET ${LIBRARY_NAME}
     manifest.json
     )
 
-if (EXATENSOR_ROOT)
-   link_directories(${EXATENSOR_ROOT}/lib)
-   target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} lapack blas ${EXATENSOR_ROOT}/lib/libtensornet.a ${EXATENSOR_ROOT}/lib/libtalsh.a)
-else()
-   target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} lapack blas)
-endif()
+target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} lapack blas)
 
 if(APPLE)
    set_target_properties(${LIBRARY_NAME} PROPERTIES INSTALL_RPATH "@loader_path/../lib")

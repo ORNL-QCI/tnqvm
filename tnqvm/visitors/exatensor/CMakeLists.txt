@@ -29,82 +29,40 @@
 #
 #**********************************************************************************/
 
-set (PACKAGE_NAME "TNQVM ITensor Visitors")
-set (PACKAGE_DESCIPTION "TNQVM ITensor backend")
-set (LIBRARY_NAME tnqvm-itensor)
+if (EXATENSOR_ROOT)
+   set (PACKAGE_NAME "TNQVM ExaTensor Visitor")
+   set (PACKAGE_DESCIPTION "TNQVM ITensor backend")
+   set (LIBRARY_NAME tnqvm-exatensor)
 
-include(ProcessorCount)
-ProcessorCount(N)
-if (N EQUAL 0)
-   set(N 1)
-endif()
+   if (EXISTS ${EXATENSOR_ROOT}/include/tensor_network.hpp)
+      message(STATUS "ExaTensor found at ${EXATENSOR_ROOT}")
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DTNQVM_HAS_EXATENSOR")
+      include_directories(${EXATENSOR_ROOT}/include)
+   else()
+      message(FATAL_ERROR "Invalid EXATENSOR_ROOT path")
+   endif()
 
-include(ExternalProject)
-set(ITENSOR_ROOT ${CMAKE_SOURCE_DIR}/ITensor)
-if (OPENMP_FOUND)
-ExternalProject_Add(projitensor
-    SOURCE_DIR ${ITENSOR_ROOT}
-    BINARY_DIR ${ITENSOR_ROOT}
-    CONFIGURE_COMMAND cp optionsopenmp.mk.sample options.mk
-    BUILD_COMMAND make -j${N} PLATFORM=lapack
-    INSTALL_COMMAND ""
-)
+   file (GLOB HEADERS *.hpp)
+   file (GLOB SRC *.cpp)
+
+   add_library(${LIBRARY_NAME} SHARED ${SRC})
+
+   link_directories(${EXATENSOR_ROOT}/lib)
+   target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} lapack blas ${EXATENSOR_ROOT}/lib/libtensornet.a ${EXATENSOR_ROOT}/lib/libtalsh.a)
+
+   if(APPLE)
+      set_target_properties(${LIBRARY_NAME} PROPERTIES INSTALL_RPATH "@loader_path/../lib")
+      set_target_properties(${LIBRARY_NAME} PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
+   else()
+      set_target_properties(${LIBRARY_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/../lib")
+      set_target_properties(${LIBRARY_NAME} PROPERTIES LINK_FLAGS "-shared")
+   endif()
+
+   install(TARGETS ${LIBRARY_NAME} DESTINATION ${CMAKE_INSTALL_PREFIX}/plugins)
+   if(TNQVM_BUILD_TESTS)
+	   add_subdirectory(tests)
+   endif()
+
 else()
-ExternalProject_Add(projitensor
-	SOURCE_DIR ${ITENSOR_ROOT}
-	BINARY_DIR ${ITENSOR_ROOT}
-	CONFIGURE_COMMAND cp options.mk.sample options.mk
-	BUILD_COMMAND make -j${N} PLATFORM=lapack
-	INSTALL_COMMAND ""
-	)
+   message(STATUS "ExaTENSOR not found, skipping ExaTensorMPSVisitor build")
 endif()
-include_directories(${ITENSOR_ROOT})
-
-find_package(XACC REQUIRED)
-
-include_directories(${XACC_INCLUDE_DIRS})
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/mps)
-include_directories(${CMAKE_SOURCE_DIR}/tnqvm)
-link_directories(${XACC_LIBRARY_DIRS})
-
-file (GLOB HEADERS mps/*.hpp)
-file (GLOB SRC mps/*.cpp *.cpp)
-
-usFunctionGetResourceSource(TARGET ${LIBRARY_NAME} OUT SRC)
-usFunctionGenerateBundleInit(TARGET ${LIBRARY_NAME} OUT SRC)
-
-add_library(${LIBRARY_NAME} SHARED ${SRC})
-add_dependencies(${LIBRARY_NAME} projitensor)
-
-set(_bundle_name tnqvm_itensor)
-set_target_properties(${LIBRARY_NAME} PROPERTIES
-    # This is required for every bundle
-    COMPILE_DEFINITIONS US_BUNDLE_NAME=${_bundle_name}
-    # This is for convenience, used by other CMake functions
-    US_BUNDLE_NAME ${_bundle_name}
-    )
-if(BUILD_SHARED_LIBS)
-    set_target_properties(${LIBRARY_NAME} PROPERTIES
-    CXX_VISIBILITY_PRESET hidden
-    VISIBILITY_INLINES_HIDDEN 1
-    )
-endif()
-# Embed meta-data from a manifest.json file
-usFunctionEmbedResources(TARGET ${LIBRARY_NAME}
-    WORKING_DIRECTORY
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    FILES
-    manifest.json
-    )
-
-target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} ${ITENSOR_ROOT}/lib/libitensor-g.a lapack ${Boost_LIBRARIES} blas)
-
-install(TARGETS ${LIBRARY_NAME} DESTINATION $ENV{HOME}/.xacc/plugins/visitors)
-
-
-# Gather tests
-file (GLOB test_files mps/tests/*.cpp)
-
-# Add the tests
-add_tests("${test_files}" "${CMAKE_CURRENT_SOURCE_DIR}/mps" "${LIBRARY_NAME};${Boost_LIBRARIES};${XACC_LIBRARIES}")
-
