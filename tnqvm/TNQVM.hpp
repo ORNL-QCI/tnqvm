@@ -112,6 +112,8 @@ public:
 			std::shared_ptr<AcceleratorBuffer> buffer,
 			const std::vector<std::shared_ptr<Function>> functions);
 
+    virtual const std::vector<std::complex<double>> getAcceleratorState(std::shared_ptr<Function> program);
+ 
 	/**
 	 * Return all relevant TNQVM runtime options.
 	 */
@@ -185,6 +187,7 @@ protected:
 
 private:
 	int __verbose;
+    bool executedOnce = false;
 };
 }
 

@@ -1,4 +1,4 @@
-[![Build Status](http://ci.eclipse.org/xacc/buildStatus/icon?job=tnqvm-ci)](http://ci.eclipse.org/xacc/job/tnqvm-ci/)
+[![Build Status](https://travis-ci.org/ORNL-QCI/tnqvm.svg?branch=master)](https://travis-ci.org/ORNL-QCI/tnqvm)
 
 # TNQVM Tensor Network XACC Accelerator
 These plugins for XACC provide an Accelerator implementation that leverages tensor network theory to simulate quantum circuits.

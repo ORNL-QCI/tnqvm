@@ -39,6 +39,22 @@
 
 namespace tnqvm {
 
+double ipToDouble(xacc::InstructionParameter p) {
+    if (p.which() == 0) {
+        return (double) boost::get<int>(p);
+    } else if (p.which() == 1) {
+        return boost::get<double>(p);
+    } else if (p.which() == 2) {
+        return boost::get<float>(p);
+    } else {
+        std::stringstream s;
+        s << p;
+        xacc::error("ITensorMPSVisitor: invalid gate parameter " + std::to_string(p.which()) + ", " + s.str());
+    }
+
+    return 0.0;
+}
+
 /// Constructor
 ITensorMPSVisitor::ITensorMPSVisitor() :
 		n_qbits(0), snapped(false) {
@@ -59,6 +75,16 @@ void ITensorMPSVisitor::initialize(std::shared_ptr<AcceleratorBuffer> accbuffer_
 	if (xacc::optionExists("tnqvm-two-qubit-gatetime")) {
 		twoQubitTime = std::stod(xacc::getOption("tnqvm-two-qubit-gatetime"));
 	}
+    if (xacc::optionExists("itensor-svd-cutoff")) {
+        std::string cutoffStr = "";
+        try {
+            cutoffStr = xacc::getOption("itensor-svd-cutoff");
+            svdCutoff = std::stod(cutoffStr);
+            if (verbose) xacc::info("ITensorMPSVisitor setting SVD cutoff to " + cutoffStr);
+        } catch (std::exception& e) {
+            xacc::error("ITensorMPSVisitor: invalid svd cutoff value " + cutoffStr);
+        }
+    }
 }
 
 void ITensorMPSVisitor::visit(Hadamard& gate) {
@@ -132,7 +158,7 @@ void ITensorMPSVisitor::visit(CNOT& gate) {
 	// itensor::PrintData(tobe_svd);
 	ITensor legMat(legMats[min_iqbit].inds()[1], ind_lower), bondMat,
 			restTensor;
-	itensor::svd(tobe_svd, legMat, bondMat, restTensor, { "Cutoff", 1E-4 });
+	itensor::svd(tobe_svd, legMat, bondMat, restTensor, { "Cutoff", svdCutoff });
 	// itensor::PrintData(legMat);
 	// std::cout<<"svd done"<<std::endl;
 	legMats[min_iqbit] = legMat;
@@ -264,6 +290,41 @@ double ITensorMPSVisitor::average(int iqbit, const ITensor& op_tensor) {
 	return inner.cplx().real();
 }
 
+const double ITensorMPSVisitor::getExpectationValueZ(std::shared_ptr<Function> function) {
+    // std::cout << "F:\n" << function->toString("q") << "\n";
+    std::map<std::string, std::pair<int, double>> reverseGates;
+    std::set<int> bitsToMeasure;
+    
+    // Snapshot of tensor network before 
+    // change of basis and measurement
+    auto copyLegMats = legMats;
+    auto copyBondMats = bondMats;
+    
+    // Walk the tree and execute the instructions
+    // This will be hadamards, rx, and measure
+    InstructionIterator it(function);
+	while (it.hasNext()) {
+	   auto nextInst = it.next();
+	   if (nextInst->isEnabled()) {
+           nextInst->accept(this);
+	   }
+	}
+
+    auto exp = buffer->getExpectationValueZ();
+    
+    snapped = false;
+    legMats_m.clear();
+    bondMats_m.clear();
+    legMats = copyLegMats;
+    bondMats = copyBondMats;
+    cbits.clear();
+    cbits.resize(buffer->size());
+    iqbits_m.clear();
+    
+    return exp;
+    
+}
+
 /// iqbits: the indecies of qits to measure
 double ITensorMPSVisitor::averZs(std::set<int> iqbits) {
 	ITensor inner;
@@ -286,6 +347,7 @@ double ITensorMPSVisitor::averZs(std::set<int> iqbits) {
 					* bondMats_m[i - 1] * legMats_m[i];
 		}
 	}
+
 	if (iqbits.find(n_qbits - 1) != iqbits.end()) {
 		auto bra = inner * itensor::conj(legMats_m[n_qbits - 1])
 				* tZ_measure_on(n_qbits - 1);
@@ -297,6 +359,7 @@ double ITensorMPSVisitor::averZs(std::set<int> iqbits) {
 	}
 	// itensor::PrintData(inner);
 	std::complex<double> aver = inner.cplx();
+    // std::cout << "AVER: " << aver << "\n";
 	assert(aver.imag()<1e-10);
 	return aver.real();
 }
@@ -373,7 +436,7 @@ void ITensorMPSVisitor::visit(ConditionalFunction& c) {
 
 void ITensorMPSVisitor::visit(Rx& gate) {
 	auto iqbit_in = gate.bits()[0];
-	double theta = boost::get<double>(gate.getParameter(0));
+	double theta = ipToDouble(gate.getParameter(0));
 	if (verbose) {
 		std::cout << "applying " << gate.name() << "(" << theta << ") @ "
 				<< iqbit_in << std::endl;
@@ -394,7 +457,7 @@ void ITensorMPSVisitor::visit(Rx& gate) {
 
 void ITensorMPSVisitor::visit(Ry& gate) {
 	auto iqbit_in = gate.bits()[0];
-	double theta = boost::get<double>(gate.getParameter(0));
+	double theta = ipToDouble(gate.getParameter(0));
 	if (verbose) {
 		std::cout << "applying " << gate.name() << "(" << theta << ") @ "
 				<< iqbit_in << std::endl;
@@ -413,7 +476,7 @@ void ITensorMPSVisitor::visit(Ry& gate) {
 
 void ITensorMPSVisitor::visit(Rz& gate) {
 	auto iqbit_in = gate.bits()[0];
-	double theta = boost::get<double>(gate.getParameter(0));
+	double theta = ipToDouble(gate.getParameter(0));
 	if (verbose) {
 		std::cout << "applying " << gate.name() << "(" << theta << ") @ "
 				<< iqbit_in << std::endl;
@@ -490,7 +553,7 @@ void ITensorMPSVisitor::visit(Swap& gate) {
 	// itensor::PrintData(tobe_svd);
 	ITensor legMat(legMats[min_iqbit].inds()[1], ind_lower), bondMat,
 			restTensor;
-	itensor::svd(tobe_svd, legMat, bondMat, restTensor, { "Cutoff", 1E-4 });
+	itensor::svd(tobe_svd, legMat, bondMat, restTensor, { "Cutoff", svdCutoff });
 	legMats[min_iqbit] = legMat;
 	bondMats[min_iqbit] = bondMat;
 	kickback_ind(restTensor, restTensor.inds()[1]);
@@ -608,6 +671,30 @@ void ITensorMPSVisitor::printWavefunc() const {
 //	 normed_wf.visit(print_nz);
 //	   itensor::PrintData(mps);
 //	  std::cout<<"<<<<<<<<---------------------<<<<<<<<<<\n"<<std::endl;
+}
+
+const std::vector<std::complex<double>> ITensorMPSVisitor::getState() {
+    auto mps = legMats[0];
+	for(int i=1; i<n_qbits;++i){
+        mps *= bondMats[i-1];
+	    mps *= legMats[i];
+	 }
+     std::vector<std::complex<double>> wf;
+	 auto store_wf = [&](itensor::Cplx c){
+         auto real = c.real();
+         auto imag = c.imag();
+         
+         if (std::fabs(real) < 1e-12) real = 0.0;
+         if (std::fabs(imag) < 1e-12) imag = 0.0;
+         
+          wf.push_back(std::complex<double>(real,imag));
+	 };
+	 auto normed_wf = mps / itensor::norm(mps);
+	 normed_wf.visit(store_wf);
+     
+     auto vec = Eigen::Map<Eigen::VectorXcd>(wf.data(),wf.size());
+     vec.reverseInPlace();
+     return std::vector<std::complex<double>>(vec.data(), vec.data() + vec.size());
 }
 
 /** The process of SVD is to decompose a tensor,

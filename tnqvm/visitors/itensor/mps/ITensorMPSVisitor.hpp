@@ -51,10 +51,14 @@ public:
 		return std::make_shared<ITensorMPSVisitor>();
 	}
 
+    virtual const double getExpectationValueZ(std::shared_ptr<Function> function);
+    
     virtual void initialize(std::shared_ptr<AcceleratorBuffer> buffer);
     virtual void finalize() {
 
     }
+    
+   virtual const std::vector<std::complex<double>> getState();
 
 	virtual const std::string name() const {
 		return "itensor-mps";
@@ -62,6 +66,21 @@ public:
 
 	virtual const std::string description() const {
 		return "";
+	}
+
+    	/**
+	 * Return all relevant TNQVM runtime options.
+	 */
+	virtual std::shared_ptr<options_description> getOptions() {
+		auto desc = std::make_shared<options_description>(
+				"ITensor MPS Visitor Options");
+		desc->add_options()("itensor-svd-cutoff", value<std::string>(),
+				"Provide the cutoff (default 1e-4) for the singular value decomposition.");
+		return desc;
+	}
+
+	virtual bool handleOptions(variables_map& map) {
+		return false;
 	}
 
 	/**
@@ -96,7 +115,8 @@ private:
     double execTime = 0.0;
     double singleQubitTime = 1e-8;
     double twoQubitTime = 1e-7;
-
+    double svdCutoff = 1e-4;
+    
     itensor::ITensor wavefunc;
     std::vector<int> iqbit2iind;
     std::vector<int> cbits;
