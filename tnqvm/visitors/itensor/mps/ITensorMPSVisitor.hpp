@@ -13,9 +13,9 @@
  *     names of its contributors may be used to endorse or promote products
  *     derived from this software without specific prior written permission.
  *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ *AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ *IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
  * DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
  * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
@@ -37,118 +37,111 @@
 #include "Cloneable.hpp"
 #include "itensor/all.h"
 
-namespace tnqvm{
+namespace tnqvm {
 
-class ITensorMPSVisitor: public TNQVMVisitor, public xacc::Cloneable<TNQVMVisitor> {
-    using ITensor = itensor::ITensor;
-    using Index = itensor::Index;
-    using IndexVal = itensor::IndexVal;
+class ITensorMPSVisitor : public TNQVMVisitor,
+                          public xacc::Cloneable<TNQVMVisitor> {
+  using ITensor = itensor::ITensor;
+  using Index = itensor::Index;
+  using IndexVal = itensor::IndexVal;
+
 public:
-    ITensorMPSVisitor();
-    virtual ~ITensorMPSVisitor();
+  ITensorMPSVisitor();
+  virtual ~ITensorMPSVisitor();
 
-	virtual std::shared_ptr<TNQVMVisitor> clone() {
-		return std::make_shared<ITensorMPSVisitor>();
-	}
+  virtual std::shared_ptr<TNQVMVisitor> clone() {
+    return std::make_shared<ITensorMPSVisitor>();
+  }
 
-    virtual const double getExpectationValueZ(std::shared_ptr<Function> function);
-    
-    virtual void initialize(std::shared_ptr<AcceleratorBuffer> buffer);
-    virtual void finalize() {
+  virtual const double getExpectationValueZ(std::shared_ptr<Function> function);
 
-    }
-    
-   virtual const std::vector<std::complex<double>> getState();
+  virtual void initialize(std::shared_ptr<AcceleratorBuffer> buffer);
+  virtual void finalize() {}
 
-	virtual const std::string name() const {
-		return "itensor-mps";
-	}
+  virtual const std::vector<std::complex<double>> getState();
 
-	virtual const std::string description() const {
-		return "";
-	}
+  virtual const std::string name() const { return "itensor-mps"; }
 
-    	/**
-	 * Return all relevant TNQVM runtime options.
-	 */
-	virtual std::shared_ptr<options_description> getOptions() {
-		auto desc = std::make_shared<options_description>(
-				"ITensor MPS Visitor Options");
-		desc->add_options()("itensor-svd-cutoff", value<std::string>(),
-				"Provide the cutoff (default 1e-4) for the singular value decomposition.");
-		return desc;
-	}
+  virtual const std::string description() const { return ""; }
 
-	virtual bool handleOptions(variables_map& map) {
-		return false;
-	}
+  /**
+   * Return all relevant TNQVM runtime options.
+   */
+  virtual std::shared_ptr<options_description> getOptions() {
+    auto desc =
+        std::make_shared<options_description>("ITensor MPS Visitor Options");
+    desc->add_options()("itensor-svd-cutoff", value<std::string>(),
+                        "Provide the cutoff (default 1e-4) for the singular "
+                        "value decomposition.");
+    return desc;
+  }
 
-	/**
-	 * Return the last execute call's execution time in seconds.
-	 *
-	 * @return runtime The execution time in seconds.
-	 */
-	virtual const double getExecutionTime() {
-		return execTime;
-	}
+  virtual bool handleOptions(variables_map &map) { return false; }
 
-    // one-qubit gates
-    void visit(Identity& gate) {}
-    void visit(Hadamard& gate);
-    void visit(X& gate);
-    void visit(Y& gate);
-    void visit(Z& gate);
-    void visit(Rx& gate);
-    void visit(Ry& gate);
-    void visit(Rz& gate);
-    void visit(CPhase& cp);
-    // two-qubit gates
-    void visit(CNOT& gate);
-    void visit(Swap& gate);
-    void visit(CZ& gate);
-    // others
-    void visit(Measure& gate);
-    void visit(ConditionalFunction& c);
-    void visit(GateFunction& f);
+  /**
+   * Return the last execute call's execution time in seconds.
+   *
+   * @return runtime The execution time in seconds.
+   */
+  virtual const double getExecutionTime() { return execTime; }
+
+  // one-qubit gates
+  void visit(Identity &gate) {}
+  void visit(Hadamard &gate);
+  void visit(X &gate);
+  void visit(Y &gate);
+  void visit(Z &gate);
+  void visit(Rx &gate);
+  void visit(Ry &gate);
+  void visit(Rz &gate);
+  void visit(CPhase &cp);
+  // two-qubit gates
+  void visit(CNOT &gate);
+  void visit(Swap &gate);
+  void visit(CZ &gate);
+  // others
+  void visit(Measure &gate);
+  void visit(ConditionalFunction &c);
+  void visit(GateFunction &f);
 
 private:
-    double execTime = 0.0;
-    double singleQubitTime = 1e-8;
-    double twoQubitTime = 1e-7;
-    double svdCutoff = 1e-4;
-    
-    itensor::ITensor wavefunc;
-    std::vector<int> iqbit2iind;
-    std::vector<int> cbits;
+  double execTime = 0.0;
+  double singleQubitTime = 1e-8;
+  double twoQubitTime = 1e-7;
+  double svdCutoff = 1e-4;
 
-    std::vector<ITensor> bondMats;    // singular matricies
-    std::vector<ITensor> legMats;     // matricies with physical legs
+  itensor::ITensor wavefunc;
+  std::vector<int> iqbit2iind;
+  std::vector<int> cbits;
 
-    std::vector<ITensor> bondMats_m;  // the snapshot for measurement
-    std::vector<ITensor> legMats_m;
+  std::vector<ITensor> bondMats; // singular matricies
+  std::vector<ITensor> legMats;  // matricies with physical legs
 
-    std::set<int> iqbits_m;           // indecies of qbits to measure
+  std::vector<ITensor> bondMats_m; // the snapshot for measurement
+  std::vector<ITensor> legMats_m;
 
-    itensor::IndexSet legs;           // physical degree of freedom
-    int n_qbits;
-    bool snapped;
+  std::set<int> iqbits_m; // indecies of qbits to measure
 
-    bool verbose = false;
+  itensor::IndexSet legs; // physical degree of freedom
+  int n_qbits;
+  bool snapped;
 
-    /// init the wave function tensor
-    void initWavefunc(int n_qbits);
-    void initWavefunc_bysvd(int n_qbits);
-    void reduce_to_MPS();
-    Index ind_for_qbit(int iqbit) const ;
-    void printWavefunc() const ;
-    void permute_to(int iqbit, int iqbit_to);
-    void kickback_ind(ITensor& tensor, const Index& ind);
-    double wavefunc_inner();
-    double average(int iqbit, const ITensor& op_tensor);
-    itensor::ITensor tZ_measure_on(int iqbit_measured);
-    double averZs(std::set<int> iqbits);
-    void snap_wavefunc();
+  bool verbose = false;
+
+  /// init the wave function tensor
+  void initWavefunc(int n_qbits);
+  void initWavefunc_bysvd(int n_qbits);
+  void reduce_to_MPS();
+  Index ind_for_qbit(int iqbit) const;
+  void printWavefunc() const;
+  void permute_to(int iqbit, int iqbit_to);
+  void kickback_ind(ITensor &tensor, const Index &ind);
+  double wavefunc_inner();
+  double average(int iqbit, const ITensor &op_tensor);
+  itensor::ITensor tZ_measure_on(int iqbit_measured);
+  double averZs(std::set<int> iqbits);
+  void snap_wavefunc();
 };
 
-} // end namespace xacc
+} // namespace tnqvm
 #endif

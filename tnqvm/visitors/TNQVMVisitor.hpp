@@ -13,9 +13,9 @@
  *     names of its contributors may be used to endorse or promote products
  *     derived from this software without specific prior written permission.
  *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ *AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ *IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
  * DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
  * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
@@ -41,23 +41,27 @@ using namespace xacc::quantum;
 namespace tnqvm {
 class TNQVMVisitor : public AllGateVisitor, public OptionsProvider {
 public:
-	virtual void initialize(std::shared_ptr<AcceleratorBuffer> buffer) = 0;
-    virtual const double getExpectationValueZ(std::shared_ptr<Function> function) {
-        XACCLogger::instance()->error("getExpectationValueZ not implemented by this visitor.");
-        return 0.0;
-    }
-	virtual const double getExecutionTime() {
-		XACCLogger::instance()->error("getExecutionTime not implemented by this Visitor.");
-		return 0.0;
-	}
-    virtual const std::vector<std::complex<double>> getState() {
-        return std::vector<std::complex<double>>{};
-    }
-	virtual void finalize() = 0;
+  virtual void initialize(std::shared_ptr<AcceleratorBuffer> buffer) = 0;
+  virtual const double
+  getExpectationValueZ(std::shared_ptr<Function> function) {
+    XACCLogger::instance()->error(
+        "getExpectationValueZ not implemented by this visitor.");
+    return 0.0;
+  }
+  virtual const double getExecutionTime() {
+    XACCLogger::instance()->error(
+        "getExecutionTime not implemented by this Visitor.");
+    return 0.0;
+  }
+  virtual const std::vector<std::complex<double>> getState() {
+    return std::vector<std::complex<double>>{};
+  }
+  virtual void finalize() = 0;
+
 protected:
-	std::shared_ptr<AcceleratorBuffer> buffer;
+  std::shared_ptr<AcceleratorBuffer> buffer;
 };
 
-}
+} // namespace tnqvm
 
 #endif /* TNQVM_TNQVMVISITOR_HPP_ */

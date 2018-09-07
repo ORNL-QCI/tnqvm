@@ -13,9 +13,9 @@
  *     names of its contributors may be used to endorse or promote products
  *     derived from this software without specific prior written permission.
  *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ *AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ *IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
  * DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
  * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
@@ -36,29 +36,24 @@
 namespace tnqvm {
 class TNQVMBuffer : public xacc::AcceleratorBuffer {
 public:
+  TNQVMBuffer(const std::string &str, const int N)
+      : xacc::AcceleratorBuffer(str, N), aver_from_wavefunc(1.),
+        aver_from_manytime(1.) {}
 
-    TNQVMBuffer(const std::string& str, const int N)
-        : xacc::AcceleratorBuffer(str,N),
-        aver_from_wavefunc (1.),
-        aver_from_manytime (1.) {}
+  virtual void resetBuffer() {
+    xacc::AcceleratorBuffer::resetBuffer();
+    aver_from_wavefunc = 1.;
+    aver_from_manytime = 1.;
+  }
 
-    virtual void resetBuffer(){
-        xacc::AcceleratorBuffer::resetBuffer();
-        aver_from_wavefunc = 1.;
-        aver_from_manytime = 1.;
-    }
+  virtual const double getExpectationValueZ() { return aver_from_wavefunc; }
 
-    virtual const double getExpectationValueZ(){
-        return aver_from_wavefunc;
-    }
+  virtual void setExpectationValueZ(const double exp) {
+    aver_from_wavefunc = exp;
+  }
 
-	virtual void setExpectationValueZ(const double exp) {
-		aver_from_wavefunc = exp;
-	}
-
-    double aver_from_wavefunc;
-    double aver_from_manytime;
-
+  double aver_from_wavefunc;
+  double aver_from_manytime;
 };
-}
+} // namespace tnqvm
 #endif

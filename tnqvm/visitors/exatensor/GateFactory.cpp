@@ -13,9 +13,9 @@
  *     names of its contributors may be used to endorse or promote products
  *     derived from this software without specific prior written permission.
  *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ *AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ *IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
  * DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
  * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
@@ -34,23 +34,33 @@
 namespace xacc {
 namespace quantum {
 
-//Static class member storage:
+// Static class member storage:
 
-constexpr const GateBodyFactory::TensDataType GateBodyFactory::HBody[ONE_BODY_VOL];
-constexpr const GateBodyFactory::TensDataType GateBodyFactory::XBody[ONE_BODY_VOL];
-constexpr const GateBodyFactory::TensDataType GateBodyFactory::YBody[ONE_BODY_VOL];
-constexpr const GateBodyFactory::TensDataType GateBodyFactory::ZBody[ONE_BODY_VOL];
-constexpr const GateBodyFactory::TensDataType GateBodyFactory::RxBody[ONE_BODY_VOL];
-constexpr const GateBodyFactory::TensDataType GateBodyFactory::RyBody[ONE_BODY_VOL];
-constexpr const GateBodyFactory::TensDataType GateBodyFactory::RzBody[ONE_BODY_VOL];
-constexpr const GateBodyFactory::TensDataType GateBodyFactory::CPBody[TWO_BODY_VOL];
-constexpr const GateBodyFactory::TensDataType GateBodyFactory::CNBody[TWO_BODY_VOL];
-constexpr const GateBodyFactory::TensDataType GateBodyFactory::SWBody[TWO_BODY_VOL];
+constexpr const GateBodyFactory::TensDataType
+    GateBodyFactory::HBody[ONE_BODY_VOL];
+constexpr const GateBodyFactory::TensDataType
+    GateBodyFactory::XBody[ONE_BODY_VOL];
+constexpr const GateBodyFactory::TensDataType
+    GateBodyFactory::YBody[ONE_BODY_VOL];
+constexpr const GateBodyFactory::TensDataType
+    GateBodyFactory::ZBody[ONE_BODY_VOL];
+constexpr const GateBodyFactory::TensDataType
+    GateBodyFactory::RxBody[ONE_BODY_VOL];
+constexpr const GateBodyFactory::TensDataType
+    GateBodyFactory::RyBody[ONE_BODY_VOL];
+constexpr const GateBodyFactory::TensDataType
+    GateBodyFactory::RzBody[ONE_BODY_VOL];
+constexpr const GateBodyFactory::TensDataType
+    GateBodyFactory::CPBody[TWO_BODY_VOL];
+constexpr const GateBodyFactory::TensDataType
+    GateBodyFactory::CNBody[TWO_BODY_VOL];
+constexpr const GateBodyFactory::TensDataType
+    GateBodyFactory::SWBody[TWO_BODY_VOL];
 
 #ifdef TNQVM_HAS_EXATENSOR
 constexpr const std::size_t GateFactory::OneBodyShape[ONE_BODY_RANK];
 constexpr const std::size_t GateFactory::TwoBodyShape[TWO_BODY_RANK];
-#endif //TNQVM_HAS_EXATENSOR
+#endif // TNQVM_HAS_EXATENSOR
 
-} //namespace quantum
-} //namespace xacc
+} // namespace quantum
+} // namespace xacc
