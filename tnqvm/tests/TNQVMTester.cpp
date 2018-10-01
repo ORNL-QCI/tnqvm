@@ -39,7 +39,7 @@
 using namespace tnqvm;
 using namespace xacc::quantum;
 
-const std::string uccsdSrc = R"uccsdSrc(def foo(theta0,theta1):
+const std::string uccsdSrc = R"uccsdSrc(def foo(buffer, theta0,theta1):
    X(0)
    X(1)
    H(3)
@@ -244,7 +244,7 @@ TEST(TNQVMTester, checkGetState) {
     p << 0, -.0571583356234;
     auto fevaled = (*f)(p);
 
-    // std::cout << "F:\n" << f->toString("q") << "\n";
+    std::cout << "F:\n" << f->toString("q") << "\n";
 
     state = acc.getAcceleratorState(fevaled);
     EXPECT_NEAR(-0.114068, std::real(state[3]), 1e-4);
