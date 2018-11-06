@@ -108,7 +108,7 @@ private:
   double execTime = 0.0;
   double singleQubitTime = 1e-8;
   double twoQubitTime = 1e-7;
-  double svdCutoff = 1e-4;
+  double svdCutoff = 1e-16;
 
   itensor::ITensor wavefunc;
   std::vector<int> iqbit2iind;
