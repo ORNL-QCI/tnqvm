@@ -95,6 +95,8 @@ public:
   void visit(Ry &gate);
   void visit(Rz &gate);
   void visit(CPhase &cp);
+  void visit(U& u);
+
   // two-qubit gates
   void visit(CNOT &gate);
   void visit(Swap &gate);

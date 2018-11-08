@@ -492,6 +492,16 @@ void ITensorMPSVisitor::visit(Rz &gate) {
   execTime += singleQubitTime;
 }
 
+void ITensorMPSVisitor::visit(U& u) {
+    Rz z1(u.bits()[0], ipToDouble(u.getParameter(0)));
+    Ry y(u.bits()[0], ipToDouble(u.getParameter(1)));
+    Rz z2(u.bits()[0], ipToDouble(u.getParameter(2)));
+
+    visit(z1);
+    visit(y);
+    visit(z2);
+  }
+  
 void ITensorMPSVisitor::visit(CPhase &cp) {
   xacc::error("ITensorMPS Visitor CPhase visit unimplemented.");
 }
