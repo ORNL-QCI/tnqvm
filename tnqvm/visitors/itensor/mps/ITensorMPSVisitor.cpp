@@ -41,14 +41,12 @@ namespace tnqvm {
 
 double ipToDouble(xacc::InstructionParameter p) {
   if (p.which() == 0) {
-    return (double)boost::get<int>(p);
+    return (double) p.as<int>();
   } else if (p.which() == 1) {
-    return boost::get<double>(p);
-  } else if (p.which() == 2) {
-    return boost::get<float>(p);
+    return p.as<double>();
   } else {
     std::stringstream s;
-    s << p;
+    s << p.toString();
     xacc::error("ITensorMPSVisitor: invalid gate parameter " +
                 std::to_string(p.which()) + ", " + s.str());
   }
