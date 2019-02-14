@@ -49,18 +49,18 @@ class CMakeBuild(build_ext):
             os.path.dirname(self.get_ext_fullpath(ext.name)))
 
         script_path = os.path.dirname(os.path.realpath(__file__))
-        install_prefix = script_path + '/' + self.build_lib + '/xacc' 
+        install_prefix = script_path + '/' + self.build_lib + '/xacc'
         print(dir(self))
         print(self.build_lib)
-  
+
         import xacc
-        cmake_args = ['-DPYTHON_INCLUDE_DIR=' + sysconfig.get_paths()['platinclude'], 
+        cmake_args = ['-DPYTHON_INCLUDE_DIR=' + sysconfig.get_paths()['platinclude'],
                       '-DXACC_DIR='+os.path.dirname(os.path.realpath(xacc.__file__)),
 		      '-DFROM_SETUP_PY=TRUE']
         args = sys.argv[1:]
         if 'install' not in args:
-           cmake_args.append('-DCMAKE_INSTALL_PREFIX='+install_prefix) #install_prefix = script_path + '/' + self.build_lib 
-        
+           cmake_args.append('-DCMAKE_INSTALL_PREFIX='+install_prefix) #install_prefix = script_path + '/' + self.build_lib
+
         cfg = 'Debug' if self.debug else 'Release'
         build_args = ['--config', cfg]
 
@@ -83,7 +83,8 @@ s = setup(
     author_email='xacc-dev@eclipse.org',
     packages=find_packages('python'),
     package_dir={'':'python'},
-    description='XACC plugins for interacting with TNQVM', 
+    install_requires=['xacc>=0.1.15'],
+    description='XACC plugins for interacting with TNQVM',
     long_description='XACC provides a language and hardware agnostic programming framework for hybrid classical-quantum applications.',
     ext_modules=[CMakeExtension('pytnqvm')],
     cmdclass={'build_ext':CMakeBuild},
