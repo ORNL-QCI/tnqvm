@@ -28,7 +28,6 @@
  *   Initial implementation - Mengsu Chen 2017.7
  *
  **********************************************************************************/
-
 #include "ITensorMPSVisitor.hpp"
 #include "AllGateVisitor.hpp"
 #include "itensor/all.h"
@@ -36,6 +35,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <cassert>
+#include "Eigen/Dense"
 
 namespace tnqvm {
 
@@ -499,7 +499,7 @@ void ITensorMPSVisitor::visit(U& u) {
     visit(y);
     visit(z2);
   }
-  
+
 void ITensorMPSVisitor::visit(CPhase &cp) {
   xacc::error("ITensorMPS Visitor CPhase visit unimplemented.");
 }

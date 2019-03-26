@@ -118,22 +118,20 @@ public:
   /**
    * Return all relevant TNQVM runtime options.
    */
-  virtual std::shared_ptr<options_description> getOptions() {
-    auto desc =
-        std::make_shared<options_description>("TNQVM Accelerator Options");
-    desc->add_options()(
-        "tnqvm-visitor", value<std::string>(),
-        "Provide visitor to be used in mapping IR to a Tensor Network.")(
-        "tnqvm-list-visitors", "List the available visitors.")(
-        "tnqvm-verbose", "")("tnqvm-one-qubit-gatetime", value<std::string>(),
-                             "The runtime in seconds for a single qubit gate.")(
-        "tnqvm-two-qubit-gatetime", value<std::string>(),
-        "The runtime in seconds for a two qubit gate.");
+  OptionPairs getOptions() override {
+    OptionPairs desc {{
+        "tnqvm-visitor",
+        "Provide visitor to be used in mapping IR to a Tensor Network."},{
+        "tnqvm-list-visitors", "List the available visitors."},{
+        "tnqvm-verbose", ""},{"tnqvm-one-qubit-gatetime",
+                             "The runtime in seconds for a single qubit gate."},{
+        "tnqvm-two-qubit-gatetime",
+        "The runtime in seconds for a two qubit gate."}};
 
     return desc;
   }
 
-  virtual bool handleOptions(variables_map &map) {
+  bool handleOptions(const std::map<std::string, std::string> &map) override {
     if (map.count("tnqvm-list-visitors")) {
       xacc::info("Available TNQVM Visitor: itensor-mps");
       xacc::info("Available TNQVM Visitor: exatensor-mps");

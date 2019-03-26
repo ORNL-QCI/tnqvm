@@ -67,16 +67,12 @@ public:
   /**
    * Return all relevant TNQVM runtime options.
    */
-  virtual std::shared_ptr<options_description> getOptions() {
-    auto desc =
-        std::make_shared<options_description>("ITensor MPS Visitor Options");
-    desc->add_options()("itensor-svd-cutoff", value<std::string>(),
+  virtual OptionPairs getOptions() {
+    OptionPairs desc{{"itensor-svd-cutoff",
                         "Provide the cutoff (default 1e-4) for the singular "
-                        "value decomposition.");
+                        "value decomposition."}};
     return desc;
   }
-
-  virtual bool handleOptions(variables_map &map) { return false; }
 
   /**
    * Return the last execute call's execution time in seconds.

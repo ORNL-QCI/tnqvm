@@ -112,8 +112,7 @@ TEST(ITensorMPSVisitorTester, checkSimpleSimulation) {
     // Initialize the visitor
     visitor->initialize(buffer);
 
-    Eigen::VectorXd v(1);
-    v(0) = theta;
+    std::vector<double> v{theta};
     auto evaled = term0->operator()(v);
 
     // Walk the IR tree, and visit each node

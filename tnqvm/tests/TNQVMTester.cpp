@@ -240,8 +240,7 @@ TEST(TNQVMTester, checkGetState) {
     auto c = xacc::getService<Compiler>("xacc-py");
     auto f = c->compile(uccsdSrc)->getKernels()[0];
 
-    Eigen::VectorXd p(2);
-    p << 0, -.0571583356234;
+    std::vector<double> p{ 0, -.0571583356234};
     auto fevaled = (*f)(p);
 
     std::cout << "F:\n" << f->toString("q") << "\n";
@@ -257,7 +256,7 @@ TEST(TNQVMTester, checkGetState) {
       count++;
     }
 
-    fevaled = (*f)(Eigen::VectorXd::Zero(2));
+    fevaled = (*f)(std::vector<double>(2));
     // should be hartree fock state
     state = acc.getAcceleratorState(fevaled);
     EXPECT_NEAR(1.0, std::real(state[12]), 1e-4);
