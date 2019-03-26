@@ -44,7 +44,3 @@ add_subdirectory(tnqvm)
 if(PYTHON_INCLUDE_DIR)
    add_subdirectory(python)
 endif()
-
-if(TNQVM_BUILD_TESTS)
-   add_subdirectory(examples) 
-endif()
