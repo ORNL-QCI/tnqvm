@@ -84,16 +84,17 @@ TEST(ITensorMPSVisitorTester, checkSimpleSimulation) {
   InstructionParameter p6(0);
   meas->setParameter(0, p6);
 
-  statePrep->addInstruction(rx);
-  statePrep->addInstruction(ry);
-  statePrep->addInstruction(rx2);
-  statePrep->addInstruction(cnot1);
-  statePrep->addInstruction(rz);
-  statePrep->addInstruction(cnot2);
-  statePrep->addInstruction(ry2);
-  statePrep->addInstruction(rx3);
+  term0->addInstruction(rx);
+  term0->addInstruction(ry);
+  term0->addInstruction(rx2);
+  term0->addInstruction(cnot1);
+  term0->addInstruction(rz);
+  term0->addInstruction(cnot2);
+  term0->addInstruction(ry2);
+  term0->addInstruction(rx3);
 
-  term0->addInstruction(statePrep);
+  std::cout << "NPARAMS: " << term0->nParameters() << "\n";
+//   term0->addInstruction(statePrep);
   term0->addInstruction(meas);
 
   auto buffer = std::make_shared<TNQVMBuffer>("qreg", 2);
@@ -242,7 +243,7 @@ TEST(ITensorMPSVisitorTester, checkSampling) {
     // Initialize the visitor
     visitor->initialize(buffer);
 
-    std::vector<double> v{theta};
+    std::vector<double> v{};
     auto evaled = term0->operator()(v);
 
     // Walk the IR tree, and visit each node
