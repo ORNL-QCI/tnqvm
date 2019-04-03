@@ -30,6 +30,7 @@
  **********************************************************************************/
 #include "TNQVM.hpp"
 //#include "ExaTensorMPSVisitor.hpp"
+#include "xacc_service.hpp"
 
 namespace tnqvm {
 

@@ -35,6 +35,7 @@
 #include <Eigen/Dense>
 #include "XACC.hpp"
 #include "IRProvider.hpp"
+#include "xacc_service.hpp"
 
 using namespace xacc::quantum;
 using namespace tnqvm;

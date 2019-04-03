@@ -35,6 +35,7 @@
 #include "Hadamard.hpp"
 #include "CNOT.hpp"
 #include "X.hpp"
+#include "xacc_service.hpp"
 
 using namespace tnqvm;
 using namespace xacc::quantum;
