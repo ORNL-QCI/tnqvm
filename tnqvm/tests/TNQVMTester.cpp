@@ -32,9 +32,7 @@
 #include <gtest/gtest.h>
 #include "TNQVM.hpp"
 #include "GateFunction.hpp"
-#include "Hadamard.hpp"
-#include "CNOT.hpp"
-#include "X.hpp"
+#include "DigitalGates.hpp"
 #include "xacc_service.hpp"
 
 using namespace tnqvm;
