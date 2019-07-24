@@ -46,7 +46,7 @@ public:
     aver_from_manytime = 1.;
   }
 
-  virtual const double getExpectationValueZ() { return aver_from_wavefunc; }
+  virtual const double getExpectationValueZ() { return mpark::get<double>(getInformation("exp-val-z")); }
 
   virtual void setExpectationValueZ(const double exp) {
     aver_from_wavefunc = exp;

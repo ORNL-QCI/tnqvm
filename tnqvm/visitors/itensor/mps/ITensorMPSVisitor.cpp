@@ -307,7 +307,7 @@ ITensorMPSVisitor::getExpectationValueZ(std::shared_ptr<Function> function) {
     }
   }
 
-  auto exp = buffer->getExpectationValueZ();
+  auto exp = mpark::get<double>(buffer->getInformation("exp-val-z"));//getExpectationValueZ();
 
   snapped = false;
   legMats_m.clear();
@@ -384,7 +384,7 @@ void ITensorMPSVisitor::visit(Measure &gate) {
   auto iqbit_measured = gate.bits()[0];
   iqbits_m.insert(iqbit_measured);
   auto expVal = averZs(iqbits_m);
-  buffer->setExpectationValueZ(expVal);
+  buffer->addExtraInfo("exp-val-z", expVal);//setExpectationValueZ(expVal);
   auto ind_measured = ind_for_qbit(iqbit_measured);
   if (verbose) {
     std::cout << "applying " << gate.name() << " @ " << iqbit_measured << ", "

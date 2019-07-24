@@ -44,7 +44,7 @@ std::shared_ptr<AcceleratorBuffer> TNQVM::createBuffer(const std::string &varId,
   if (!isValidBufferSize(size)) {
     xacc::error("TNQVM - Invalid buffer size.");
   }
-  auto buffer = std::make_shared<TNQVMBuffer>(varId, size);
+  auto buffer = std::make_shared<AcceleratorBuffer>(varId, size);
   storeBuffer(varId, buffer);
   return buffer;
 }
@@ -97,7 +97,7 @@ TNQVM::execute(std::shared_ptr<AcceleratorBuffer> buffer,
         exp = visitor->getExpectationValueZ(functions[i]);
       }
 
-      tmpBuffer->setExpectationValueZ(exp);
+      tmpBuffer->addExtraInfo("exp-val-z", exp);//setExpectationValueZ(exp);
       tmpBuffers.push_back(tmpBuffer);
     }
 
@@ -117,9 +117,9 @@ TNQVM::execute(std::shared_ptr<AcceleratorBuffer> buffer,
 void TNQVM::execute(std::shared_ptr<AcceleratorBuffer> buffer,
                     const std::shared_ptr<xacc::Function> kernel) {
 
-  if (!std::dynamic_pointer_cast<TNQVMBuffer>(buffer)) {
-    xacc::error("Invalid AcceleratorBuffer, must be a TNQVMBuffer.");
-  }
+//   if (!std::dynamic_pointer_cast<TNQVMBuffer>(buffer)) {
+//     xacc::error("Invalid AcceleratorBuffer, must be a TNQVMBuffer.");
+//   }
 
   std::string visitorType = "itensor-mps";
   if (xacc::optionExists("tnqvm-visitor")) {
