@@ -38,7 +38,7 @@ namespace tnqvm {
 
 class TNQVM : public Accelerator {
 public:
-  virtual void initialize() {
+  virtual void initialize(xacc::AcceleratorParameters params = {}) {
     if (xacc::optionExists("tnqvm-verbose")) {
       __verbose = 1;
     } else {
