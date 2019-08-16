@@ -111,8 +111,8 @@ void ITensorMPSVisitor::visit(CZ &gate) {
 }
 
 void ITensorMPSVisitor::visit(CNOT &gate) {
-  auto iqbit_in0_ori = gate.bits()[0];
-  auto iqbit_in1_ori = gate.bits()[1];
+  auto iqbit_in0_ori = (int) gate.bits()[0];
+  auto iqbit_in1_ori = (int) gate.bits()[1];
   int iqbit_in0, iqbit_in1;
   if (iqbit_in0_ori < iqbit_in1_ori - 1) {
     permute_to(iqbit_in0_ori, iqbit_in1_ori - 1);
@@ -287,7 +287,7 @@ double ITensorMPSVisitor::average(int iqbit, const ITensor &op_tensor) {
 }
 
 const double
-ITensorMPSVisitor::getExpectationValueZ(std::shared_ptr<Function> function) {
+ITensorMPSVisitor::getExpectationValueZ(std::shared_ptr<CompositeInstruction> function) {
   // std::cout << "F:\n" << function->toString("q") << "\n";
   std::map<std::string, std::pair<int, double>> reverseGates;
   std::set<int> bitsToMeasure;
@@ -302,7 +302,7 @@ ITensorMPSVisitor::getExpectationValueZ(std::shared_ptr<Function> function) {
   InstructionIterator it(function);
   while (it.hasNext()) {
     auto nextInst = it.next();
-    if (nextInst->isEnabled()) {
+    if (nextInst->isEnabled() ) {
       nextInst->accept(this);
     }
   }
@@ -418,18 +418,18 @@ void ITensorMPSVisitor::visit(Measure &gate) {
   execTime += twoQubitTime;
 }
 
-void ITensorMPSVisitor::visit(ConditionalFunction &c) {
-  auto classicalBitIdx = c.getConditionalQubit();
-  if (verbose) {
-    std::cout << "applying " << c.name() << " @ " << classicalBitIdx
-              << std::endl;
-  }
-  if (cbits[classicalBitIdx] == 1) { // TODO: add else
-    for (auto inst : c.getInstructions()) {
-      inst->accept(this);
-    }
-  }
-}
+// void ITensorMPSVisitor::visit(ConditionalFunction &c) {
+//   auto classicalBitIdx = c.getConditionalQubit();
+//   if (verbose) {
+//     std::cout << "applying " << c.name() << " @ " << classicalBitIdx
+//               << std::endl;
+//   }
+//   if (cbits[classicalBitIdx] == 1) { // TODO: add else
+//     for (auto inst : c.getInstructions()) {
+//       inst->accept(this);
+//     }
+//   }
+// }
 
 void ITensorMPSVisitor::visit(Rx &gate) {
   auto iqbit_in = gate.bits()[0];
@@ -584,7 +584,7 @@ void ITensorMPSVisitor::kickback_ind(ITensor &tensor, const Index &ind) {
   tensor.prime(ind_p, -1);
 }
 
-void ITensorMPSVisitor::visit(GateFunction &f) { return; }
+void ITensorMPSVisitor::visit(Circuit &f) { return; }
 
 ITensorMPSVisitor::~ITensorMPSVisitor() {}
 

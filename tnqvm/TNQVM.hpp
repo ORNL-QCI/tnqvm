@@ -38,95 +38,48 @@ namespace tnqvm {
 
 class TNQVM : public Accelerator {
 public:
-  virtual void initialize(xacc::AcceleratorParameters params = {}) {
+  void initialize(const xacc::HeterogeneousMap &params = {}) override {
     if (xacc::optionExists("tnqvm-verbose")) {
       __verbose = 1;
     } else {
       __verbose = 0;
     }
+    updateConfiguration(params);
   }
-
-  /**
-   * Create, store, and return an AcceleratorBuffer with the given
-   * variable id string. This string serves as a unique identifier
-   * for future lookups and reuse of the AcceleratorBuffer.
-   *
-   * @param varId
-   * @return
-   */
-  std::shared_ptr<AcceleratorBuffer> createBuffer(const std::string &varId);
-
-  /**
-   * Create, store, and return an AcceleratorBuffer with the given
-   * variable id string and of the given number of bits.
-   * The string id serves as a unique identifier
-   * for future lookups and reuse of the AcceleratorBuffer.
-   *
-   * @param varId
-   * @param size
-   * @return
-   */
-  std::shared_ptr<AcceleratorBuffer> createBuffer(const std::string &varId,
-                                                  const int size);
-
-  /**
-   * Return true if this Accelerator can allocated
-   * NBits number of bits.
-   * @param NBits
-   * @return
-   */
-  virtual bool isValidBufferSize(const int NBits);
-
-  /**
-   * Return the last execute call's execution time in seconds.
-   *
-   * @return runtime The execution time in seconds.
-   */
-  virtual const double getExecutionTime() {
-    if (visitor)
-      return visitor->getExecutionTime();
-    else
-      return 0.0;
+  void updateConfiguration(const HeterogeneousMap &config) override {
+    if (config.keyExists<bool>("verbose") && config.get<bool>("verbose")) {
+      __verbose = 1;
+    }
+    if (config.keyExists<bool>("vqe-mode")) {
+      vqeMode = config.get<bool>("vqe-mode");
+    }
   }
+  const std::vector<std::string> configurationKeys() override { return {}; }
 
-  /**
-   * Execute the simulation. Requires both a valid SimulatedQubits buffer and
-   * XACC IR Function instance modeling the quantum circuit.
-   *
-   * @param ir
-   */
-  virtual void execute(std::shared_ptr<AcceleratorBuffer> buffer,
-                       const std::shared_ptr<xacc::Function> kernel);
-
-  /**
-   * Execute a set of kernels with one remote call. Return
-   * a list of AcceleratorBuffers that provide a new view
-   * of the given one AcceleratorBuffer. The ith AcceleratorBuffer
-   * contains the results of the ith kernel execution.
-   *
-   * @param buffer The AcceleratorBuffer to execute on
-   * @param functions The list of IR Functions to execute
-   * @return tempBuffers The list of new AcceleratorBuffers
-   */
-  virtual std::vector<std::shared_ptr<AcceleratorBuffer>>
+  void
   execute(std::shared_ptr<AcceleratorBuffer> buffer,
-          const std::vector<std::shared_ptr<Function>> functions);
+          const std::shared_ptr<xacc::CompositeInstruction> kernel) override;
 
-  virtual const std::vector<std::complex<double>>
-  getAcceleratorState(std::shared_ptr<Function> program);
+  void execute(std::shared_ptr<AcceleratorBuffer> buffer,
+               const std::vector<std::shared_ptr<CompositeInstruction>>
+                   functions) override;
+
+  const std::vector<std::complex<double>>
+  getAcceleratorState(std::shared_ptr<CompositeInstruction> program) override;
 
   /**
    * Return all relevant TNQVM runtime options.
    */
   OptionPairs getOptions() override {
-    OptionPairs desc {{
-        "tnqvm-visitor",
-        "Provide visitor to be used in mapping IR to a Tensor Network."},{
-        "tnqvm-list-visitors", "List the available visitors."},{
-        "tnqvm-verbose", ""},{"tnqvm-one-qubit-gatetime",
-                             "The runtime in seconds for a single qubit gate."},{
-        "tnqvm-two-qubit-gatetime",
-        "The runtime in seconds for a two qubit gate."}};
+    OptionPairs desc{
+        {"tnqvm-visitor",
+         "Provide visitor to be used in mapping IR to a Tensor Network."},
+        {"tnqvm-list-visitors", "List the available visitors."},
+        {"tnqvm-verbose", ""},
+        {"tnqvm-one-qubit-gatetime",
+         "The runtime in seconds for a single qubit gate."},
+        {"tnqvm-two-qubit-gatetime",
+         "The runtime in seconds for a two qubit gate."}};
 
     return desc;
   }
@@ -140,34 +93,17 @@ public:
     return false;
   }
 
-  /**
-   * This Accelerator models QPU Gate accelerators.
-   * @return
-   */
-  virtual AcceleratorType getType() { return AcceleratorType::qpu_gate; }
+  const std::string name() const override { return "tnqvm"; }
 
-  virtual const std::string name() const { return "tnqvm"; }
-
-  virtual const std::string description() const {
+  const std::string description() const override {
     return "XACC tensor netowrk quantum virtual machine (TNQVM) Accelerator";
   }
 
-  /**
-   * We have no need to transform the IR for this Accelerator,
-   * so return an empty list
-   * @return
-   */
-  virtual std::vector<std::shared_ptr<xacc::IRTransformation>>
-  getIRTransformations() {
+  std::vector<std::shared_ptr<xacc::IRTransformation>>
+  getIRTransformations() override {
     std::vector<std::shared_ptr<xacc::IRTransformation>> v;
     return v;
   }
-
-  virtual bool isPhysical() { return false; }
-
-  /**
-   * The destructor
-   */
   virtual ~TNQVM() {}
 
   int verbose() const { return __verbose; }
@@ -180,8 +116,9 @@ protected:
   std::shared_ptr<TNQVMVisitor> visitor;
 
 private:
-  int __verbose;
+  int __verbose = 1;
   bool executedOnce = false;
+  bool vqeMode = true;
 };
 } // namespace tnqvm
 

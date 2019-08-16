@@ -29,97 +29,67 @@
  *
  **********************************************************************************/
 #include "TNQVM.hpp"
-//#include "ExaTensorMPSVisitor.hpp"
+#include "/home/cades/dev/xacc/quantum/observable/pauli/PauliOperator.hpp"
+#include "XACC.hpp"
 #include "xacc_service.hpp"
 
 namespace tnqvm {
 
-std::shared_ptr<AcceleratorBuffer>
-TNQVM::createBuffer(const std::string &varId) {
-  return createBuffer(varId, 100);
-}
+void TNQVM::execute(
+    std::shared_ptr<AcceleratorBuffer> buffer,
+    const std::vector<std::shared_ptr<xacc::CompositeInstruction>> functions) {
 
-std::shared_ptr<AcceleratorBuffer> TNQVM::createBuffer(const std::string &varId,
-                                                       const int size) {
-  if (!isValidBufferSize(size)) {
-    xacc::error("TNQVM - Invalid buffer size.");
-  }
-  auto buffer = std::make_shared<AcceleratorBuffer>(varId, size);
-  storeBuffer(varId, buffer);
-  return buffer;
-}
+  if (vqeMode) {
+    // Here we assume we have one ansatz function,
+    // functions[0]->getInstruction(0)
 
-bool TNQVM::isValidBufferSize(const int NBits) { return NBits <= 1000; }
+    visitor = xacc::getService<TNQVMVisitor>("itensor-mps")->clone();
 
-std::vector<std::shared_ptr<AcceleratorBuffer>>
-TNQVM::execute(std::shared_ptr<AcceleratorBuffer> buffer,
-               const std::vector<std::shared_ptr<Function>> functions) {
+    // Initialize the visitor
+    visitor->initialize(buffer);
 
-  int counter = 0;
-  std::vector<std::shared_ptr<AcceleratorBuffer>> tmpBuffers;
-
-  if (xacc::optionExists("run-and-measure")) {
-    // Here we assume we have one ansatz function, functions[0].
-    // The rest are measurements to be made.
-    // Get the visitor backend
-
-    if (xacc::optionExists("tnqvm-reset-visitor") &&
-        xacc::getOption("tnqvm-reset-visitor") == "true") {
-      executedOnce = false;
-      xacc::setOption("tnqvm-reset-visitor", "false");
-    }
-
-    if (!executedOnce) {
-      visitor = xacc::getService<TNQVMVisitor>("itensor-mps");
-
-      // Initialize the visitor
-      visitor->initialize(buffer);
-
-      // Walk the IR tree, and visit each node
-      InstructionIterator it(functions[0]);
-      while (it.hasNext()) {
-        auto nextInst = it.next();
-        if (nextInst->isEnabled()) {
-          nextInst->accept(visitor);
-        }
+    // Walk the IR tree, and visit each node
+    InstructionIterator it(std::dynamic_pointer_cast<CompositeInstruction>(
+        functions[0]->getInstruction(0)));
+    while (it.hasNext()) {
+      auto nextInst = it.next();
+      if (nextInst->isEnabled() && !nextInst->isComposite()) {
+        nextInst->accept(visitor);
       }
-      executedOnce = true;
     }
+
+    // Clean way to remove the ansatz and just have measurements
+    auto ir = xacc::getIRProvider("quantum")->createIR();
+    for (auto &f : functions)
+      f->getInstruction(0)->disable();
 
     // Now we have a wavefunction that represents
     // execution of the ansatz. Make measurements
-    for (int i = 1; i < functions.size(); i++) {
-      double exp = 1.0;
-      auto tmpBuffer =
-          createBuffer(buffer->name() + std::to_string(i - 1), buffer->size());
-
-      if (functions[i]->nInstructions() > 0) {
-        exp = visitor->getExpectationValueZ(functions[i]);
-      }
-
-      tmpBuffer->addExtraInfo("exp-val-z", exp);//setExpectationValueZ(exp);
-      tmpBuffers.push_back(tmpBuffer);
+    for (int i = 0; i < functions.size(); i++) {
+      auto tmpBuffer = std::make_shared<xacc::AcceleratorBuffer>(
+          functions[i]->name(), buffer->size());
+      double e = visitor->getExpectationValueZ(functions[i]);
+      tmpBuffer->addExtraInfo("exp-val-z", e);
+      buffer->appendChild(functions[i]->name(), tmpBuffer);
     }
 
+    for (auto &f : functions)
+      f->getInstruction(0)->enable();
+      
   } else {
     for (auto f : functions) {
-      auto tmpBuffer = createBuffer(buffer->name() + std::to_string(counter),
-                                    buffer->size());
+      auto tmpBuffer =
+          std::make_shared<xacc::AcceleratorBuffer>(f->name(), buffer->size());
       execute(tmpBuffer, f);
-      tmpBuffers.push_back(tmpBuffer);
-      counter++;
+      buffer->appendChild(f->name(), tmpBuffer);
     }
   }
 
-  return tmpBuffers;
+  return;
 }
 
-void TNQVM::execute(std::shared_ptr<AcceleratorBuffer> buffer,
-                    const std::shared_ptr<xacc::Function> kernel) {
-
-//   if (!std::dynamic_pointer_cast<TNQVMBuffer>(buffer)) {
-//     xacc::error("Invalid AcceleratorBuffer, must be a TNQVMBuffer.");
-//   }
+void TNQVM::execute(std::shared_ptr<xacc::AcceleratorBuffer> buffer,
+                    const std::shared_ptr<xacc::CompositeInstruction> kernel) {
 
   std::string visitorType = "itensor-mps";
   if (xacc::optionExists("tnqvm-visitor")) {
@@ -146,7 +116,7 @@ void TNQVM::execute(std::shared_ptr<AcceleratorBuffer> buffer,
 }
 
 const std::vector<std::complex<double>>
-TNQVM::getAcceleratorState(std::shared_ptr<Function> program) {
+TNQVM::getAcceleratorState(std::shared_ptr<CompositeInstruction> program) {
   std::string visitorType = "itensor-mps";
   if (xacc::optionExists("tnqvm-visitor")) {
     visitorType = xacc::getOption("tnqvm-visitor");
@@ -174,7 +144,7 @@ TNQVM::getAcceleratorState(std::shared_ptr<Function> program) {
     maxBit = std::stoi(xacc::getOption("n-qubits")) - 1;
   }
 
-  auto buffer = std::make_shared<TNQVMBuffer>("q", maxBit + 1);
+  auto buffer = std::make_shared<xacc::AcceleratorBuffer>("q", maxBit + 1);
 
   // Initialize the visitor
   visitor->initialize(buffer);

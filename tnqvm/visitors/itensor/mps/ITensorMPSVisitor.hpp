@@ -1,4 +1,4 @@
-/***********************************************************************************
+ /***********************************************************************************
  * Copyright (c) 2017, UT-Battelle
  * All rights reserved.
  *
@@ -39,8 +39,7 @@
 
 namespace tnqvm {
 
-class ITensorMPSVisitor : public TNQVMVisitor,
-                          public xacc::Cloneable<TNQVMVisitor> {
+class ITensorMPSVisitor : public TNQVMVisitor {
   using ITensor = itensor::ITensor;
   using Index = itensor::Index;
   using IndexVal = itensor::IndexVal;
@@ -53,7 +52,7 @@ public:
     return std::make_shared<ITensorMPSVisitor>();
   }
 
-  virtual const double getExpectationValueZ(std::shared_ptr<Function> function);
+  virtual const double getExpectationValueZ(std::shared_ptr<CompositeInstruction> function);
 
   virtual void initialize(std::shared_ptr<AcceleratorBuffer> buffer);
   virtual void finalize() {}
@@ -74,14 +73,7 @@ public:
     return desc;
   }
 
-  /**
-   * Return the last execute call's execution time in seconds.
-   *
-   * @return runtime The execution time in seconds.
-   */
-  virtual const double getExecutionTime() { return execTime; }
-
-  // one-qubit gates
+   // one-qubit gates
   void visit(Identity &gate) {}
   void visit(Hadamard &gate);
   void visit(X &gate);
@@ -99,8 +91,7 @@ public:
   void visit(CZ &gate);
   // others
   void visit(Measure &gate);
-  void visit(ConditionalFunction &c);
-  void visit(GateFunction &f);
+  void visit(Circuit &f);
 
 private:
   double execTime = 0.0;

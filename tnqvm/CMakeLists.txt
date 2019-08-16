@@ -32,7 +32,7 @@ usFunctionEmbedResources(TARGET ${LIBRARY_NAME}
 
 target_include_directories(${LIBRARY_NAME} PUBLIC . visitors)
 
-target_link_libraries(${LIBRARY_NAME} PUBLIC xacc::xacc xacc::quantum_gate lapack blas)
+target_link_libraries(${LIBRARY_NAME} PUBLIC xacc::xacc xacc::quantum_gate xacc::pauli lapack blas)
 
 xacc_configure_plugin_rpath(tnqvm)
 

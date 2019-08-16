@@ -32,27 +32,23 @@
 #define TNQVM_TNQVMVISITOR_HPP_
 
 #include "Identifiable.hpp"
-#include "TNQVMBuffer.hpp"
 #include "AllGateVisitor.hpp"
 
 using namespace xacc;
 using namespace xacc::quantum;
 
 namespace tnqvm {
-class TNQVMVisitor : public AllGateVisitor, public OptionsProvider {
+class TNQVMVisitor : public AllGateVisitor, public OptionsProvider,
+                     public xacc::Cloneable<TNQVMVisitor> {
 public:
   virtual void initialize(std::shared_ptr<AcceleratorBuffer> buffer) = 0;
   virtual const double
-  getExpectationValueZ(std::shared_ptr<Function> function) {
+  getExpectationValueZ(std::shared_ptr<CompositeInstruction> function) {
     XACCLogger::instance()->error(
         "getExpectationValueZ not implemented by this visitor.");
     return 0.0;
   }
-  virtual const double getExecutionTime() {
-    XACCLogger::instance()->error(
-        "getExecutionTime not implemented by this Visitor.");
-    return 0.0;
-  }
+
   virtual const std::vector<std::complex<double>> getState() {
     return std::vector<std::complex<double>>{};
   }

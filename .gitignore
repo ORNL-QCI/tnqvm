@@ -1,6 +1,6 @@
 # Prerequisites
 *.d
-
+/ITensor/*
 # Compiled Object files
 *.slo
 *.lo
