@@ -39,7 +39,7 @@ void TNQVM::execute(
     std::shared_ptr<AcceleratorBuffer> buffer,
     const std::vector<std::shared_ptr<xacc::CompositeInstruction>> functions) {
 
-  if (vqeMode) {
+  if (vqeMode && functions[0]->getInstruction(0)->isComposite()) {
     // Here we assume we have one ansatz function,
     // functions[0]->getInstruction(0)
 
@@ -75,7 +75,7 @@ void TNQVM::execute(
 
     for (auto &f : functions)
       f->getInstruction(0)->enable();
-      
+
   } else {
     for (auto f : functions) {
       auto tmpBuffer =

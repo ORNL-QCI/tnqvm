@@ -584,7 +584,7 @@ void ITensorMPSVisitor::kickback_ind(ITensor &tensor, const Index &ind) {
   tensor.prime(ind_p, -1);
 }
 
-void ITensorMPSVisitor::visit(Circuit &f) { return; }
+// void ITensorMPSVisitor::visit(Circuit &f) { return; }
 
 ITensorMPSVisitor::~ITensorMPSVisitor() {}
 

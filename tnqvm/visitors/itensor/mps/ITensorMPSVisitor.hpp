@@ -91,7 +91,7 @@ public:
   void visit(CZ &gate);
   // others
   void visit(Measure &gate);
-  void visit(Circuit &f);
+//   void visit(Circuit &f);
 
 private:
   double execTime = 0.0;
