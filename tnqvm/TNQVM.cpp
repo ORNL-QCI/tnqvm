@@ -30,7 +30,7 @@
  **********************************************************************************/
 #include "TNQVM.hpp"
 #include "/home/cades/dev/xacc/quantum/observable/pauli/PauliOperator.hpp"
-#include "XACC.hpp"
+#include "xacc.hpp"
 #include "xacc_service.hpp"
 
 namespace tnqvm {

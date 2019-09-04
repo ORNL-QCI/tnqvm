@@ -33,7 +33,7 @@
 #include "ITensorMPSVisitor.hpp"
 #include "InstructionIterator.hpp"
 #include <Eigen/Dense>
-#include "XACC.hpp"
+#include "xacc.hpp"
 #include "IRProvider.hpp"
 #include "xacc_service.hpp"
 

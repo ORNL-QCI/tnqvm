@@ -31,7 +31,7 @@
 #ifndef TNQVM_TNQVM_HPP_
 #define TNQVM_TNQVM_HPP_
 
-#include "XACC.hpp"
+#include "xacc.hpp"
 #include "TNQVMVisitor.hpp"
 
 namespace tnqvm {

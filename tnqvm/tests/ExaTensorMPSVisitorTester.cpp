@@ -36,7 +36,7 @@
 #include "CNOT.hpp"
 #include "X.hpp"
 #include "ExaTensorMPSVisitor.hpp"
-#include "XACC.hpp"
+#include "xacc.hpp"
 
 TEST(ExaTensorMPSVisitorTester, checkExaTensorMPSVisitor) {
 
