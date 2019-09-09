@@ -55,6 +55,7 @@ public:
     }
   }
   const std::vector<std::string> configurationKeys() override { return {}; }
+//   const std::string getSignature() override {return name()+":";}
 
   void
   execute(std::shared_ptr<AcceleratorBuffer> buffer,
