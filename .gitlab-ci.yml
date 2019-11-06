@@ -1,0 +1,17 @@
+stages:
+  - build
+
+docker build_devel:
+  stage: build
+  only:
+  - devel
+  script:
+  - cd docker/ci/ubuntu1804/devel && docker build -t tnqvm/devel-ci . --no-cache
+
+docker build_master:
+  stage: build
+  only:
+  - master
+  script:
+  - cd docker/ci/ubuntu1804/master && docker build -t tnqvm/master-ci . --no-cache
+

@@ -13,7 +13,7 @@ public:
   void Start(BundleContext context) {
     auto acc = std::make_shared<tnqvm::TNQVM>();
     context.RegisterService<xacc::Accelerator>(acc);
-    context.RegisterService<xacc::OptionsProvider>(acc);
+    // context.RegisterService<xacc::OptionsProvider>(acc);
   }
 
   void Stop(BundleContext context) {}

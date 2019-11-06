@@ -1,4 +1,8 @@
-[![Build Status](https://travis-ci.org/ORNL-QCI/tnqvm.svg?branch=master)](https://travis-ci.org/ORNL-QCI/tnqvm)
+| Branch | Status |
+|:-------|:-------|
+|master | [![pipeline status](https://code.ornl.gov/qci/tnqvm/badges/master/pipeline.svg)](https://code.ornl.gov/qci/tnqvm/commits/master) |
+|devel | [![pipeline status](https://code.ornl.gov/qci/tnqvm/badges/devel/pipeline.svg)](https://code.ornl.gov/qci/tnqvm/commits/devel) |
+
 
 # TNQVM Tensor Network XACC Accelerator
 These plugins for XACC provide an Accelerator implementation that leverages tensor network theory to simulate quantum circuits.
@@ -13,7 +17,7 @@ or CMake and Make without Python support
 ```bash
 $ mkdir build && cd build
 $ cmake .. -DXACC_DIR=$HOME/.xacc (or wherever you installed XACC)
-$ make install 
+$ make install
 ```
 or with Python support
 ```bash

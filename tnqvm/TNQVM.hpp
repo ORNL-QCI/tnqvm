@@ -68,43 +68,12 @@ public:
   const std::vector<std::complex<double>>
   getAcceleratorState(std::shared_ptr<CompositeInstruction> program) override;
 
-  /**
-   * Return all relevant TNQVM runtime options.
-   */
-  OptionPairs getOptions() override {
-    OptionPairs desc{
-        {"tnqvm-visitor",
-         "Provide visitor to be used in mapping IR to a Tensor Network."},
-        {"tnqvm-list-visitors", "List the available visitors."},
-        {"tnqvm-verbose", ""},
-        {"tnqvm-one-qubit-gatetime",
-         "The runtime in seconds for a single qubit gate."},
-        {"tnqvm-two-qubit-gatetime",
-         "The runtime in seconds for a two qubit gate."}};
-
-    return desc;
-  }
-
-  bool handleOptions(const std::map<std::string, std::string> &map) override {
-    if (map.count("tnqvm-list-visitors")) {
-      xacc::info("Available TNQVM Visitor: itensor-mps");
-      xacc::info("Available TNQVM Visitor: exatensor-mps");
-      return true;
-    }
-    return false;
-  }
-
   const std::string name() const override { return "tnqvm"; }
 
   const std::string description() const override {
     return "XACC tensor netowrk quantum virtual machine (TNQVM) Accelerator";
   }
 
-  std::vector<std::shared_ptr<xacc::IRTransformation>>
-  getIRTransformations() override {
-    std::vector<std::shared_ptr<xacc::IRTransformation>> v;
-    return v;
-  }
   virtual ~TNQVM() {}
 
   int verbose() const { return __verbose; }
