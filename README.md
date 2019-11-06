@@ -8,19 +8,10 @@ These plugins for XACC provide an Accelerator implementation that leverages tens
 
 Installation
 ------------
-With the XACC framework installed, users can choose a couple ways to install these plugins - using Python/Pip
-```bash
-$ python -m pip install --user .
-```
-or CMake and Make without Python support
+With the XACC framework installed, run the following
 ```bash
 $ mkdir build && cd build
 $ cmake .. -DXACC_DIR=$HOME/.xacc (or wherever you installed XACC)
-$ make install
-```
-or with Python support
-```bash
-$ cmake .. -DXACC_DIR=$(python -m pyxacc -L)
 $ make install
 ```
 
@@ -40,3 +31,23 @@ License
 -------
 
 TNQVM is licensed - [BSD 3-Clause](LICENSE).
+
+
+Cite TNQVM
+----------
+If you use TNQVM in your research, please use the following citation
+```
+@article{tnqvm,
+    author = {McCaskey, Alexander AND Dumitrescu, Eugene AND Chen, Mengsu AND Lyakh, Dmitry AND Humble, Travis},
+    journal = {PLOS ONE},
+    publisher = {Public Library of Science},
+    title = {Validating quantum-classical programming models with tensor network simulations},
+    year = {2018},
+    month = {12},
+    volume = {13},
+    url = {https://doi.org/10.1371/journal.pone.0206704},
+    pages = {1-19},
+    number = {12},
+    doi = {10.1371/journal.pone.0206704}
+}
+```
