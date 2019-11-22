@@ -28,6 +28,5 @@
 #   Initial API and implementation - Alex McCaskey
 #
 #**********************************************************************************/
-include_directories(${XACC_INCLUDE_DIRS})
-add_executable(teleport_scaffold_tnqvm teleport_scaffold_tnqvm.cpp)
-target_link_libraries(teleport_scaffold_tnqvm PRIVATE xacc::xacc)
+
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})

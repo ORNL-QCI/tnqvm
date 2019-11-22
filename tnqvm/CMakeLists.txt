@@ -38,7 +38,9 @@ xacc_configure_plugin_rpath(tnqvm)
 
 install(TARGETS ${LIBRARY_NAME} DESTINATION ${CMAKE_INSTALL_PREFIX}/plugins)
 
+add_subdirectory(base)
+
 # Gather tests
 if(TNQVM_BUILD_TESTS)
-	add_subdirectory(tests)
+    add_subdirectory(tests)
 endif()
