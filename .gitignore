@@ -37,3 +37,7 @@
 **/.ptp*
 /dist/
 /python/*egg*
+
+# IDE Configs
+/.vscode/*
+/.theia/*
