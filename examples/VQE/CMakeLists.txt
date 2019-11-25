@@ -28,8 +28,6 @@
 #   Initial API and implementation - Alex McCaskey
 #
 #**********************************************************************************/
-find_package(XACC REQUIRED)
-
 include_directories(${XACC_INCLUDE_DIRS})
 include_directories(${CMAKE_SOURCE_DIR})
 link_directories   (${XACC_LIBRARY_DIRS})
@@ -37,8 +35,8 @@ link_directories   (${XACC_LIBRARY_DIRS})
 
 add_executable(h2_exp_vals_scaffold_tnqvm h2_exp_vals_scaffold_tnqvm.cpp)
 add_dependencies(h2_exp_vals_scaffold_tnqvm projitensor tnqvm)
-target_link_libraries(h2_exp_vals_scaffold_tnqvm ${Boost_LIBRARIES} ${XACC_LIBRARIES})
+target_link_libraries(h2_exp_vals_scaffold_tnqvm PRIVATE xacc::xacc)
 
 add_executable(h2_exp_vals_multi_exec h2_exp_vals_multi_exec.cpp)
 add_dependencies(h2_exp_vals_multi_exec projitensor tnqvm)
-target_link_libraries(h2_exp_vals_multi_exec ${Boost_LIBRARIES} ${XACC_LIBRARIES})
+target_link_libraries(h2_exp_vals_multi_exec PRIVATE xacc::xacc)

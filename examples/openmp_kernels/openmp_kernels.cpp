@@ -28,10 +28,10 @@
  *   Initial API and implementation - Alex McCaskey
  *
  **********************************************************************************/
-#include "XACC.hpp"
+#include "xacc.hpp"
 
 //#include "kernels_src.hpp"
-
+// !!! IMPORTANT NOTE !!! This XASM source code is *OBSOLETE*, hence may not be compiled by the latest XACC compiler.
 const char* circuit_src = R"src((qbit qreg, double theta0, double theta1){
 cbit creg[4];
 X(qreg[0]);
@@ -218,11 +218,12 @@ int main (int argc, char** argv) {
 	// Allocate a register of 2 qubits
 	// Create a Program
 	auto qpu = xacc::getAccelerator("tnqvm");
-	auto dummy_buffer = qpu->createBuffer("qreg", 4); // to work around Error "Could not find AcceleratorBuffer with id qreg"
+	auto dummy_buffer = xacc::qalloc(4); // to work around Error "Could not find AcceleratorBuffer with id qreg"
 	const int n_copies = 1000;
 	auto src = n_copies_kernel_src(n_copies);
-	xacc::Program program(qpu, src);
-	auto kernels = program.getRuntimeKernels();
+	auto xasmCompiler = xacc::getCompiler("xasm");
+  	auto program = xasmCompiler->compile(src, qpu);
+	auto kernels = program->getComposites();
 
 	// Execute!
 	double pi = 3.14159265359;
@@ -232,10 +233,9 @@ int main (int argc, char** argv) {
 	double sum = 0.;
 #pragma omp parallel for reduction (+:sum), num_threads(8)
 	for(int i=0; i < kernels.size(); ++i){
-		auto irFunction = kernels[i].getIRFunction();
 		auto localqpu = xacc::getAccelerator("tnqvm");
-		auto buffer = localqpu->createBuffer("qreg", 4);
-		localqpu->execute(buffer, irFunction);
+		auto buffer = xacc::qalloc(4);
+		localqpu->execute(buffer, kernels[i]);
 		auto aver = buffer->getExpectationValueZ();
 		sum += aver;
 	}

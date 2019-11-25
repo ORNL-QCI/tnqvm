@@ -28,11 +28,12 @@
  *   Initial API and implementation - Alex McCaskey
  *
  **********************************************************************************/
-#include "XACC.hpp"
+#include "xacc.hpp"
 
 // Quantum Kernel executing teleportation of
 // qubit state to another.
 // test
+// !!! IMPORTANT NOTE !!! This XASM source code is *OBSOLETE*, hence may not be compiled by the latest XACC compiler.
     const char* src = R"src(
 __qpu__ prepare_ansatz(qbit qreg, double theta){
 	Rx(qreg[0], 3.1415926);
@@ -78,23 +79,26 @@ int main (int argc, char** argv) {
 	auto qpu = xacc::getAccelerator("tnqvm");
 
 	// Allocate a register of 2 qubits
-	auto qubitReg = qpu->createBuffer("qreg", 2);
+	auto qubitReg = xacc::qalloc(2);
 
 	// Create a Program
-	xacc::Program program(qpu, src);
-	program.build();
+	auto xasmCompiler = xacc::getCompiler("xasm");
+  	auto program = xasmCompiler->compile(src, qpu);
+	
 	int n_terms=3;
-	auto hamiltonianTermKernels = program.getKernels<double>(1, 4);
+	auto hamiltonianTermKernels = program->getComposites();
 
 	// Execute!
 	for(double theta = -pi; theta<=pi; theta += .1){
 		file<<theta;
-
-		auto tempBuffers = hamiltonianTermKernels(qubitReg, theta);
-		for (auto b : tempBuffers) {
+		
+		for (auto& kernel: hamiltonianTermKernels){
+			auto k_evaled = kernel->operator()({ theta });
+			qpu->execute(qubitReg, k_evaled);
 			file << ", ";
-			file << b->getExpectationValueZ();
+			file << qubitReg->getExpectationValueZ();
 		}
+
 		file << "\n";
 		file.flush();
 	}
