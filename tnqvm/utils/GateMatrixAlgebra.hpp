@@ -30,7 +30,7 @@
 **********************************************************************************/
 
 // Simple linear algebra quantum gate simulator
-
+#pragma once
 #include<complex>
 #include<vector>
 #include <assert.h>
