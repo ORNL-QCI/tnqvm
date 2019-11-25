@@ -36,6 +36,8 @@
 #include "xacc.hpp"
 #include "IRProvider.hpp"
 #include "xacc_service.hpp"
+#include "utils/GateMatrixAlgebra.hpp"
+#include "base/Gates.hpp"
 
 using namespace xacc::quantum;
 using namespace tnqvm;
@@ -47,27 +49,44 @@ TEST(ITensorMPSVisitorTester, checkSimpleSimulation) {
   auto statePrep = gateRegistry->createComposite("statePrep", { "theta" });
 
   auto term0 = gateRegistry->createComposite("term0", { "theta" });
+  
+  const auto calculateExpectedResult = [](double in_theta) -> double {
+    // Create a 2-qubit state vector for validation 
+    auto expectedStateVector = AllocateStateVector(2);
+    ApplySingleQubitGate(expectedStateVector, 0, GetGateMatrix<CommonGates::Rx>(3.1415926));
+    ApplySingleQubitGate(expectedStateVector, 1, GetGateMatrix<CommonGates::Ry>(3.1415926 / 2.0));
+    ApplySingleQubitGate(expectedStateVector, 0, GetGateMatrix<CommonGates::Rx>(7.8539752));
+    ApplyCNOTGate(expectedStateVector, 1, 0);
+    ApplySingleQubitGate(expectedStateVector, 0, GetGateMatrix<CommonGates::Rz>(in_theta));
+    ApplyCNOTGate(expectedStateVector, 1, 0);
+    ApplySingleQubitGate(expectedStateVector, 1, GetGateMatrix<CommonGates::Ry>(7.8539752));
+    ApplySingleQubitGate(expectedStateVector, 0, GetGateMatrix<CommonGates::Rx>(3.1415926 / 2.0));
+
+    // Return the expected-Z of the first qubit
+    return -1.0 * (std::pow(std::abs(expectedStateVector[1]), 2) + std::pow(std::abs(expectedStateVector[3]), 2)) 
+    + 1.0 * (std::pow(std::abs(expectedStateVector[0]), 2) + std::pow(std::abs(expectedStateVector[2]), 2));
+  };  
 
   auto rx = gateRegistry->createInstruction("Rx", std::vector<std::size_t>{0});
   InstructionParameter p0(3.1415926);
   rx->setParameter(0, p0);
-
+  
   auto ry = gateRegistry->createInstruction("Ry", std::vector<std::size_t>{1});
   InstructionParameter p1(3.1415926 / 2.0);
   ry->setParameter(0, p1);
-
+  
   auto rx2 = gateRegistry->createInstruction("Rx", std::vector<std::size_t>{0});
   InstructionParameter p2(7.8539752);
   rx2->setParameter(0, p2);
-
+ 
   auto cnot1 = gateRegistry->createInstruction("CNOT", std::vector<std::size_t>{1, 0});
-
+ 
   auto rz = gateRegistry->createInstruction("Rz", std::vector<std::size_t>{0});
   InstructionParameter p3("theta");
   rz->setParameter(0, p3);
-
+ 
   auto cnot2 = gateRegistry->createInstruction("CNOT", std::vector<std::size_t>{1, 0});
-
+  
   auto ry2 = gateRegistry->createInstruction("Ry", std::vector<std::size_t>{1});
   InstructionParameter p4(7.8539752);
   ry2->setParameter(0, p4);
@@ -90,14 +109,14 @@ TEST(ITensorMPSVisitorTester, checkSimpleSimulation) {
   term0->addInstruction(rx3);
   term0->addInstruction(meas);
 
-  auto buffer = xacc::qalloc(2);
-
-  // Get the visitor backend
-  auto visitor = std::make_shared<ITensorMPSVisitor>();
-  auto visCast = std::dynamic_pointer_cast<BaseInstructionVisitor>(visitor);
-
-  auto run = [&](std::shared_ptr<ITensorMPSVisitor> visitor,
-                double theta) -> double {
+  const auto run = [&term0](double theta) -> double {
+    auto buffer = xacc::qalloc(2);
+     // Get the visitor backend
+    auto visitor = std::make_shared<ITensorMPSVisitor>();
+    auto visCast = std::dynamic_pointer_cast<BaseInstructionVisitor>(visitor);
+    
+    // NOTE: there is bug in TNQVMBuffer::resetBuffer, it is currently doing *nothing*,
+    // hence we cannot reuse the buffer between runs, i.e. must do xacc::qalloc() to guarantee initial state.
     buffer->resetBuffer();
     // Initialize the visitor
     visitor->initialize(buffer);
@@ -121,13 +140,28 @@ TEST(ITensorMPSVisitorTester, checkSimpleSimulation) {
     return result;
   };
 
-  auto pi = 3.1415926;
-
-  EXPECT_NEAR(-1, run(visitor, -pi), 1e-8); // < 1e-8);
-  EXPECT_NEAR(-0.128844, run(visitor, -1.44159), 1e-5);
-  EXPECT_NEAR(0.307333, run(visitor, 1.25841), 1e-8);
-  EXPECT_NEAR(-.283662, run(visitor, 1.85841), 1e-8);
-  EXPECT_NEAR(-1,run(visitor, pi), 1e-8);
+  const auto pi = 3.1415926;
+  const auto epsilon = 1e-12;
+  {
+    const auto expectedValue = calculateExpectedResult(-pi);
+    EXPECT_NEAR(expectedValue, run(-pi), epsilon);
+  }
+  {
+    const auto expectedValue = calculateExpectedResult(-1.44159);
+    EXPECT_NEAR(expectedValue, run(-1.44159), epsilon);
+  }
+  {
+    const auto expectedValue = calculateExpectedResult(1.25841);
+    EXPECT_NEAR(expectedValue, run(1.25841), epsilon);
+  }
+  {
+    const auto expectedValue = calculateExpectedResult(1.85841);
+    EXPECT_NEAR(expectedValue, run(1.85841), epsilon);
+  }
+  {
+    const auto expectedValue = calculateExpectedResult(pi);
+    EXPECT_NEAR(expectedValue,run(pi), epsilon);
+  }  
 }
 
 TEST(ITensorMPSVisitorTester, checkOneQubitBug) {
