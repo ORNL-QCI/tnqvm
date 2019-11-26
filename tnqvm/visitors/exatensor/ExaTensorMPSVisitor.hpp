@@ -125,10 +125,14 @@ namespace tnqvm {
     class ExaTensorMPSVisitor : public TNQVMVisitor 
     {
     public:
+        // Constructor
+        ExaTensorMPSVisitor();
+        
         // Virtual function impls:        
         virtual void initialize(std::shared_ptr<AcceleratorBuffer> buffer) override;
         virtual void finalize() override;
         
+        // Service name as defined in manifest.json
         virtual const std::string name() const override { return "exatensor-mps"; }
 
         virtual const std::string description() const override { return "ExaTensor MPS Visitor"; }

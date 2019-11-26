@@ -32,7 +32,9 @@
 #define TNQVM_TNQVM_HPP_
 
 #include "xacc.hpp"
+#include "xacc_service.hpp"
 #include "TNQVMVisitor.hpp"
+#include <cassert>
 
 namespace tnqvm {
 
@@ -57,6 +59,31 @@ public:
   const std::vector<std::string> configurationKeys() override { return {}; }
 //   const std::string getSignature() override {return name()+":";}
 
+  // Get the backend visitor service type
+  static std::string getSelectedVisitorType() {
+    const auto& allVisitorServices = xacc::getServices<TNQVMVisitor>();
+    // We must have at least one TNQVM service registered.
+    assert(!allVisitorServices.empty());
+    // If a specific visitor type was requested
+    if (xacc::optionExists("tnqvm-visitor"))
+    {
+      const auto requestedService = xacc::getOption("tnqvm-visitor");
+      for (const auto& registeredService: allVisitorServices)
+      {
+        if (registeredService->name() == requestedService)
+        {
+          // Found it, use that service name.
+          return registeredService->name();
+        }
+      }
+    }
+
+    // In all other cases, e.g. no specific visitor type was requested or an invalid one was specified,
+    // just use the ITensor backend as default.
+    // TODO: we may eventually use our exatensor-mps as default.
+    return "itensor-mps";
+  }
+
   void
   execute(std::shared_ptr<AcceleratorBuffer> buffer,
           const std::shared_ptr<xacc::CompositeInstruction> kernel) override;
@@ -69,11 +96,13 @@ public:
   getAcceleratorState(std::shared_ptr<CompositeInstruction> program) override;
 
   const std::string name() const override { return "tnqvm"; }
-
+  
   const std::string description() const override {
-    return "XACC tensor netowrk quantum virtual machine (TNQVM) Accelerator";
+    return "XACC tensor network quantum virtual machine (TNQVM) Accelerator";
   }
 
+  std::string getVisitorName() const { return visitor? visitor->name() : "UNINITIALIZED"; }
+  
   virtual ~TNQVM() {}
 
   int verbose() const { return __verbose; }

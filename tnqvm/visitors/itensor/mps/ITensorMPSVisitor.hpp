@@ -46,7 +46,7 @@ class ITensorMPSVisitor : public TNQVMVisitor {
 public:
   ITensorMPSVisitor();
   virtual ~ITensorMPSVisitor();
-
+  
   virtual std::shared_ptr<TNQVMVisitor> clone() {
     return std::make_shared<ITensorMPSVisitor>();
   }
@@ -57,7 +57,8 @@ public:
   virtual void finalize() {}
 
   virtual const std::vector<std::complex<double>> getState();
-
+  
+  // Service name as defined in manifest.json
   virtual const std::string name() const { return "itensor-mps"; }
 
   virtual const std::string description() const { return ""; }

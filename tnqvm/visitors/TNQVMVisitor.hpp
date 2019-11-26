@@ -54,7 +54,7 @@ public:
     return std::vector<std::complex<double>>{};
   }
   virtual void finalize() = 0;
-
+ 
 protected:
   std::shared_ptr<AcceleratorBuffer> buffer;
 };

@@ -36,6 +36,11 @@
 #define _DEBUG_DIL
 
 namespace tnqvm {
+    ExaTensorMPSVisitor::ExaTensorMPSVisitor()
+    {
+        // TODO
+    }
+    
     void ExaTensorMPSVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer) 
     {
         // TODO
