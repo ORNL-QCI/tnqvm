@@ -62,10 +62,6 @@ if (NOT XACC_INCLUDE_DIRS)
   endif()
 endif()
 
-if (NOT XACC_LIBRARIES)
-  set(XACC_LIBRARIES "xacc::xacc")
-endif()
-
 find_package(CUDA)
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)

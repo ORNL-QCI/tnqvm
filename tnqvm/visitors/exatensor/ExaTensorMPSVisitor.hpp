@@ -43,120 +43,83 @@
 
 #include "GateFactory.hpp"
 
+#include "tensornet.hpp"
+
 using namespace xacc;
 using namespace xacc::quantum;
 
 namespace tnqvm {
 
-// class ExaTensorMPSVisitor : public TNQVMVisitor {
+class ExaTensorMPSVisitor : public TNQVMVisitor {
 
-// public:
+public:
 
-// //Static constants:
-//  static const std::size_t INITIAL_VALENCE = 2; //default initial dimension extent for virtual MPS indices
-//  static const unsigned int MAX_GATES = 8; //max number of gates in the gate sequence before evaluation
+//Static constants:
+ static const std::size_t INITIAL_VALENCE = 2; //default initial dimension extent for virtual MPS indices
+ static const unsigned int MAX_GATES = 8; //max number of gates in the gate sequence before evaluation
 
-// //Life cycle:
-//  ExaTensorMPSVisitor();
-//  virtual ~ExaTensorMPSVisitor();
+//Life cycle:
+ ExaTensorMPSVisitor();
+ virtual ~ExaTensorMPSVisitor();
 
-//  void initialize(std::shared_ptr<AcceleratorBuffer> buffer); //accelerator buffer
-//  void finalize();
- 
-//  virtual std::shared_ptr<TNQVMVisitor> clone() override { return std::make_shared<ExaTensorMPSVisitor>(); }
-//  virtual const double getExpectationValueZ(std::shared_ptr<CompositeInstruction> function) override;
-// //Visitor methods:
-//  void visit(Identity& gate) {}
-//  void visit(Hadamard & gate);
-//  void visit(X & gate);
-//  void visit(Y & gate);
-//  void visit(Z & gate);
-//  void visit(Rx & gate);
-//  void visit(Ry & gate);
-//  void visit(Rz & gate);
-//  void visit(U & gate);
-//  void visit(CPhase & gate);
-//  void visit(CNOT & gate);
-//  void visit(CZ & gate);
-//  void visit(Swap & gate);
-//  void visit(Measure & gate);
-//  void visit(ConditionalFunction & condFunc);
-//  void visit(GateFunction & gateFunc);
+ void initialize(std::shared_ptr<AcceleratorBuffer> buffer); //accelerator buffer
+ void finalize();
 
-// //Numerical evaluation:
-//  bool isInitialized(); //returns TRUE if the wavefunction has been initialized
-//  bool isEvaluated(); //returns TRUE if the wavefunction is fully evaluated and gate sequence is empty, FALSE otherwise
-//  void setEvaluationStrategy(const bool eagerEval); //sets tensor network evaluation strategy
-//  void setInitialMPSValence(const std::size_t initialValence); //initial dimension extent for virtual MPS indices
-//  int evaluate(); //evaluates the constructed tensor network (returns an error or 0)
+//Visitor methods:
+ void visit(Identity& gate) {}
+ void visit(Hadamard & gate);
+ void visit(X & gate);
+ void visit(Y & gate);
+ void visit(Z & gate);
+ void visit(Rx & gate);
+ void visit(Ry & gate);
+ void visit(Rz & gate);
+ void visit(CPhase & gate);
+ void visit(CNOT & gate);
+ void visit(CZ & gate);
+ void visit(Swap & gate);
+ void visit(Measure & gate);
+ void visit(ConditionalFunction & condFunc);
+ void visit(GateFunction & gateFunc);
 
-// private:
+//Numerical evaluation:
+ bool isInitialized(); //returns TRUE if the wavefunction has been initialized
+ bool isEvaluated(); //returns TRUE if the wavefunction is fully evaluated and gate sequence is empty, FALSE otherwise
+ void setEvaluationStrategy(const bool eagerEval); //sets tensor network evaluation strategy
+ void setInitialMPSValence(const std::size_t initialValence); //initial dimension extent for virtual MPS indices
+ int evaluate(); //evaluates the constructed tensor network (returns an error or 0)
 
-// //Type aliases:
-//  using TensDataType = GateFactory::TensDataType;
-//  using Tensor = GateFactory::Tensor;
-//  using TensorLeg = exatensor::TensorLeg;
-//  using TensorNetwork = exatensor::TensorNetwork<TensDataType>;
-//  using WaveFunction = std::vector<Tensor>;
+private:
 
-// //Gate factory member:
-//  GateFactory GateTensors;
+//Type aliases:
+ using TensDataType = GateFactory::TensDataType;
+ using Tensor = GateFactory::Tensor;
+ using TensorLeg = exatensor::TensorLeg;
+ using TensorNetwork = exatensor::TensorNetwork<TensDataType>;
+ using WaveFunction = std::vector<Tensor>;
 
-// //Data members:
-//  std::shared_ptr<AcceleratorBuffer> Buffer;        //accelerator buffer
-//  WaveFunction StateMPS;                            //MPS wave-function of qubits (MPS tensors)
-//  TensorNetwork TensNet;                            //currently constructed tensor network
-//  std::vector<std::pair<Tensor, unsigned int *>> GateSequence; //sequence of visited quantum gates before evaluation
-//  std::pair<int, int> QubitRange;                   //range of involved qubits in the current tensor network
-//  std::vector<unsigned int> OptimizedTensors;       //IDs of the tensors to be optimized in the closed tensor network
-//  std::size_t InitialValence;                       //initial dimension extent for virtual dimensions of MPS tensors
-//  bool EagerEval;                                   //if TRUE each gate will be applied immediately (defaults to FALSE)
+//Gate factory member:
+ GateFactory GateTensors;
 
-// //Private member functions:
-//  void initMPSTensor(Tensor & tensor); //initializes an MPS tensor to a pure |0> state
-//  void buildWaveFunctionNetwork(int firstQubit = 0, int lastQubit = -1); //builds a TensorNetwork object for the wavefunction of qubits [first:last]
-//  void appendGateSequence(); //appends gate tensors from the current gate sequence to the wavefunction tensor network of qubits [first:last]
-//  void closeCircuitNetwork(); //closes the circuit TensorNetwork object with output tensors (those to be optimized)
-//  int appendNBodyGate(const Tensor & gate, const unsigned int qubit_id[]); //appends (applies) an N-body quantum gate to the wavefunction
+//Data members:
+ std::shared_ptr<AcceleratorBuffer> Buffer;        //accelerator buffer
+ WaveFunction StateMPS;                            //MPS wave-function of qubits (MPS tensors)
+ TensorNetwork TensNet;                            //currently constructed tensor network
+ std::vector<std::pair<Tensor, unsigned int *>> GateSequence; //sequence of visited quantum gates before evaluation
+ std::pair<int, int> QubitRange;                   //range of involved qubits in the current tensor network
+ std::vector<unsigned int> OptimizedTensors;       //IDs of the tensors to be optimized in the closed tensor network
+ std::size_t InitialValence;                       //initial dimension extent for virtual dimensions of MPS tensors
+ bool EagerEval;                                   //if TRUE each gate will be applied immediately (defaults to FALSE)
 
-// }; //end class ExaTensorMPSVisitor
-    
-    // XACC simulation backend (TNQVM) visitor based on ExaTensor
-    class ExaTensorMPSVisitor : public TNQVMVisitor 
-    {
-    public:
-        // Virtual function impls:        
-        virtual void initialize(std::shared_ptr<AcceleratorBuffer> buffer) override;
-        virtual void finalize() override;
-        
-        virtual const std::string name() const override { return "exatensor-mps"; }
+//Private member functions:
+ void initMPSTensor(Tensor & tensor); //initializes an MPS tensor to a pure |0> state
+ void buildWaveFunctionNetwork(int firstQubit = 0, int lastQubit = -1); //builds a TensorNetwork object for the wavefunction of qubits [first:last]
+ void appendGateSequence(); //appends gate tensors from the current gate sequence to the wavefunction tensor network of qubits [first:last]
+ void closeCircuitNetwork(); //closes the circuit TensorNetwork object with output tensors (those to be optimized)
+ int appendNBodyGate(const Tensor & gate, const unsigned int qubit_id[]); //appends (applies) an N-body quantum gate to the wavefunction
 
-        virtual const std::string description() const override { return "ExaTensor MPS Visitor"; }
+}; //end class ExaTensorMPSVisitor
 
-        virtual std::shared_ptr<TNQVMVisitor> clone() override { return std::make_shared<ExaTensorMPSVisitor>(); }
-        
-        virtual OptionPairs getOptions() override { /*TODO: define options */ return OptionPairs{}; }
-    
-        // one-qubit gates
-        virtual void visit(Identity& in_IdentityGate) override { /*TODO*/ }
-        virtual void visit(Hadamard& in_HadamardGate) override { /*TODO*/ }
-        virtual void visit(X& in_XGate) override { /*TODO*/ }
-        virtual void visit(Y& in_YGate) override { /*TODO*/ }
-        virtual void visit(Z& in_ZGate) override { /*TODO*/ }
-        virtual void visit(Rx& in_RxGate) override { /*TODO*/ }
-        virtual void visit(Ry& in_RyGate) override { /*TODO*/ }
-        virtual void visit(Rz& in_RzGate) override { /*TODO*/ }
-        virtual void visit(CPhase& in_CPhaseGate) override { /*TODO*/ }
-        virtual void visit(U& in_UGate) override { /*TODO*/ }
-        // two-qubit gates
-        virtual void visit(CNOT& in_CNOTGate) override { /*TODO*/ }
-        virtual void visit(Swap& in_SwapGate) override { /*TODO*/ }
-        virtual void visit(CZ& in_CZGate) override { /*TODO*/ }
-        // others
-        virtual void visit(Measure& in_MeasureGate) override { /*TODO*/ }
-       
-    private:
-    };
 } //end namespace tnqvm
 
 #endif //TNQVM_HAS_EXATENSOR

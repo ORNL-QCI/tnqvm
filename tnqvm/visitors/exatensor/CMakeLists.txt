@@ -31,46 +31,25 @@
 
 if (EXATENSOR_ROOT)
    set (PACKAGE_NAME "TNQVM ExaTensor Visitor")
-   set (PACKAGE_DESCIPTION "TNQVM ExaTensor backend")
+   set (PACKAGE_DESCIPTION "TNQVM ITensor backend")
    set (LIBRARY_NAME tnqvm-exatensor)
 
-   if (IS_DIRECTORY ${EXATENSOR_ROOT} AND EXISTS ${EXATENSOR_ROOT}/exatn-config.cmake AND IS_DIRECTORY ${EXATENSOR_ROOT}/include AND IS_DIRECTORY ${EXATENSOR_ROOT}/lib)
+   if (EXISTS ${EXATENSOR_ROOT}/include/tensor_network.hpp)
       message(STATUS "ExaTensor found at ${EXATENSOR_ROOT}")
       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DTNQVM_HAS_EXATENSOR")
       include_directories(${EXATENSOR_ROOT}/include)
    else()
       message(FATAL_ERROR "Invalid EXATENSOR_ROOT path")
    endif()
-   
+
    file (GLOB HEADERS *.hpp)
    file (GLOB SRC *.cpp)
-   
-   usFunctionGetResourceSource(TARGET ${LIBRARY_NAME} OUT SRC)
-   usFunctionGenerateBundleInit(TARGET ${LIBRARY_NAME} OUT SRC)
-   
+
    add_library(${LIBRARY_NAME} SHARED ${SRC})
 
-   set(_bundle_name tnqvm_exatensor)
-   set_target_properties(${LIBRARY_NAME} PROPERTIES
-   # This is required for every bundle
-   COMPILE_DEFINITIONS US_BUNDLE_NAME=${_bundle_name}
-   # This is for convenience, used by other CMake functions
-   US_BUNDLE_NAME ${_bundle_name}
-   )
-
-   # Embed meta-data from a manifest.json file
-   usFunctionEmbedResources(TARGET ${LIBRARY_NAME}
-      WORKING_DIRECTORY
-      ${CMAKE_CURRENT_SOURCE_DIR}
-      FILES
-      manifest.json
-   )
-
-   include_directories(${XACC_INCLUDE_DIRS})
-   include_directories(${EXATENSOR_ROOT}/include/exatn)
    link_directories(${EXATENSOR_ROOT}/lib)
-   target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} xacc::quantum_gate lapack blas ${EXATENSOR_ROOT}/lib/libexatn.so ${EXATENSOR_ROOT}/lib/libtalsh.a)
-   
+   target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} lapack blas ${EXATENSOR_ROOT}/lib/libtensornet.a ${EXATENSOR_ROOT}/lib/libtalsh.a)
+
    if(APPLE)
       set_target_properties(${LIBRARY_NAME} PROPERTIES INSTALL_RPATH "@loader_path/../lib")
       set_target_properties(${LIBRARY_NAME} PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
