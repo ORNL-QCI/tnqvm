@@ -33,6 +33,7 @@
 
 #include "Identifiable.hpp"
 #include "AllGateVisitor.hpp"
+#include "xacc.hpp"
 
 using namespace xacc;
 using namespace xacc::quantum;

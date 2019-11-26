@@ -32,7 +32,6 @@
 #define QUANTUM_GATE_ACCELERATORS_TNQVM_ITensorMPSVisitor_HPP_
 
 #include <cstdlib>
-#include "xacc.hpp"
 #include "TNQVMVisitor.hpp"
 #include "Cloneable.hpp"
 #include "itensor/all.h"

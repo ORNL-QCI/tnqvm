@@ -1,0 +1,2 @@
+add_xacc_test(ExaTensorMPSVisitor)
+target_link_libraries(ExaTensorMPSVisitorTester tnqvm-exatensor)
