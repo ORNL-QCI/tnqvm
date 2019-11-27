@@ -30,25 +30,114 @@
  *
  **********************************************************************************/
 #ifdef TNQVM_HAS_EXATENSOR
-
-#include "ExaTensorMPSVisitor.hpp"
-
 #define _DEBUG_DIL
 
+#include "ExaTensorMPSVisitor.hpp"
+#include "base/Gates.hpp"
 namespace tnqvm {
-    ExaTensorMPSVisitor::ExaTensorMPSVisitor()
+    ExaTensorMPSVisitor::ExaTensorMPSVisitor():
+        m_tensorNetwork(),
+        m_tensorIdCounter(0)
     {
         // TODO
     }
     
     void ExaTensorMPSVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer) 
     {
-        // TODO
+        m_buffer = std::move(buffer);
     }
 
     void ExaTensorMPSVisitor::finalize() 
     {
-        // TODO
+       m_buffer.reset();
+    }
+
+    // === BEGIN: Gate Visitor Impls ===
+    void ExaTensorMPSVisitor::visit(Identity& in_IdentityGate) 
+    { 
+       appendGateTensor(CommonGates::I);
+    }
+    
+    void ExaTensorMPSVisitor::visit(Hadamard& in_HadamardGate) 
+    { 
+        appendGateTensor(CommonGates::H);
+    }
+    
+    void ExaTensorMPSVisitor::visit(X& in_XGate) 
+    { 
+        appendGateTensor(CommonGates::X);    
+    }
+
+    void ExaTensorMPSVisitor::visit(Y& in_YGate) 
+    { 
+        appendGateTensor(CommonGates::Y);
+    }
+    
+    void ExaTensorMPSVisitor::visit(Z& in_ZGate) 
+    { 
+        appendGateTensor(CommonGates::Z); 
+    }
+    
+    void ExaTensorMPSVisitor::visit(Rx& in_RxGate) 
+    { 
+       appendGateTensor(CommonGates::Rx);
+    }
+    
+    void ExaTensorMPSVisitor::visit(Ry& in_RyGate) 
+    { 
+       appendGateTensor(CommonGates::Ry);
+    }
+    
+    void ExaTensorMPSVisitor::visit(Rz& in_RzGate) 
+    { 
+        appendGateTensor(CommonGates::Rz);
+    }
+    
+    void ExaTensorMPSVisitor::visit(CPhase& in_CPhaseGate) 
+    { 
+        appendGateTensor(CommonGates::CPhase);
+    }
+    
+    void ExaTensorMPSVisitor::visit(U& in_UGate) 
+    { 
+        appendGateTensor(CommonGates::U);
+    }
+    
+    void ExaTensorMPSVisitor::visit(CNOT& in_CNOTGate) 
+    { 
+       appendGateTensor(CommonGates::CNOT);
+    }
+    
+    void ExaTensorMPSVisitor::visit(Swap& in_SwapGate) 
+    { 
+        appendGateTensor(CommonGates::Swap);
+    }
+    
+    void ExaTensorMPSVisitor::visit(CZ& in_CZGate) 
+    { 
+        appendGateTensor(CommonGates::CZ);
+    }
+    
+    void ExaTensorMPSVisitor::visit(Measure& in_MeasureGate) 
+    { 
+        appendGateTensor(CommonGates::Measure);
+    }
+    // === END: Gate Visitor Impls ===
+
+    void ExaTensorMPSVisitor::appendGateTensor(CommonGates in_gateType)
+    { 
+        const auto generateTensorName = [&]() -> std::string {
+            return GetGateName(in_gateType) + "_" + std::to_string(m_tensorIdCounter);
+        };
+        
+        m_tensorIdCounter++;
+        // TEMP CODE: This is a dummy code to append Gate tensor to the tensor network.
+        m_tensorNetwork.appendTensor(
+            m_tensorIdCounter,
+            std::make_shared<Tensor>(generateTensorName(), TensorShape{2,2}),
+            // TODO: figure out what Tensor Leg param/pairing should be???
+            std::vector<TensorLeg>{}
+        ); 
     }
 //Life cycle:
 

@@ -36,7 +36,8 @@ if (EXATENSOR_ROOT)
 
    if (IS_DIRECTORY ${EXATENSOR_ROOT} AND EXISTS ${EXATENSOR_ROOT}/exatn-config.cmake AND IS_DIRECTORY ${EXATENSOR_ROOT}/include AND IS_DIRECTORY ${EXATENSOR_ROOT}/lib)
       message(STATUS "ExaTensor found at ${EXATENSOR_ROOT}")
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DTNQVM_HAS_EXATENSOR")
+      # Note: must set EXATN_SERVICE flag in order to compile ExaTN.
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DTNQVM_HAS_EXATENSOR -DEXATN_SERVICE")
       include_directories(${EXATENSOR_ROOT}/include)
    else()
       message(FATAL_ERROR "Invalid EXATENSOR_ROOT path")
@@ -69,7 +70,7 @@ if (EXATENSOR_ROOT)
    include_directories(${XACC_INCLUDE_DIRS})
    include_directories(${EXATENSOR_ROOT}/include/exatn)
    link_directories(${EXATENSOR_ROOT}/lib)
-   target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} xacc::quantum_gate lapack blas ${EXATENSOR_ROOT}/lib/libexatn.so ${EXATENSOR_ROOT}/lib/libtalsh.a)
+   target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} xacc::quantum_gate lapack blas ${EXATENSOR_ROOT}/lib/libexatn.so ${EXATENSOR_ROOT}/lib/libexatn-numerics.so ${EXATENSOR_ROOT}/lib/libtalsh.a)
    
    if(APPLE)
       set_target_properties(${LIBRARY_NAME} PROPERTIES INSTALL_RPATH "@loader_path/../lib")
@@ -83,6 +84,8 @@ if (EXATENSOR_ROOT)
    if(TNQVM_BUILD_TESTS)
 	   add_subdirectory(tests)
    endif()
+
+   xacc_configure_plugin_rpath(${LIBRARY_NAME})
 
 else()
    message(STATUS "ExaTENSOR not found, skipping ExaTensorMPSVisitor build")

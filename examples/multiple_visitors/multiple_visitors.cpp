@@ -38,7 +38,7 @@ int main (int argc, char** argv) {
 
 	auto qpu = xacc::getAccelerator("tnqvm");
     // Uncomment this line to use the exatensor visitor
-    // xacc::setOption("tnqvm-visitor", "exatensor-mps");
+    xacc::setOption("tnqvm-visitor", "exatensor-mps");
     
     // Allocate a register of 2 qubits
 	auto qubitReg = xacc::qalloc(2);

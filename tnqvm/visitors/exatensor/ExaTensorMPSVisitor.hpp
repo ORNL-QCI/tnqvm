@@ -38,10 +38,8 @@
 #include <complex>
 #include <vector>
 #include <utility>
-
 #include "TNQVMVisitor.hpp"
-
-#include "GateFactory.hpp"
+#include "tensor_network.hpp"
 
 using namespace xacc;
 using namespace xacc::quantum;
@@ -121,6 +119,14 @@ namespace tnqvm {
 
 // }; //end class ExaTensorMPSVisitor
     
+    // Forward declarations:
+    enum class CommonGates: int;
+   
+    // ExaTN type alias:
+    using TensorNetwork = exatn::numerics::TensorNetwork;
+    using Tensor = exatn::numerics::Tensor;
+    using TensorShape = exatn::numerics::TensorShape;
+    using TensorLeg = exatn::numerics::TensorLeg;
     // XACC simulation backend (TNQVM) visitor based on ExaTensor
     class ExaTensorMPSVisitor : public TNQVMVisitor 
     {
@@ -142,24 +148,30 @@ namespace tnqvm {
         virtual OptionPairs getOptions() override { /*TODO: define options */ return OptionPairs{}; }
     
         // one-qubit gates
-        virtual void visit(Identity& in_IdentityGate) override { /*TODO*/ }
-        virtual void visit(Hadamard& in_HadamardGate) override { /*TODO*/ }
-        virtual void visit(X& in_XGate) override { /*TODO*/ }
-        virtual void visit(Y& in_YGate) override { /*TODO*/ }
-        virtual void visit(Z& in_ZGate) override { /*TODO*/ }
-        virtual void visit(Rx& in_RxGate) override { /*TODO*/ }
-        virtual void visit(Ry& in_RyGate) override { /*TODO*/ }
-        virtual void visit(Rz& in_RzGate) override { /*TODO*/ }
-        virtual void visit(CPhase& in_CPhaseGate) override { /*TODO*/ }
-        virtual void visit(U& in_UGate) override { /*TODO*/ }
+        virtual void visit(Identity& in_IdentityGate) override;
+        virtual void visit(Hadamard& in_HadamardGate) override;
+        virtual void visit(X& in_XGate) override;
+        virtual void visit(Y& in_YGate) override;
+        virtual void visit(Z& in_ZGate) override;
+        virtual void visit(Rx& in_RxGate) override;
+        virtual void visit(Ry& in_RyGate) override;
+        virtual void visit(Rz& in_RzGate) override;
+        virtual void visit(CPhase& in_CPhaseGate) override;
+        virtual void visit(U& in_UGate) override;
         // two-qubit gates
-        virtual void visit(CNOT& in_CNOTGate) override { /*TODO*/ }
-        virtual void visit(Swap& in_SwapGate) override { /*TODO*/ }
-        virtual void visit(CZ& in_CZGate) override { /*TODO*/ }
+        virtual void visit(CNOT& in_CNOTGate) override;
+        virtual void visit(Swap& in_SwapGate) override;
+        virtual void visit(CZ& in_CZGate) override;
         // others
-        virtual void visit(Measure& in_MeasureGate) override { /*TODO*/ }
-       
+        virtual void visit(Measure& in_MeasureGate) override;
+    
     private:
+        void appendGateTensor(CommonGates in_gateType); 
+    private:
+       TensorNetwork m_tensorNetwork;
+       unsigned int m_tensorIdCounter;
+       // The AcceleratorBuffer shared_ptr, null if not initialized.
+       std::shared_ptr<AcceleratorBuffer> m_buffer;
     };
 } //end namespace tnqvm
 
