@@ -41,7 +41,7 @@ void TNQVM::execute(
     // Here we assume we have one ansatz function,
     // functions[0]->getInstruction(0)
 
-    visitor = xacc::getService<TNQVMVisitor>(getSelectedVisitorType())->clone();
+    visitor = xacc::getService<TNQVMVisitor>(getVisitorName())->clone();
 
     // Initialize the visitor
     visitor->initialize(buffer);
@@ -89,7 +89,7 @@ void TNQVM::execute(
 void TNQVM::execute(std::shared_ptr<xacc::AcceleratorBuffer> buffer,
                     const std::shared_ptr<xacc::CompositeInstruction> kernel) {
   // Get the visitor backend
-  visitor = xacc::getService<TNQVMVisitor>(getSelectedVisitorType());
+  visitor = xacc::getService<TNQVMVisitor>(getVisitorName());
 
   // Initialize the visitor
   visitor->initialize(buffer);
@@ -110,7 +110,7 @@ void TNQVM::execute(std::shared_ptr<xacc::AcceleratorBuffer> buffer,
 const std::vector<std::complex<double>>
 TNQVM::getAcceleratorState(std::shared_ptr<CompositeInstruction> program) {
   // Get the visitor backend
-  visitor = xacc::getService<TNQVMVisitor>(getSelectedVisitorType());
+  visitor = xacc::getService<TNQVMVisitor>(getVisitorName());
 
   int maxBit = 0;
   if (!xacc::optionExists("n-qubits")) {

@@ -33,12 +33,25 @@ if (EXATENSOR_ROOT)
    set (PACKAGE_NAME "TNQVM ExaTensor Visitor")
    set (PACKAGE_DESCIPTION "TNQVM ExaTensor backend")
    set (LIBRARY_NAME tnqvm-exatensor)
-
-   if (IS_DIRECTORY ${EXATENSOR_ROOT} AND EXISTS ${EXATENSOR_ROOT}/exatn-config.cmake AND IS_DIRECTORY ${EXATENSOR_ROOT}/include AND IS_DIRECTORY ${EXATENSOR_ROOT}/lib)
+   # Checks that EXATENSOR_ROOT is a valid ExaTN install directory
+   if (IS_DIRECTORY ${EXATENSOR_ROOT} AND EXISTS ${EXATENSOR_ROOT}/exatn-config.cmake AND EXISTS ${EXATENSOR_ROOT}/bin/exatn-config)
       message(STATUS "ExaTensor found at ${EXATENSOR_ROOT}")
-      # Note: must set EXATN_SERVICE flag in order to compile ExaTN.
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DTNQVM_HAS_EXATENSOR -DEXATN_SERVICE")
-      include_directories(${EXATENSOR_ROOT}/include)
+      # Gathers ExaTN configs: compiler flags, include directory, and linker flags.       
+      execute_process(COMMAND ${EXATENSOR_ROOT}/bin/exatn-config --cxxflags OUTPUT_VARIABLE EXATN_CXX_FLAGS)
+      execute_process(COMMAND ${EXATENSOR_ROOT}/bin/exatn-config --includes OUTPUT_VARIABLE EXATN_CXX_INCLUDES)
+      execute_process(COMMAND ${EXATENSOR_ROOT}/bin/exatn-config --libs OUTPUT_VARIABLE EXATN_CXX_LIBS)
+      # Sanitizes those configs to be used as CMake variables:
+      # Removes EOL
+      string(REGEX REPLACE "\n$" "" EXATN_CXX_FLAGS "${EXATN_CXX_FLAGS}")
+      string(REGEX REPLACE "\n$" "" EXATN_CXX_INCLUDES "${EXATN_CXX_INCLUDES}")
+      string(REGEX REPLACE "\n$" "" EXATN_CXX_LIBS "${EXATN_CXX_LIBS}")
+      # For include dirs, remove the "-I" prefix (intended for direct command line usage),
+      # and replace space delimiters with semicolons for multiple directories.
+      string(REGEX REPLACE "-I" "" EXATN_CXX_INCLUDES "${EXATN_CXX_INCLUDES}")
+      string(REGEX REPLACE " " ";" EXATN_CXX_INCLUDES "${EXATN_CXX_INCLUDES}")
+      # Set compiler flags and include directories
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DTNQVM_HAS_EXATENSOR ${EXATN_CXX_FLAGS}")
+      include_directories(${EXATN_CXX_INCLUDES})
    else()
       message(FATAL_ERROR "Invalid EXATENSOR_ROOT path")
    endif()
@@ -70,7 +83,8 @@ if (EXATENSOR_ROOT)
    include_directories(${XACC_INCLUDE_DIRS})
    include_directories(${EXATENSOR_ROOT}/include/exatn)
    link_directories(${EXATENSOR_ROOT}/lib)
-   target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} xacc::quantum_gate lapack blas ${EXATENSOR_ROOT}/lib/libexatn.so ${EXATENSOR_ROOT}/lib/libexatn-numerics.so ${EXATENSOR_ROOT}/lib/libtalsh.a)
+   # Links to ExaTN using its linker config flags.
+   target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} xacc::quantum_gate lapack blas ${EXATN_CXX_LIBS})
    
    if(APPLE)
       set_target_properties(${LIBRARY_NAME} PROPERTIES INSTALL_RPATH "@loader_path/../lib")

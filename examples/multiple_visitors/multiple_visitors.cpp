@@ -36,9 +36,14 @@ int main (int argc, char** argv) {
 	// Initialize the XACC Framework
 	xacc::Initialize(argc, argv);
 
-	auto qpu = xacc::getAccelerator("tnqvm");
-    // Uncomment this line to use the exatensor visitor
-    xacc::setOption("tnqvm-visitor", "exatensor-mps");
+	// Example 1: using the ExaTensor backend
+	auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatensor-mps")});
+	
+	// Example 2: using the ITensor backend
+	//auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "itensor-mps")});
+	
+	// Example 3: don't specify any backend, the default one (currently ITensor) will be used.
+	//auto qpu = xacc::getAccelerator("tnqvm");
     
     // Allocate a register of 2 qubits
 	auto qubitReg = xacc::qalloc(2);

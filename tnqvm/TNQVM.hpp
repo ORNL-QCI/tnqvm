@@ -45,7 +45,9 @@ public:
       __verbose = 1;
     } else {
       __verbose = 0;
-    }
+    }    
+
+    // Force a configuration update.
     updateConfiguration(params);
   }
   void updateConfiguration(const HeterogeneousMap &config) override {
@@ -55,34 +57,41 @@ public:
     if (config.keyExists<bool>("vqe-mode")) {
       vqeMode = config.get<bool>("vqe-mode");
     }
+
+    if (config.stringExists("tnqvm-visitor")) {
+      const auto requestedBackend = config.getString("tnqvm-visitor");
+      const auto& allVisitorServices = xacc::getServices<TNQVMVisitor>();
+      // We must have at least one TNQVM service registered.
+      assert(!allVisitorServices.empty());
+      bool foundRequestedBackend = false;
+      
+      for (const auto& registeredService: allVisitorServices)
+      {
+        if (registeredService->name() == requestedBackend)
+        {
+          // Found it, use that service name.
+          backendName = registeredService->name();
+          foundRequestedBackend = true;
+          break;
+        }
+      }
+      // A visitor backend was explicitly specified but the corresponding service cannot be found,
+      // e.g. the service name was misspelled.
+      if (!foundRequestedBackend)
+      {
+        backendName = DEFAULT_VISITOR_BACKEND;
+        xacc::warning("The requested TNQVM visitor backend '" + requestedBackend + "' cannot be found in the service registry. Please make sure the name is correct and the service is installed.\n"
+          "The default visitor backend of type '" + DEFAULT_VISITOR_BACKEND + "' will be used.");
+      }
+    }
+    else {
+      // No visitor type was specified, use the default.
+      backendName = DEFAULT_VISITOR_BACKEND;
+      xacc::warning("No visitor backend was specified. The default visitor backend of type '" + DEFAULT_VISITOR_BACKEND + "' will be used.");
+    }    
   }
   const std::vector<std::string> configurationKeys() override { return {}; }
 //   const std::string getSignature() override {return name()+":";}
-
-  // Get the backend visitor service type
-  static std::string getSelectedVisitorType() {
-    const auto& allVisitorServices = xacc::getServices<TNQVMVisitor>();
-    // We must have at least one TNQVM service registered.
-    assert(!allVisitorServices.empty());
-    // If a specific visitor type was requested
-    if (xacc::optionExists("tnqvm-visitor"))
-    {
-      const auto requestedService = xacc::getOption("tnqvm-visitor");
-      for (const auto& registeredService: allVisitorServices)
-      {
-        if (registeredService->name() == requestedService)
-        {
-          // Found it, use that service name.
-          return registeredService->name();
-        }
-      }
-    }
-
-    // In all other cases, e.g. no specific visitor type was requested or an invalid one was specified,
-    // just use the ITensor backend as default.
-    // TODO: we may eventually use our exatensor-mps as default.
-    return "itensor-mps";
-  }
 
   void
   execute(std::shared_ptr<AcceleratorBuffer> buffer,
@@ -101,7 +110,7 @@ public:
     return "XACC tensor network quantum virtual machine (TNQVM) Accelerator";
   }
 
-  std::string getVisitorName() const { return visitor? visitor->name() : "UNINITIALIZED"; }
+  const std::string& getVisitorName() const { return backendName; }
   
   virtual ~TNQVM() {}
 
@@ -110,7 +119,7 @@ public:
   void set_verbose(int level) { __verbose = level; }
   void mute() { __verbose = 0; }
   void unmute() { __verbose = 1; } // default to 1
-
+  
 protected:
   std::shared_ptr<TNQVMVisitor> visitor;
 
@@ -118,6 +127,11 @@ private:
   int __verbose = 1;
   bool executedOnce = false;
   bool vqeMode = true;
+  // Default visitor backend is ITensor.
+  // TODO: we may eventually use our exatensor-mps as default.
+  inline static const std::string DEFAULT_VISITOR_BACKEND = "itensor-mps";
+  // The backend name that is configured.
+  std::string backendName;
 };
 } // namespace tnqvm
 
