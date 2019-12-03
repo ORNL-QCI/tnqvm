@@ -45,6 +45,25 @@ using namespace xacc;
 using namespace xacc::quantum;
 
 namespace tnqvm {
+    // Simple struct to identify a concrete quantum gate instance,
+    // For example, parametric gates, e.g. Rx(theta), will have an instance for each value of theta
+    // that is used to instantiate the gate matrix.
+    struct GateInstanceIdentifier
+    {  
+        GateInstanceIdentifier(const std::string& in_gateName);
+        
+        template<typename... GateParams>
+        GateInstanceIdentifier(const std::string& in_gateName, const GateParams&... in_params);
+        
+        template<typename GateParam>
+        void addParam(const GateParam& in_param);
+        
+        std::string toNameString() const;
+
+        private:
+            std::string m_gateName;
+            std::vector<std::string> m_gateParams; 
+    };
 
 // class ExaTensorMPSVisitor : public TNQVMVisitor {
 
@@ -126,7 +145,7 @@ namespace tnqvm {
     using TensorNetwork = exatn::numerics::TensorNetwork;
     using Tensor = exatn::numerics::Tensor;
     using TensorShape = exatn::numerics::TensorShape;
-    using TensorLeg = exatn::numerics::TensorLeg;
+    using TensorLeg = exatn::numerics::TensorLeg;    
     // XACC simulation backend (TNQVM) visitor based on ExaTensor
     class ExaTensorMPSVisitor : public TNQVMVisitor 
     {
@@ -166,12 +185,24 @@ namespace tnqvm {
         virtual void visit(Measure& in_MeasureGate) override;
     
     private:
-        void appendGateTensor(CommonGates in_gateType); 
+        template<tnqvm::CommonGates GateType, typename... GateParams>
+        void appendGateTensor(const xacc::Instruction& in_gateInstruction, GateParams&&... in_params); 
     private:
        TensorNetwork m_tensorNetwork;
        unsigned int m_tensorIdCounter;
        // The AcceleratorBuffer shared_ptr, null if not initialized.
        std::shared_ptr<AcceleratorBuffer> m_buffer;
+       
+       // Map of gate tensors that we've initialized with ExaTensor.
+       // The list is indexed by Tensor Name.
+       // Note: the tensor name is unique for each gate tensor, hence, for parameterized gate, 
+       // the name is a full/expanded name, e.g. Rx(1.234), Ry(2.3456), etc.
+       // This map is lazily constructed while we traverse the gate sequence,
+       // i.e. if we encounter a new gate whose tensor has not been initialized, 
+       // then we initialize before append the gate tensor (referencing the tensor by name) to the network.  
+       std::unordered_map<std::string, std::vector<std::complex<double>>> m_gateTensorBodies; 
+       // Tensor body data represents a single qubit in the zero state. 
+       static inline const std::vector<std::complex<double>> Q_ZERO_TENSOR_BODY{ {1.0,0.0}, {0.0,0.0} };
     };
 } //end namespace tnqvm
 

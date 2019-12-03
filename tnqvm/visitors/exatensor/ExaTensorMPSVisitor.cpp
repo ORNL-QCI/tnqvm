@@ -34,7 +34,75 @@
 
 #include "ExaTensorMPSVisitor.hpp"
 #include "base/Gates.hpp"
-namespace tnqvm {
+#include "exatn.hpp"
+#include "tensor_basic.hpp"
+#include "Instruction.hpp"
+
+namespace {
+    // Helper to construct qubit tensor name:
+    std::string generateQubitTensorName(int qubitIndex) 
+    {
+        return "Q" + std::to_string(qubitIndex);
+    };
+
+    std::vector<std::complex<double>> flattenGateMatrix(const std::vector<std::vector<std::complex<double>>>& in_gateMatrix)
+    {
+        std::vector<std::complex<double>> resultVector;
+        resultVector.reserve(in_gateMatrix.size() * in_gateMatrix.size());
+        for (const auto& row: in_gateMatrix)
+        {
+            for (const auto& entry: row)
+            {
+                resultVector.emplace_back(entry);
+            }
+        }
+
+        return resultVector;      
+    }
+}
+
+namespace tnqvm {    
+    GateInstanceIdentifier::GateInstanceIdentifier(const std::string& in_gateName):
+        m_gateName(in_gateName)
+    {}
+
+    template<typename... GateParams>
+    GateInstanceIdentifier::GateInstanceIdentifier(const std::string& in_gateName, const GateParams&... in_params):
+        GateInstanceIdentifier(in_gateName)
+    {
+        (addParam(in_params), ...);
+    }
+    
+    template<typename GateParam>
+    void GateInstanceIdentifier::addParam(const GateParam& in_param)
+    {
+        m_gateParams.emplace_back(std::to_string(in_param));
+    }
+    
+    std::string GateInstanceIdentifier::toNameString() const 
+    {
+        if (m_gateParams.empty())
+        {
+            return m_gateName;
+        }
+        else 
+        {
+            return m_gateName + 
+                "(" + 
+                [&]() -> std::string {
+                    std::string paramList;
+                    for (size_t i = 0; i < m_gateParams.size() - 1; ++i)
+                    {
+                        paramList.append(m_gateParams[i] + ",");
+                    }
+                    paramList.append(m_gateParams.back());
+
+                    return paramList;
+                }() +
+                ")";
+        }
+    }
+    
     ExaTensorMPSVisitor::ExaTensorMPSVisitor():
         m_tensorNetwork(),
         m_tensorIdCounter(0)
@@ -44,99 +112,181 @@ namespace tnqvm {
     
     void ExaTensorMPSVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer) 
     {
+        // Initialize ExaTN
+        exatn::initialize();
+        assert(exatn::isInitialized());
+
         m_buffer = std::move(buffer);
+       
+
+        // Create the qubit register tensor
+        for (int i = 0; i < m_buffer->size(); ++i)
+        {
+            const bool created = exatn::createTensor(generateQubitTensorName(i), exatn::TensorElementType::COMPLEX64, TensorShape{2}); 
+            assert(created);
+        }
+        
+        // Initialize the qubit register tensor to zero state
+        for (int i = 0; i < m_buffer->size(); ++i)
+        {
+            const bool initialized = exatn::initTensorData(generateQubitTensorName(i), Q_ZERO_TENSOR_BODY);
+            assert(initialized);
+        }
+        
+        // Append the qubit tensors to the tensor network
+        for (int i = 0; i < m_buffer->size(); ++i)
+        {
+            m_tensorIdCounter++;
+            m_tensorNetwork.appendTensor(m_tensorIdCounter, exatn::getTensor(generateQubitTensorName(i)), std::vector<std::pair<unsigned int, unsigned int>>{});
+        }
     }
 
     void ExaTensorMPSVisitor::finalize() 
     {
-       m_buffer.reset();
+        // Destroy gate tensors
+        for (const auto& [gateTensorName, gateTensorBody] : m_gateTensorBodies)
+        {
+            const bool destroyed = exatn::destroyTensor(gateTensorName);
+            assert(destroyed);
+        }
+        m_gateTensorBodies.clear();
+
+        // Destroy qubit tensors 
+        for (int i = 0; i < m_buffer->size(); ++i)
+        {
+            const bool destroyed = exatn::destroyTensor(generateQubitTensorName(i)); 
+            assert(destroyed);
+        }
+
+        m_buffer.reset();
+        exatn::finalize();
     }
 
     // === BEGIN: Gate Visitor Impls ===
     void ExaTensorMPSVisitor::visit(Identity& in_IdentityGate) 
-    { 
-       appendGateTensor(CommonGates::I);
+    {  
+       appendGateTensor<CommonGates::I>(in_IdentityGate);
     }
     
     void ExaTensorMPSVisitor::visit(Hadamard& in_HadamardGate) 
     { 
-        appendGateTensor(CommonGates::H);
+        appendGateTensor<CommonGates::H>(in_HadamardGate);
     }
     
     void ExaTensorMPSVisitor::visit(X& in_XGate) 
     { 
-        appendGateTensor(CommonGates::X);    
+        appendGateTensor<CommonGates::X>(in_XGate);    
     }
 
     void ExaTensorMPSVisitor::visit(Y& in_YGate) 
     { 
-        appendGateTensor(CommonGates::Y);
+        appendGateTensor<CommonGates::Y>(in_YGate);
     }
     
     void ExaTensorMPSVisitor::visit(Z& in_ZGate) 
     { 
-        appendGateTensor(CommonGates::Z); 
+        appendGateTensor<CommonGates::Z>(in_ZGate); 
     }
     
     void ExaTensorMPSVisitor::visit(Rx& in_RxGate) 
     { 
-       appendGateTensor(CommonGates::Rx);
+       assert(in_RxGate.nParameters() == 1);
+       const double theta = in_RxGate.getParameter(0).as<double>();
+       appendGateTensor<CommonGates::Rx>(in_RxGate, theta);
     }
     
     void ExaTensorMPSVisitor::visit(Ry& in_RyGate) 
     { 
-       appendGateTensor(CommonGates::Ry);
+       assert(in_RyGate.nParameters() == 1);
+       const double theta = in_RyGate.getParameter(0).as<double>();
+       appendGateTensor<CommonGates::Ry>(in_RyGate, theta);
     }
     
     void ExaTensorMPSVisitor::visit(Rz& in_RzGate) 
     { 
-        appendGateTensor(CommonGates::Rz);
+        assert(in_RzGate.nParameters() == 1);
+        const double theta = in_RzGate.getParameter(0).as<double>();
+        appendGateTensor<CommonGates::Rz>(in_RzGate, theta);
     }
     
     void ExaTensorMPSVisitor::visit(CPhase& in_CPhaseGate) 
     { 
-        appendGateTensor(CommonGates::CPhase);
+        appendGateTensor<CommonGates::CPhase>(in_CPhaseGate);
     }
     
     void ExaTensorMPSVisitor::visit(U& in_UGate) 
     { 
-        appendGateTensor(CommonGates::U);
+        appendGateTensor<CommonGates::U>(in_UGate);
     }
     
     void ExaTensorMPSVisitor::visit(CNOT& in_CNOTGate) 
     { 
-       appendGateTensor(CommonGates::CNOT);
+       appendGateTensor<CommonGates::CNOT>(in_CNOTGate);
     }
     
     void ExaTensorMPSVisitor::visit(Swap& in_SwapGate) 
     { 
-        appendGateTensor(CommonGates::Swap);
+        appendGateTensor<CommonGates::Swap>(in_SwapGate);
     }
     
     void ExaTensorMPSVisitor::visit(CZ& in_CZGate) 
     { 
-        appendGateTensor(CommonGates::CZ);
+        appendGateTensor<CommonGates::CZ>(in_CZGate);
     }
     
     void ExaTensorMPSVisitor::visit(Measure& in_MeasureGate) 
     { 
-        appendGateTensor(CommonGates::Measure);
+        appendGateTensor<CommonGates::Measure>(in_MeasureGate);
     }
     // === END: Gate Visitor Impls ===
-
-    void ExaTensorMPSVisitor::appendGateTensor(CommonGates in_gateType)
+    
+    template<tnqvm::CommonGates GateType, typename... GateParams>
+    void ExaTensorMPSVisitor::appendGateTensor(const xacc::Instruction& in_gateInstruction, GateParams&&... in_params)
     { 
+        const auto gateName = GetGateName(GateType);
+        const GateInstanceIdentifier gateInstanceId(gateName, in_params...);
+        const std::string uniqueGateName = gateInstanceId.toNameString();
+        // If the tensor data for this gate hasn't been initialized before,
+        // then initialize it.
+        if (m_gateTensorBodies.find(uniqueGateName) == m_gateTensorBodies.end())
+        {
+            const auto gateMatrix = GetGateMatrix<GateType>(in_params...);
+            m_gateTensorBodies[uniqueGateName] = flattenGateMatrix(gateMatrix);
+            // Currently, we only support 2-qubit gates.
+            assert(in_gateInstruction.nRequiredBits() > 0 && in_gateInstruction.nRequiredBits() <= 2);
+            const auto gateTensorShape = (in_gateInstruction.nRequiredBits() == 1 ? TensorShape{2, 2} : TensorShape{2, 2, 2, 2});      
+            // Create the tensor
+            const bool created = exatn::createTensor(uniqueGateName, exatn::TensorElementType::COMPLEX64, gateTensorShape); 
+            assert(created);
+            // Init tensor body data
+            exatn::initTensorData(uniqueGateName, flattenGateMatrix(gateMatrix));
+        }
+
+        // Helper to create unique tensor names in the format <GateTypeName>_<Counter>, e.g. H2, CNOT5, etc.
+        // Note: this is different from the gate instance unique name which is referencing *unique* gate matrices.
+        // Multiple tensors can just refer to the same tensor body,
+        // for example, all H_k (Hadamard gates) in the circuit will all refer to a single *H* tensor body data.   
         const auto generateTensorName = [&]() -> std::string {
-            return GetGateName(in_gateType) + "_" + std::to_string(m_tensorIdCounter);
+            return GetGateName(GateType) + "_" + std::to_string(m_tensorIdCounter);
         };
         
         m_tensorIdCounter++;
-        // TEMP CODE: This is a dummy code to append Gate tensor to the tensor network.
-        m_tensorNetwork.appendTensor(
+
+        // Because the qubit location and gate pairing are of different integer types,
+        // we need to reconstruct the qubit vector.
+        std::vector<unsigned int> gatePairing;
+        for (const auto& qbitLoc: const_cast<xacc::Instruction&>(in_gateInstruction).bits())
+        {
+            gatePairing.emplace_back(qbitLoc);
+        }
+
+        // Append the tensor for this gate to the network
+        m_tensorNetwork.appendTensorGate(
             m_tensorIdCounter,
-            std::make_shared<Tensor>(generateTensorName(), TensorShape{2,2}),
-            // TODO: figure out what Tensor Leg param/pairing should be???
-            std::vector<TensorLeg>{}
+            // Get the gate tensor data which must have been initialized.
+            exatn::getTensor(uniqueGateName),
+            // which qubits that the gate is acting on
+            gatePairing
         ); 
     }
 //Life cycle:
