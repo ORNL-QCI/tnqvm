@@ -33,6 +33,8 @@
 
 namespace tnqvm {
 
+const std::string TNQVM::DEFAULT_VISITOR_BACKEND = "itensor-mps";
+
 void TNQVM::execute(
     std::shared_ptr<AcceleratorBuffer> buffer,
     const std::vector<std::shared_ptr<xacc::CompositeInstruction>> functions) {

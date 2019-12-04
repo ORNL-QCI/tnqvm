@@ -57,6 +57,9 @@ namespace tnqvm {
         
         template<typename GateParam>
         void addParam(const GateParam& in_param);
+
+        template<typename GateParam, typename... MoreParams>
+        void addParam(const GateParam& in_param, const MoreParams&... in_moreParams);
         
         std::string toNameString() const;
 
@@ -65,7 +68,7 @@ namespace tnqvm {
             std::vector<std::string> m_gateParams; 
     };
 
-// class ExaTensorMPSVisitor : public TNQVMVisitor {
+// class ExaTNMPSVisitor : public TNQVMVisitor {
 
 // public:
 
@@ -74,13 +77,13 @@ namespace tnqvm {
 //  static const unsigned int MAX_GATES = 8; //max number of gates in the gate sequence before evaluation
 
 // //Life cycle:
-//  ExaTensorMPSVisitor();
-//  virtual ~ExaTensorMPSVisitor();
+//  ExaTNMPSVisitor();
+//  virtual ~ExaTNMPSVisitor();
 
 //  void initialize(std::shared_ptr<AcceleratorBuffer> buffer); //accelerator buffer
 //  void finalize();
  
-//  virtual std::shared_ptr<TNQVMVisitor> clone() override { return std::make_shared<ExaTensorMPSVisitor>(); }
+//  virtual std::shared_ptr<TNQVMVisitor> clone() override { return std::make_shared<ExaTNMPSVisitor>(); }
 //  virtual const double getExpectationValueZ(std::shared_ptr<CompositeInstruction> function) override;
 // //Visitor methods:
 //  void visit(Identity& gate) {}
@@ -136,7 +139,7 @@ namespace tnqvm {
 //  void closeCircuitNetwork(); //closes the circuit TensorNetwork object with output tensors (those to be optimized)
 //  int appendNBodyGate(const Tensor & gate, const unsigned int qubit_id[]); //appends (applies) an N-body quantum gate to the wavefunction
 
-// }; //end class ExaTensorMPSVisitor
+// }; //end class ExaTNMPSVisitor
     
     // Forward declarations:
     enum class CommonGates: int;
@@ -146,23 +149,23 @@ namespace tnqvm {
     using Tensor = exatn::numerics::Tensor;
     using TensorShape = exatn::numerics::TensorShape;
     using TensorLeg = exatn::numerics::TensorLeg;    
-    // XACC simulation backend (TNQVM) visitor based on ExaTensor
-    class ExaTensorMPSVisitor : public TNQVMVisitor 
+    // XACC simulation backend (TNQVM) visitor based on ExaTN
+    class ExatnMPSVisitor : public TNQVMVisitor 
     {
     public:
         // Constructor
-        ExaTensorMPSVisitor();
+        ExatnMPSVisitor();
         
         // Virtual function impls:        
         virtual void initialize(std::shared_ptr<AcceleratorBuffer> buffer) override;
         virtual void finalize() override;
         
         // Service name as defined in manifest.json
-        virtual const std::string name() const override { return "exatensor-mps"; }
+        virtual const std::string name() const override { return "exatn-mps"; }
 
-        virtual const std::string description() const override { return "ExaTensor MPS Visitor"; }
+        virtual const std::string description() const override { return "ExaTN MPS Visitor"; }
 
-        virtual std::shared_ptr<TNQVMVisitor> clone() override { return std::make_shared<ExaTensorMPSVisitor>(); }
+        virtual std::shared_ptr<TNQVMVisitor> clone() override { return std::make_shared<ExatnMPSVisitor>(); }
         
         virtual OptionPairs getOptions() override { /*TODO: define options */ return OptionPairs{}; }
     
@@ -193,7 +196,7 @@ namespace tnqvm {
        // The AcceleratorBuffer shared_ptr, null if not initialized.
        std::shared_ptr<AcceleratorBuffer> m_buffer;
        
-       // Map of gate tensors that we've initialized with ExaTensor.
+       // Map of gate tensors that we've initialized with ExaTN.
        // The list is indexed by Tensor Name.
        // Note: the tensor name is unique for each gate tensor, hence, for parameterized gate, 
        // the name is a full/expanded name, e.g. Rx(1.234), Ry(2.3456), etc.
@@ -202,7 +205,7 @@ namespace tnqvm {
        // then we initialize before append the gate tensor (referencing the tensor by name) to the network.  
        std::unordered_map<std::string, std::vector<std::complex<double>>> m_gateTensorBodies; 
        // Tensor body data represents a single qubit in the zero state. 
-       static inline const std::vector<std::complex<double>> Q_ZERO_TENSOR_BODY{ {1.0,0.0}, {0.0,0.0} };
+       static const std::vector<std::complex<double>> Q_ZERO_TENSOR_BODY;
     };
 } //end namespace tnqvm
 

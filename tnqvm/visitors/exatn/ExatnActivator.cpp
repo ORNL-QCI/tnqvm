@@ -1,4 +1,4 @@
-#include "ExaTensorMPSVisitor.hpp"
+#include "ExatnMPSVisitor.hpp"
 
 #include "OptionsProvider.hpp"
 
@@ -8,12 +8,12 @@
 
 using namespace cppmicroservices;
 
-class US_ABI_LOCAL ExaTensorActivator : public BundleActivator {
+class US_ABI_LOCAL ExaTNActivator : public BundleActivator {
 public:
-  ExaTensorActivator() {}
+  ExaTNActivator() {}
 
   void Start(BundleContext context) {
-    auto visitor = std::make_shared<tnqvm::ExaTensorMPSVisitor>();
+    auto visitor = std::make_shared<tnqvm::ExatnMPSVisitor>();
     context.RegisterService<tnqvm::TNQVMVisitor>(visitor);
     context.RegisterService<xacc::OptionsProvider>(visitor);
   }
@@ -21,4 +21,4 @@ public:
   void Stop(BundleContext context) {}
 };
 
-CPPMICROSERVICES_EXPORT_BUNDLE_ACTIVATOR(ExaTensorActivator)
+CPPMICROSERVICES_EXPORT_BUNDLE_ACTIVATOR(ExaTNActivator)

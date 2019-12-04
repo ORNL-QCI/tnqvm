@@ -32,7 +32,7 @@
 #ifdef TNQVM_HAS_EXATENSOR
 #define _DEBUG_DIL
 
-#include "ExaTensorMPSVisitor.hpp"
+#include "ExatnMPSVisitor.hpp"
 #include "base/Gates.hpp"
 #include "exatn.hpp"
 #include "tensor_basic.hpp"
@@ -70,7 +70,7 @@ namespace tnqvm {
     GateInstanceIdentifier::GateInstanceIdentifier(const std::string& in_gateName, const GateParams&... in_params):
         GateInstanceIdentifier(in_gateName)
     {
-        (addParam(in_params), ...);
+        addParam(in_params...);
     }
     
     template<typename GateParam>
@@ -78,7 +78,14 @@ namespace tnqvm {
     {
         m_gateParams.emplace_back(std::to_string(in_param));
     }
-    
+
+    template<typename GateParam, typename... MoreParams>
+    void GateInstanceIdentifier::addParam(const GateParam& in_param, const MoreParams&... in_moreParams)
+    {
+        m_gateParams.emplace_back(std::to_string(in_param));
+        addParam(in_moreParams...);
+    }
+
     std::string GateInstanceIdentifier::toNameString() const 
     {
         if (m_gateParams.empty())
@@ -102,15 +109,17 @@ namespace tnqvm {
                 ")";
         }
     }
+    // Define the tensor body for a zero-state qubit
+    const std::vector<std::complex<double>> ExatnMPSVisitor::Q_ZERO_TENSOR_BODY{ {1.0,0.0}, {0.0,0.0} };
     
-    ExaTensorMPSVisitor::ExaTensorMPSVisitor():
+    ExatnMPSVisitor::ExatnMPSVisitor():
         m_tensorNetwork(),
         m_tensorIdCounter(0)
     {
         // TODO
     }
     
-    void ExaTensorMPSVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer) 
+    void ExatnMPSVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer) 
     {
         // Initialize ExaTN
         exatn::initialize();
@@ -141,12 +150,12 @@ namespace tnqvm {
         }
     }
 
-    void ExaTensorMPSVisitor::finalize() 
+    void ExatnMPSVisitor::finalize() 
     {
         // Destroy gate tensors
-        for (const auto& [gateTensorName, gateTensorBody] : m_gateTensorBodies)
+        for (const auto& gateTensor : m_gateTensorBodies)
         {
-            const bool destroyed = exatn::destroyTensor(gateTensorName);
+            const bool destroyed = exatn::destroyTensor(gateTensor.first);
             assert(destroyed);
         }
         m_gateTensorBodies.clear();
@@ -163,85 +172,85 @@ namespace tnqvm {
     }
 
     // === BEGIN: Gate Visitor Impls ===
-    void ExaTensorMPSVisitor::visit(Identity& in_IdentityGate) 
+    void ExatnMPSVisitor::visit(Identity& in_IdentityGate) 
     {  
        appendGateTensor<CommonGates::I>(in_IdentityGate);
     }
     
-    void ExaTensorMPSVisitor::visit(Hadamard& in_HadamardGate) 
+    void ExatnMPSVisitor::visit(Hadamard& in_HadamardGate) 
     { 
         appendGateTensor<CommonGates::H>(in_HadamardGate);
     }
     
-    void ExaTensorMPSVisitor::visit(X& in_XGate) 
+    void ExatnMPSVisitor::visit(X& in_XGate) 
     { 
         appendGateTensor<CommonGates::X>(in_XGate);    
     }
 
-    void ExaTensorMPSVisitor::visit(Y& in_YGate) 
+    void ExatnMPSVisitor::visit(Y& in_YGate) 
     { 
         appendGateTensor<CommonGates::Y>(in_YGate);
     }
     
-    void ExaTensorMPSVisitor::visit(Z& in_ZGate) 
+    void ExatnMPSVisitor::visit(Z& in_ZGate) 
     { 
         appendGateTensor<CommonGates::Z>(in_ZGate); 
     }
     
-    void ExaTensorMPSVisitor::visit(Rx& in_RxGate) 
+    void ExatnMPSVisitor::visit(Rx& in_RxGate) 
     { 
        assert(in_RxGate.nParameters() == 1);
        const double theta = in_RxGate.getParameter(0).as<double>();
        appendGateTensor<CommonGates::Rx>(in_RxGate, theta);
     }
     
-    void ExaTensorMPSVisitor::visit(Ry& in_RyGate) 
+    void ExatnMPSVisitor::visit(Ry& in_RyGate) 
     { 
        assert(in_RyGate.nParameters() == 1);
        const double theta = in_RyGate.getParameter(0).as<double>();
        appendGateTensor<CommonGates::Ry>(in_RyGate, theta);
     }
     
-    void ExaTensorMPSVisitor::visit(Rz& in_RzGate) 
+    void ExatnMPSVisitor::visit(Rz& in_RzGate) 
     { 
         assert(in_RzGate.nParameters() == 1);
         const double theta = in_RzGate.getParameter(0).as<double>();
         appendGateTensor<CommonGates::Rz>(in_RzGate, theta);
     }
     
-    void ExaTensorMPSVisitor::visit(CPhase& in_CPhaseGate) 
+    void ExatnMPSVisitor::visit(CPhase& in_CPhaseGate) 
     { 
         appendGateTensor<CommonGates::CPhase>(in_CPhaseGate);
     }
     
-    void ExaTensorMPSVisitor::visit(U& in_UGate) 
+    void ExatnMPSVisitor::visit(U& in_UGate) 
     { 
         appendGateTensor<CommonGates::U>(in_UGate);
     }
     
-    void ExaTensorMPSVisitor::visit(CNOT& in_CNOTGate) 
+    void ExatnMPSVisitor::visit(CNOT& in_CNOTGate) 
     { 
        appendGateTensor<CommonGates::CNOT>(in_CNOTGate);
     }
     
-    void ExaTensorMPSVisitor::visit(Swap& in_SwapGate) 
+    void ExatnMPSVisitor::visit(Swap& in_SwapGate) 
     { 
         appendGateTensor<CommonGates::Swap>(in_SwapGate);
     }
     
-    void ExaTensorMPSVisitor::visit(CZ& in_CZGate) 
+    void ExatnMPSVisitor::visit(CZ& in_CZGate) 
     { 
         appendGateTensor<CommonGates::CZ>(in_CZGate);
     }
     
-    void ExaTensorMPSVisitor::visit(Measure& in_MeasureGate) 
+    void ExatnMPSVisitor::visit(Measure& in_MeasureGate) 
     { 
         appendGateTensor<CommonGates::Measure>(in_MeasureGate);
     }
     // === END: Gate Visitor Impls ===
     
     template<tnqvm::CommonGates GateType, typename... GateParams>
-    void ExaTensorMPSVisitor::appendGateTensor(const xacc::Instruction& in_gateInstruction, GateParams&&... in_params)
+    void ExatnMPSVisitor::appendGateTensor(const xacc::Instruction& in_gateInstruction, GateParams&&... in_params)
     { 
         const auto gateName = GetGateName(GateType);
         const GateInstanceIdentifier gateInstanceId(gateName, in_params...);

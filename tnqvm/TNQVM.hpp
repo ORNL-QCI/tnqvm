@@ -128,8 +128,8 @@ private:
   bool executedOnce = false;
   bool vqeMode = true;
   // Default visitor backend is ITensor.
-  // TODO: we may eventually use our exatensor-mps as default.
-  inline static const std::string DEFAULT_VISITOR_BACKEND = "itensor-mps";
+  // TODO: we may eventually use our exatn-mps as default.
+  static const std::string DEFAULT_VISITOR_BACKEND;
   // The backend name that is configured.
   std::string backendName;
 };

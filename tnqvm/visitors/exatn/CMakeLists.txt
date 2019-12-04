@@ -30,9 +30,9 @@
 #**********************************************************************************/
 
 if (EXATENSOR_ROOT)
-   set (PACKAGE_NAME "TNQVM ExaTensor Visitor")
-   set (PACKAGE_DESCIPTION "TNQVM ExaTensor backend")
-   set (LIBRARY_NAME tnqvm-exatensor)
+   set (PACKAGE_NAME "TNQVM ExaTN Visitor")
+   set (PACKAGE_DESCIPTION "TNQVM ExaTN backend")
+   set (LIBRARY_NAME tnqvm-exatn)
    # Checks that EXATENSOR_ROOT is a valid ExaTN install directory
    if (IS_DIRECTORY ${EXATENSOR_ROOT} AND EXISTS ${EXATENSOR_ROOT}/exatn-config.cmake AND EXISTS ${EXATENSOR_ROOT}/bin/exatn-config)
       message(STATUS "ExaTensor found at ${EXATENSOR_ROOT}")
@@ -64,7 +64,7 @@ if (EXATENSOR_ROOT)
    
    add_library(${LIBRARY_NAME} SHARED ${SRC})
 
-   set(_bundle_name tnqvm_exatensor)
+   set(_bundle_name tnqvm_exatn)
    set_target_properties(${LIBRARY_NAME} PROPERTIES
    # This is required for every bundle
    COMPILE_DEFINITIONS US_BUNDLE_NAME=${_bundle_name}

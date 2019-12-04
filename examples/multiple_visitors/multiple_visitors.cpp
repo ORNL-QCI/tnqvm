@@ -36,8 +36,8 @@ int main (int argc, char** argv) {
 	// Initialize the XACC Framework
 	xacc::Initialize(argc, argv);
 
-	// Example 1: using the ExaTensor backend
-	auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatensor-mps")});
+	// Example 1: using the ExaTN backend
+	auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps")});
 	
 	// Example 2: using the ITensor backend
 	//auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "itensor-mps")});

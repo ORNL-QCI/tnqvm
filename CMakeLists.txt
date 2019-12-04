@@ -29,7 +29,7 @@ cmake_minimum_required(VERSION 3.12 FATAL_ERROR)
 project(TNQVM VERSION 1.0.0 LANGUAGES C CXX HOMEPAGE_URL "https://github.com/ornl-qci/tnqvm")
 
 set(CMAKE_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 
 option(TNQVM_BUILD_TESTS "Build test programs" OFF)
