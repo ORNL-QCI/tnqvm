@@ -152,6 +152,19 @@ namespace tnqvm {
 
     void ExatnMPSVisitor::finalize() 
     {
+        #ifdef _DEBUG
+        m_tensorNetwork.printIt();
+        #endif
+        
+        // Evaluate the tensor network (quantum circuit):
+        // For ExaTN, we only evaluate during finalization, i.e. after all gates have been visited. 
+        {
+            const bool evaluated = exatn::evaluateSync(m_tensorNetwork); 
+            assert(evaluated);
+            // Synchronize:
+            exatn::sync();
+        }  
+ 
         // Destroy gate tensors
         for (const auto& gateTensor : m_gateTensorBodies)
         {
@@ -166,6 +179,9 @@ namespace tnqvm {
             const bool destroyed = exatn::destroyTensor(generateQubitTensorName(i)); 
             assert(destroyed);
         }
+
+        // Synchronize after tensor destroy
+        exatn::sync();
 
         m_buffer.reset();
         exatn::finalize();
