@@ -1,2 +1,0 @@
-add_xacc_test(ExatnMPSVisitor)
-target_link_libraries(ExatnMPSVisitorTester tnqvm-exatn)

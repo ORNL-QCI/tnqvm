@@ -131,7 +131,8 @@ private:
   // TODO: we may eventually use our exatn-mps as default.
   static const std::string DEFAULT_VISITOR_BACKEND;
   // The backend name that is configured.
-  std::string backendName;
+  // Initialized to the default.
+  std::string backendName = DEFAULT_VISITOR_BACKEND;
 };
 } // namespace tnqvm
 

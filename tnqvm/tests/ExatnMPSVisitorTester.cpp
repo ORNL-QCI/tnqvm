@@ -31,37 +31,45 @@
 #include <memory>
 #include <gtest/gtest.h>
 #include "TNQVM.hpp"
-#include "GateFunction.hpp"
-#include "Hadamard.hpp"
-#include "CNOT.hpp"
-#include "X.hpp"
-#include "ExatnMPSVisitor.hpp"
 #include "xacc.hpp"
+#include "base/Gates.hpp"
 
+using namespace tnqvm;
+using namespace xacc::quantum;
+
+// This test is just to confirm that the ExaTN backend can be instaniated
+// and we can submit quantum circuit as tensors to the ExaTN backend. 
 TEST(ExatnMPSVisitorTester, checkExatnMPSVisitor) {
-
-  using namespace xacc::tnqvm;
-  using namespace xacc::quantum;
-
   xacc::Initialize();
 
-  xacc::setOption("tnqvm-visitor", "exatn");
-
   TNQVM acc;
-  auto qreg1 = acc.createBuffer("qreg", 3);       // 3-qubit accelerator buffer
-  auto f = std::make_shared<GateFunction>("foo"); // gate function
 
-  auto x1 = std::make_shared<X>(0);
-  auto h1 = std::make_shared<Hadamard>(1);
-  auto cn1 = std::make_shared<CNOT>(1, 2);
-  auto cn2 = std::make_shared<CNOT>(0, 1);
-  auto h2 = std::make_shared<Hadamard>(0);
+  acc.initialize({std::make_pair("tnqvm-visitor", "exatn-mps")});  
+  EXPECT_EQ(acc.getVisitorName(), "exatn-mps"); 
 
+  auto qreg1 = xacc::qalloc(3);       // 3-qubit accelerator buffer
+  auto provider = xacc::getIRProvider("quantum");
+ 
+  auto f = provider->createComposite("foo", {}); // gate function
+
+  auto x1 = provider->createInstruction(GetGateName(CommonGates::X), 0);
+  auto h1 = provider->createInstruction(GetGateName(CommonGates::H), 1);
+  auto cn1 = provider->createInstruction(GetGateName(CommonGates::CNOT), { 1, 2 });
+  auto cn2 = provider->createInstruction(GetGateName(CommonGates::CNOT), { 0, 1 });
+  auto h2 = provider->createInstruction(GetGateName(CommonGates::H), 0);
+  
   f->addInstruction(x1);
   f->addInstruction(h1);
   f->addInstruction(cn1);
   f->addInstruction(cn2);
   f->addInstruction(h2);
-
-  acc.execute(qreg1, f);
+  
+  EXPECT_NO_THROW(acc.execute(qreg1, f));
 }
+
+int main(int argc, char **argv) 
+{
+  ::testing::InitGoogleTest(&argc, argv);
+  auto ret = RUN_ALL_TESTS();
+  return ret;
+} 

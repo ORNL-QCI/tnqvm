@@ -95,10 +95,7 @@ if (EXATENSOR_ROOT)
    endif()
 
    install(TARGETS ${LIBRARY_NAME} DESTINATION ${CMAKE_INSTALL_PREFIX}/plugins)
-   if(TNQVM_BUILD_TESTS)
-	   add_subdirectory(tests)
-   endif()
-
+  
    xacc_configure_plugin_rpath(${LIBRARY_NAME})
 
 else()
