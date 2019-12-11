@@ -29,16 +29,11 @@ cmake_minimum_required(VERSION 3.12 FATAL_ERROR)
 project(TNQVM VERSION 1.0.0 LANGUAGES C CXX HOMEPAGE_URL "https://github.com/ornl-qci/tnqvm")
 
 set(CMAKE_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 
 option(TNQVM_BUILD_TESTS "Build test programs" OFF)
 option(TNQVM_BUILD_EXAMPLES "Build example programs" OFF)
-
-message(STATUS "XACC Install Directory: ${XACC_DIR}.")
-if(NOT EXISTS "${XACC_DIR}")
-  message(FATAL_ERROR "XACC Install Directory doesn't exist. Please specify a valid directory with -DXACC_DIR.")
-endif()
 
 if (NOT CMAKE_BUILD_TYPE)
   # Default build type is "Release" if not specified 
@@ -54,13 +49,6 @@ endif()
 
 # Find Xacc
 find_package(XACC REQUIRED)
-
-# If Xacc INCLUDE_DIRS was not set after successfully find_package
-if (NOT XACC_INCLUDE_DIRS)
-  if(EXISTS "${XACC_DIR}/include/xacc")
-    set(XACC_INCLUDE_DIRS "${XACC_DIR}/include/xacc")
-  endif()
-endif()
 
 find_package(CUDA)
 find_package(BLAS REQUIRED)
