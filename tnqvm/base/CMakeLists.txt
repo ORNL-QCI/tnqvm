@@ -28,16 +28,5 @@
 #   Initial API and implementation - Alex McCaskey
 #
 #**********************************************************************************/
-find_package(OpenMP)
-if (OPENMP_FOUND)
-    set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
-    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-endif()
 
-include_directories(${XACC_INCLUDE_DIRS})
-include_directories(${CMAKE_SOURCE_DIR})
-link_directories   (${XACC_LIBRARY_DIRS})
-
-add_executable(openmp_kernels openmp_kernels.cpp)
-add_dependencies(openmp_kernels projitensor tnqvm)
-target_link_libraries(openmp_kernels PRIVATE xacc::xacc)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})

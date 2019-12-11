@@ -36,52 +36,66 @@
 #include "xacc.hpp"
 #include "IRProvider.hpp"
 #include "xacc_service.hpp"
+#include "utils/GateMatrixAlgebra.hpp"
+#include "base/Gates.hpp"
 
 using namespace xacc::quantum;
 using namespace tnqvm;
 using namespace xacc;
 
 TEST(ITensorMPSVisitorTester, checkSimpleSimulation) {
+  auto gateRegistry = xacc::getIRProvider("quantum");
 
-  auto gateRegistry = xacc::getService<IRProvider>("gate");
+  auto statePrep = gateRegistry->createComposite("statePrep", { "theta" });
 
-  auto statePrep = gateRegistry->createFunction(
-      "statePrep", std::vector<int>{0, 1},
-      std::vector<InstructionParameter>{InstructionParameter("theta")});
+  auto term0 = gateRegistry->createComposite("term0", { "theta" });
+  
+  const auto calculateExpectedResult = [](double in_theta) -> double {
+    // Create a 2-qubit state vector for validation 
+    auto expectedStateVector = AllocateStateVector(2);
+    ApplySingleQubitGate(expectedStateVector, 0, GetGateMatrix<CommonGates::Rx>(3.1415926));
+    ApplySingleQubitGate(expectedStateVector, 1, GetGateMatrix<CommonGates::Ry>(3.1415926 / 2.0));
+    ApplySingleQubitGate(expectedStateVector, 0, GetGateMatrix<CommonGates::Rx>(7.8539752));
+    ApplyCNOTGate(expectedStateVector, 1, 0);
+    ApplySingleQubitGate(expectedStateVector, 0, GetGateMatrix<CommonGates::Rz>(in_theta));
+    ApplyCNOTGate(expectedStateVector, 1, 0);
+    ApplySingleQubitGate(expectedStateVector, 1, GetGateMatrix<CommonGates::Ry>(7.8539752));
+    ApplySingleQubitGate(expectedStateVector, 0, GetGateMatrix<CommonGates::Rx>(3.1415926 / 2.0));
 
-  auto term0 = gateRegistry->createFunction(
-      "term0", std::vector<int>{0, 1},
-      std::vector<InstructionParameter>{InstructionParameter("theta")});
+    // Return the expected-Z of the first qubit
+    return -1.0 * (std::pow(std::abs(expectedStateVector[1]), 2) + std::pow(std::abs(expectedStateVector[3]), 2)) 
+    + 1.0 * (std::pow(std::abs(expectedStateVector[0]), 2) + std::pow(std::abs(expectedStateVector[2]), 2));
+  };  
 
-  auto rx = gateRegistry->createInstruction("Rx", std::vector<int>{0});
+  auto rx = gateRegistry->createInstruction("Rx", std::vector<std::size_t>{0});
   InstructionParameter p0(3.1415926);
   rx->setParameter(0, p0);
-
-  auto ry = gateRegistry->createInstruction("Ry", std::vector<int>{1});
+  
+  auto ry = gateRegistry->createInstruction("Ry", std::vector<std::size_t>{1});
   InstructionParameter p1(3.1415926 / 2.0);
   ry->setParameter(0, p1);
-
-  auto rx2 = gateRegistry->createInstruction("Rx", std::vector<int>{0});
+  
+  auto rx2 = gateRegistry->createInstruction("Rx", std::vector<std::size_t>{0});
   InstructionParameter p2(7.8539752);
   rx2->setParameter(0, p2);
-
-  auto cnot1 = gateRegistry->createInstruction("CNOT", std::vector<int>{1, 0});
-
-  auto rz = gateRegistry->createInstruction("Rz", std::vector<int>{0});
+ 
+  auto cnot1 = gateRegistry->createInstruction("CNOT", std::vector<std::size_t>{1, 0});
+ 
+  auto rz = gateRegistry->createInstruction("Rz", std::vector<std::size_t>{0});
   InstructionParameter p3("theta");
   rz->setParameter(0, p3);
-
-  auto cnot2 = gateRegistry->createInstruction("CNOT", std::vector<int>{1, 0});
-
-  auto ry2 = gateRegistry->createInstruction("Ry", std::vector<int>{1});
+ 
+  auto cnot2 = gateRegistry->createInstruction("CNOT", std::vector<std::size_t>{1, 0});
+  
+  auto ry2 = gateRegistry->createInstruction("Ry", std::vector<std::size_t>{1});
   InstructionParameter p4(7.8539752);
   ry2->setParameter(0, p4);
 
-  auto rx3 = gateRegistry->createInstruction("Rx", std::vector<int>{0});
+  auto rx3 = gateRegistry->createInstruction("Rx", std::vector<std::size_t>{0});
   InstructionParameter p5(3.1415926 / 2.0);
   rx3->setParameter(0, p5);
 
-  auto meas = gateRegistry->createInstruction("Measure", std::vector<int>{0});
+  auto meas = gateRegistry->createInstruction("Measure", std::vector<std::size_t>{0});
   InstructionParameter p6(0);
   meas->setParameter(0, p6);
 
@@ -93,19 +107,16 @@ TEST(ITensorMPSVisitorTester, checkSimpleSimulation) {
   term0->addInstruction(cnot2);
   term0->addInstruction(ry2);
   term0->addInstruction(rx3);
-
-  std::cout << "NPARAMS: " << term0->nParameters() << "\n";
-//   term0->addInstruction(statePrep);
   term0->addInstruction(meas);
 
-  auto buffer = std::make_shared<TNQVMBuffer>("qreg", 2);
-
-  // Get the visitor backend
-  auto visitor = std::make_shared<ITensorMPSVisitor>();
-  auto visCast = std::dynamic_pointer_cast<BaseInstructionVisitor>(visitor);
-
-  auto run = [&](std::shared_ptr<ITensorMPSVisitor> visitor,
-                 double theta) -> double {
+  const auto run = [&term0](double theta) -> double {
+    auto buffer = xacc::qalloc(2);
+     // Get the visitor backend
+    auto visitor = std::make_shared<ITensorMPSVisitor>();
+    auto visCast = std::dynamic_pointer_cast<BaseInstructionVisitor>(visitor);
+    
+    // NOTE: there is bug in TNQVMBuffer::resetBuffer, it is currently doing *nothing*,
+    // hence we cannot reuse the buffer between runs, i.e. must do xacc::qalloc() to guarantee initial state.
     buffer->resetBuffer();
     // Initialize the visitor
     visitor->initialize(buffer);
@@ -118,51 +129,63 @@ TEST(ITensorMPSVisitorTester, checkSimpleSimulation) {
     while (it.hasNext()) {
       auto nextInst = it.next();
       if (nextInst->isEnabled()) {
-        std::cout << "HELLO: " << nextInst->name() << "\n";
         nextInst->accept(visCast);
       }
     }
 
     // Finalize the visitor
     visitor->finalize();
-    return buffer->getExpectationValueZ();
+
+    const auto result = buffer->getExpectationValueZ();
+    return result;
   };
 
-  auto pi = 3.1415926;
-
-//   EXPECT_NEAR(-1, run(visitor, -pi), 1e-8); // < 1e-8);
-  //	EXPECT_NEAR(-0.128844, run(visitor, -1.44159), 1e-5);
-  //	EXPECT_NEAR(0.307333, run(visitor, 1.25841), 1e-8);
-  //	EXPECT_NEAR(-.283662, run(visitor, 1.85841), 1e-8);
-  //	EXPECT_NEAR(-1,run(visitor, pi), 1e-8);
+  const auto pi = 3.1415926;
+  const auto epsilon = 1e-12;
+  {
+    const auto expectedValue = calculateExpectedResult(-pi);
+    EXPECT_NEAR(expectedValue, run(-pi), epsilon);
+  }
+  {
+    const auto expectedValue = calculateExpectedResult(-1.44159);
+    EXPECT_NEAR(expectedValue, run(-1.44159), epsilon);
+  }
+  {
+    const auto expectedValue = calculateExpectedResult(1.25841);
+    EXPECT_NEAR(expectedValue, run(1.25841), epsilon);
+  }
+  {
+    const auto expectedValue = calculateExpectedResult(1.85841);
+    EXPECT_NEAR(expectedValue, run(1.85841), epsilon);
+  }
+  {
+    const auto expectedValue = calculateExpectedResult(pi);
+    EXPECT_NEAR(expectedValue,run(pi), epsilon);
+  }  
 }
 
 TEST(ITensorMPSVisitorTester, checkOneQubitBug) {
 
-  auto gateRegistry = xacc::getService<IRProvider>("gate");
+  auto gateRegistry = xacc::getIRProvider("quantum");
 
-  auto statePrep = gateRegistry->createFunction(
-      "statePrep", std::vector<int>{0, 1},
-      std::vector<InstructionParameter>{InstructionParameter("theta")});
+  auto statePrep = gateRegistry->createComposite("statePrep", { "theta"});
 
-  auto term0 = gateRegistry->createFunction(
-      "term0", std::vector<int>{0, 1},
-      std::vector<InstructionParameter>{InstructionParameter("theta")});
+  auto term0 = gateRegistry->createComposite("term0", { "theta" });
 
-  auto rx = gateRegistry->createInstruction("Rx", std::vector<int>{0});
+  auto rx = gateRegistry->createInstruction("Rx", std::vector<std::size_t>{0});
   InstructionParameter p0("theta");
   rx->setParameter(0, p0);
 
-  auto ry = gateRegistry->createInstruction("Ry", std::vector<int>{1});
+  auto ry = gateRegistry->createInstruction("Ry", std::vector<std::size_t>{1});
   InstructionParameter p1(3.1415926 / 2.0);
   ry->setParameter(0, p1);
-  auto rz = gateRegistry->createInstruction("Rz", std::vector<int>{0});
+  auto rz = gateRegistry->createInstruction("Rz", std::vector<std::size_t>{0});
   InstructionParameter p3("theta");
   rz->setParameter(0, p3);
 
-  auto h = gateRegistry->createInstruction("H", std::vector<int>{0});
+  auto h = gateRegistry->createInstruction("H", std::vector<std::size_t>{0});
 
-  auto meas = gateRegistry->createInstruction("Measure", std::vector<int>{0});
+  auto meas = gateRegistry->createInstruction("Measure", std::vector<std::size_t>{0});
   InstructionParameter p6(0);
   meas->setParameter(0, p6);
 
@@ -173,7 +196,7 @@ TEST(ITensorMPSVisitorTester, checkOneQubitBug) {
   term0->addInstruction(h);
   term0->addInstruction(meas);
 
-  auto buffer = std::make_shared<TNQVMBuffer>("qreg", 1);
+  auto buffer = xacc::qalloc(1);
 
   // Get the visitor backend
   auto visitor = std::make_shared<ITensorMPSVisitor>();
@@ -204,35 +227,34 @@ TEST(ITensorMPSVisitorTester, checkOneQubitBug) {
   };
 
   auto pi = 3.14926;
-
-  // UNCOMMENT TO SEE BUG
-  //	run(visitor, pi);
+  // UNCOMMENT TO SEE BUG: Looks like it's an edge case for one-qubit circuits:
+  // in ITensorMPSVisitor::averZs, bondMats_m vector is empty.  
+  // run(visitor, pi);
 }
 
 TEST(ITensorMPSVisitorTester, checkSampling) {
 
-  auto gateRegistry = xacc::getService<IRProvider>("gate");
+  auto gateRegistry = xacc::getIRProvider("quantum");
 
-  auto term0 = gateRegistry->createFunction(
-      "term0", std::vector<int>{0, 1}, std::vector<InstructionParameter>{});
+  auto term0 = gateRegistry->createComposite("term0");
 
-  auto x1 = gateRegistry->createInstruction("X", std::vector<int>{0});
-  auto x2 = gateRegistry->createInstruction("X", std::vector<int>{1});
+  auto x1 = gateRegistry->createInstruction("X", std::vector<std::size_t>{0});
+  auto x2 = gateRegistry->createInstruction("X", std::vector<std::size_t>{1});
 
   term0->addInstruction(x1);
   term0->addInstruction(x2);
-  auto meas1 = gateRegistry->createInstruction("Measure", std::vector<int>{0});
+  auto meas1 = gateRegistry->createInstruction("Measure", std::vector<std::size_t>{0});
   InstructionParameter p6(0);
   meas1->setParameter(0, p6);
 
-  auto meas2 = gateRegistry->createInstruction("Measure", std::vector<int>{1});
+  auto meas2 = gateRegistry->createInstruction("Measure", std::vector<std::size_t>{1});
   InstructionParameter p7(1);
   meas2->setParameter(0, p7);
 
   term0->addInstruction(meas1);
   term0->addInstruction(meas2);
 
-  auto buffer = std::make_shared<TNQVMBuffer>("qreg", 2);
+  auto buffer = xacc::qalloc(2);
 
   // Get the visitor backend
   auto visitor = std::make_shared<ITensorMPSVisitor>();
@@ -264,10 +286,10 @@ TEST(ITensorMPSVisitorTester, checkSampling) {
 
   run(visitor, 0.0);
 
-//   auto mstrs = buffer->getMeasurementCounts();
-//   for (auto& kv : mstrs) {
-//     EXPECT_TRUE(kv. == "11");
-//   }
+  auto mstrs = buffer->getMeasurementCounts();
+  for (auto& kv : mstrs) {
+    EXPECT_TRUE(kv.first == "11");
+  }
 }
 
 int main(int argc, char **argv) {

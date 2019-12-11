@@ -28,13 +28,11 @@
 #   Initial API and implementation - Alex McCaskey
 #
 #**********************************************************************************/
-find_package(XACC REQUIRED)
 
 include_directories(${XACC_INCLUDE_DIRS})
 include_directories(${CMAKE_SOURCE_DIR})
 link_directories   (${XACC_LIBRARY_DIRS})
 
-
 add_executable(100qbits 100qbits.cpp)
 add_dependencies(100qbits projitensor tnqvm)
-target_link_libraries(100qbits ${Boost_LIBRARIES} ${XACC_LIBRARIES})
+target_link_libraries(100qbits PRIVATE xacc::xacc)

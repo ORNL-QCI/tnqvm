@@ -28,11 +28,12 @@
  *   Initial API and implementation - Alex McCaskey
  *
  **********************************************************************************/
-#include "XACC.hpp"
+#include "xacc.hpp"
 
 // Quantum Kernel executing teleportation of
 // qubit state to another.
 // test
+// !!! IMPORTANT NOTE !!! This XASM source code is *OBSOLETE*, hence may not be compiled by the latest XACC compiler.
     const char* src = R"src(__qpu__ teleport(qbit qreg){
 // A 100-qubit circuit with 357 gates
 // can be simulated by TNQVM (using ITensor backend) on single 2.8GHz CPU in about 168 minutes
@@ -405,18 +406,19 @@ int main (int argc, char** argv) {
 	auto qpu = xacc::getAccelerator("tnqvm");
 
 	// Allocate a register of 100 qubits
-	auto qubitReg = qpu->createBuffer("qreg", 100);
+	auto qubitReg = xacc::qalloc(100);
 
 	// Create a Program
-	xacc::Program program(qpu, src);
-
+	auto xasmCompiler = xacc::getCompiler("xasm");
+  	auto program = xasmCompiler->compile(src, qpu);
+	
 	// Request the quantum kernel representing
 	// the above source code
-	auto teleport = program.getKernel("teleport");
+	auto teleport = program->getComposite("teleport");
 
 	// Execute!
-	teleport(qubitReg);
-
+	qpu->execute(qubitReg, teleport);
+	
 	qubitReg->print(std::cout);
 
 	// Finalize the XACC Framework

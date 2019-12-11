@@ -28,11 +28,12 @@
  *   Initial API and implementation - Alex McCaskey
  *
  **********************************************************************************/
-#include "XACC.hpp"
+#include "xacc.hpp"
 
 // Quantum Kernel executing teleportation of
 // qubit state to another.
 // test
+// !!! IMPORTANT NOTE !!! This XASM source code is *OBSOLETE*, hence may not be compiled by the latest XACC compiler.
 const char* src = R"src(
 __qpu__ prepare_ansatz(AcceleratorBuffer qreg, double theta){
         RX(3.1415926) 0
@@ -73,10 +74,11 @@ int main (int argc, char** argv) {
 	auto qpu = xacc::getAccelerator("tnqvm");
 
 	// Allocate a register of 2 qubits
-	auto buffer = qpu->createBuffer("qreg", 2);
+	auto buffer = xacc::qalloc(2);
 	// Create a Program
-	xacc::Program program(qpu, src);
-
+	auto xasmCompiler = xacc::getCompiler("xasm");
+  	auto program = xasmCompiler->compile(src, qpu);
+	
 	int n_terms=3;
 
 	// Execute!
@@ -88,9 +90,10 @@ int main (int argc, char** argv) {
 		file<<theta;
 		for(int i=0; i<n_terms; ++i){
 			std::string kernel_name = "term"+std::to_string(i);
-			auto measure_term = program.getKernel<double>(kernel_name);
+			auto measure_term = program->getComposite(kernel_name);
+			auto k_evaled = measure_term->operator()({ theta });
 			buffer->resetBuffer();
-			measure_term(buffer, theta);
+			qpu->execute(buffer, k_evaled);
 			auto aver = buffer->getExpectationValueZ();
 			file<<", "<<aver;
 		}
