@@ -40,8 +40,6 @@ using namespace xacc::quantum;
 // This test is just to confirm that the ExaTN backend can be instaniated
 // and we can submit quantum circuit as tensors to the ExaTN backend. 
 TEST(ExatnMPSVisitorTester, checkExatnMPSVisitor) {
-  xacc::Initialize();
-
   TNQVM acc;
 
   acc.initialize({std::make_pair("tnqvm-visitor", "exatn-mps")});  
@@ -67,9 +65,61 @@ TEST(ExatnMPSVisitorTester, checkExatnMPSVisitor) {
   EXPECT_NO_THROW(acc.execute(qreg1, f));
 }
 
+TEST(ExatnMPSVisitorTester, testSimpleGates) {
+  const auto getExpectedValue = [](int in_qubitIndex, AcceleratorBuffer& in_buffer) -> double {
+    return  mpark::get<double>(in_buffer.getInformation("exp-val-z"));
+  };
+  
+  {
+    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps")});
+    auto qubitReg = xacc::qalloc(1);
+    auto xasmCompiler = xacc::getCompiler("xasm");
+    auto ir = xasmCompiler->compile(R"(__qpu__ void test1(qbit q) {
+      Measure(q[0]);
+    })", qpu);
+ 
+    auto program = ir->getComposites()[0];   
+    qpu->execute(qubitReg, program);
+    // Initial qubit in |0> state -> expected value is 1.0
+    EXPECT_NEAR(1.0, getExpectedValue(0, *qubitReg), 1e-12);
+  }
+
+  {
+    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps")});
+    auto qubitReg = xacc::qalloc(1);
+    auto xasmCompiler = xacc::getCompiler("xasm");
+    auto ir = xasmCompiler->compile(R"(__qpu__ void test2(qbit q) {
+      H(q[0]);
+      Measure(q[0]);
+    })", qpu);
+ 
+    auto program = ir->getComposites()[0];   
+    qpu->execute(qubitReg, program);
+    // |+> state -> expected value is 0.0
+    EXPECT_NEAR(0.0, getExpectedValue(0, *qubitReg), 1e-12);
+  }
+
+  {
+    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps")});
+    auto qubitReg = xacc::qalloc(1);
+    auto xasmCompiler = xacc::getCompiler("xasm");
+    auto ir = xasmCompiler->compile(R"(__qpu__ void test3(qbit q) {
+      X(q[0]);
+      Measure(q[0]);
+    })", qpu);
+ 
+    auto program = ir->getComposites()[0];   
+    qpu->execute(qubitReg, program);
+    // |1> state -> expected value is 1.0
+    EXPECT_NEAR(-1.0, getExpectedValue(0, *qubitReg), 1e-12);
+  }
+}
+
 int main(int argc, char **argv) 
 {
+  xacc::Initialize();
   ::testing::InitGoogleTest(&argc, argv);
   auto ret = RUN_ALL_TESTS();
   return ret;
+  xacc::Finalize();
 } 

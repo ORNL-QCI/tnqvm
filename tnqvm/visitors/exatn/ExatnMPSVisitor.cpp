@@ -37,6 +37,8 @@
 #include "exatn.hpp"
 #include "tensor_basic.hpp"
 #include "Instruction.hpp"
+#include "talshxx.hpp"
+#include <numeric>
 
 namespace {
     // Helper to construct qubit tensor name:
@@ -58,6 +60,15 @@ namespace {
         }
 
         return resultVector;      
+    }
+
+    bool checkStateVectorNorm(const std::vector<std::complex<double>>& in_stateVec) 
+    {
+        const double norm = std::accumulate(in_stateVec.begin(), in_stateVec.end(), 0.0, [](double runningNorm, std::complex<double> vecComponent){
+            return runningNorm + std::norm(vecComponent);
+        });
+
+        return (std::abs(norm - 1.0) < 1e-12);
     }
 }
 
@@ -112,9 +123,89 @@ namespace tnqvm {
     // Define the tensor body for a zero-state qubit
     const std::vector<std::complex<double>> ExatnMPSVisitor::Q_ZERO_TENSOR_BODY{ {1.0,0.0}, {0.0,0.0} };
     
+    int TensorComponentPrintFunctor::apply(talsh::Tensor& local_tensor) 
+    {        
+        std::complex<double>* elements;
+        const bool worked = local_tensor.getDataAccessHost(&elements);
+        std::cout << "(Rank:" << local_tensor.getRank() << ", Volume: " << local_tensor.getVolume() << "): ";
+        std::cout << "[";
+        for (int i = 0; i < local_tensor.getVolume(); ++i)
+        {
+           const std::complex<double> element = elements[i];
+           std::cout << element;
+        }
+        std::cout << "]\n";
+        return 0;
+    }
+
+    ReconstructStateVectorFunctor::ReconstructStateVectorFunctor(const std::shared_ptr<AcceleratorBuffer>& buffer, std::vector<std::complex<double>>& io_stateVec):
+        m_qubits(buffer->size()),
+        m_stateVec(io_stateVec)
+    {
+        // Don't allow any attempts to reconstruct the state vector
+        // if there are so many qubits.
+        assert(m_qubits <= 32);
+        m_stateVec.clear();
+        m_stateVec.reserve(1 << m_qubits);
+    }
+    
+    int ReconstructStateVectorFunctor::apply(talsh::Tensor& local_tensor) 
+    {        
+        // Make sure we only call this on the final state tensor, 
+        // i.e. the rank must equal the number of qubits.
+        assert(local_tensor.getRank() == m_qubits);
+        std::complex<double>* elements;
+       
+        if (local_tensor.getDataAccessHost(&elements))
+        {
+            m_stateVec.assign(elements, elements + local_tensor.getVolume());
+        }
+
+        #ifdef _DEBUG
+        const bool normOkay = checkStateVectorNorm(m_stateVec);
+        assert(normOkay);
+        #endif
+        
+        return 0;
+    }
+
+    CalculateExpectationValueFunctor::CalculateExpectationValueFunctor(int qubitIndex):
+        m_qubitIndex(qubitIndex)
+    {}
+    
+    int CalculateExpectationValueFunctor::apply(talsh::Tensor& local_tensor) 
+    {        
+        assert(local_tensor.getRank() > m_qubitIndex);
+        
+        const auto N = local_tensor.getVolume();
+	    const auto k_range = 1ULL << m_qubitIndex;
+        m_result = 0.0;
+        // The measurement result of a state
+        double measureResult = 1.0;
+        std::complex<double>* elements;
+        
+        const bool isOkay = local_tensor.getDataAccessHost(&elements);
+        if (isOkay)
+        {
+            for(uint64_t i = 0; i < N; i += k_range)
+            {
+                for (uint64_t j = 0; j < k_range; ++j)
+                {
+                    m_result += measureResult * std::norm(elements[i + j]);
+                }
+                
+                // The measurement result toggles between -1.0 and 1.0
+                measureResult *= -1.0;
+            }
+        }
+       
+        return 0;
+    }
+
     ExatnMPSVisitor::ExatnMPSVisitor():
         m_tensorNetwork(),
-        m_tensorIdCounter(0)
+        m_tensorIdCounter(0),
+        m_hasEvaluated(false)
     {
         // TODO
     }
@@ -150,7 +241,7 @@ namespace tnqvm {
         }
     }
 
-    void ExatnMPSVisitor::finalize() 
+    void ExatnMPSVisitor::evaluateNetwork() 
     {
         #ifdef _DEBUG
         m_tensorNetwork.printIt();
@@ -163,8 +254,48 @@ namespace tnqvm {
             assert(evaluated);
             // Synchronize:
             exatn::sync();
-        }  
- 
+            m_hasEvaluated = true;
+        }
+
+        assert(m_tensorNetwork.getRank() == m_buffer->size());
+        
+        #ifdef _DEBUG
+        {
+            // If in Debug, print out tensor data
+            auto functor = std::make_shared<TensorComponentPrintFunctor>();
+            for (auto iter = m_tensorNetwork.cbegin(); iter != m_tensorNetwork.cend(); ++iter)
+            {
+                const auto tensor = iter->second.getTensor();
+                std::cout << tensor->getName();
+                exatn::numericalServer->transformTensorSync(tensor->getName(), functor);
+                exatn::sync();
+            }
+        }      
+        
+        {
+            std::cout << "Root tensor: " << m_tensorNetwork.getTensor(0)->getName() << "\n";
+            std::vector<std::complex<double>> stateVec;
+            // Print out the state vector
+            auto stateVecFunctor = std::make_shared<ReconstructStateVectorFunctor>(m_buffer, stateVec);
+            exatn::numericalServer->transformTensorSync(m_tensorNetwork.getTensor(0)->getName(), stateVecFunctor);
+            exatn::sync();
+            std::cout << "[";
+            for (const auto& component : stateVec)
+            {
+                std::cout << component;
+            }
+            std::cout << "]\n";
+        }      
+        #endif
+    }
+    
+    void ExatnMPSVisitor::finalize() 
+    {
+        if (!m_hasEvaluated)
+        {
+            // If we haven't evaluated the network, do it now (end of circuit).
+            evaluateNetwork();
+        }
         // Destroy gate tensors
         for (const auto& gateTensor : m_gateTensorBodies)
         {
@@ -261,7 +392,25 @@ namespace tnqvm {
     
     void ExatnMPSVisitor::visit(Measure& in_MeasureGate) 
     { 
-        appendGateTensor<CommonGates::Measure>(in_MeasureGate);
+        // When we visit a measure gate, evaluate the current tensor network (up to this measurement)
+        // Note: currently, we cannot do multiple measurement operations yet.
+        // TODO: need to be able to re-sync the tensor network after each measurement to continue.
+        if (!m_hasEvaluated)
+        {
+            evaluateNetwork();
+            const int measQubit = in_MeasureGate.bits()[0];       
+            auto expectationFunctor = std::make_shared<CalculateExpectationValueFunctor>(measQubit);
+            exatn::numericalServer->transformTensorSync(m_tensorNetwork.getTensor(0)->getName(), expectationFunctor);
+            exatn::sync();
+            m_buffer->addExtraInfo("exp-val-z", expectationFunctor->getResult());
+            #ifdef _DEBUG       
+            std::cout << "applying " << in_MeasureGate.name() << " @ " << measQubit << ", " << expectationFunctor->getResult() << "\n";
+            #endif
+        }
+        else
+        {
+            xacc::error("Multiple measurement operations in one circuit is not supported yet.");
+        }        
     }
     // === END: Gate Visitor Impls ===
     

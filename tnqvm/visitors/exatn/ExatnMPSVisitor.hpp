@@ -43,6 +43,7 @@
 
 using namespace xacc;
 using namespace xacc::quantum;
+using TensorFunctor = talsh::TensorFunctor<exatn::Identifiable>;
 
 namespace tnqvm {
     // Simple struct to identify a concrete quantum gate instance,
@@ -67,6 +68,46 @@ namespace tnqvm {
             std::string m_gateName;
             std::vector<std::string> m_gateParams; 
     };
+
+    class DefaultTNQVMTensorFunctor : public TensorFunctor 
+    {
+        const std::string name() const override { return "TNQVM Tensor Functor"; }
+        const std::string description() const override { return "TNQVM Tensor Functor"; }
+        virtual void pack(BytePacket& packet) override {};
+        virtual void unpack(BytePacket& packet) override {};
+    }; 
+
+    // Functor to inspect/print out tensor components
+    class TensorComponentPrintFunctor : public DefaultTNQVMTensorFunctor 
+    {
+    public:
+        virtual int apply(talsh::Tensor& local_tensor) override;
+    };
+
+    // Functor to retrieve the state vector from the final/root tensor
+    class ReconstructStateVectorFunctor : public DefaultTNQVMTensorFunctor
+    {
+    public:
+        ReconstructStateVectorFunctor(const std::shared_ptr<AcceleratorBuffer>& buffer, std::vector<std::complex<double>>& io_stateVec);
+        virtual int apply(talsh::Tensor& local_tensor) override;
+
+    private:
+        int m_qubits;
+        std::vector<std::complex<double>>& m_stateVec;
+    }; 
+
+    // Functor to calculate the expected Z value of a qubit.
+    class CalculateExpectationValueFunctor : public DefaultTNQVMTensorFunctor
+    {
+    public:
+        CalculateExpectationValueFunctor(int qubitIndex);
+        virtual int apply(talsh::Tensor& local_tensor) override;
+        double getResult() const { return m_result; }
+    private:
+        int m_qubitIndex;
+        double m_result;
+    }; 
+
 
 // class ExaTNMPSVisitor : public TNQVMVisitor {
 
@@ -186,16 +227,16 @@ namespace tnqvm {
         virtual void visit(CZ& in_CZGate) override;
         // others
         virtual void visit(Measure& in_MeasureGate) override;
-    
     private:
         template<tnqvm::CommonGates GateType, typename... GateParams>
-        void appendGateTensor(const xacc::Instruction& in_gateInstruction, GateParams&&... in_params); 
+        void appendGateTensor(const xacc::Instruction& in_gateInstruction, GateParams&&... in_params);
+        void evaluateNetwork(); 
     private:
        TensorNetwork m_tensorNetwork;
        unsigned int m_tensorIdCounter;
+       bool m_hasEvaluated;
        // The AcceleratorBuffer shared_ptr, null if not initialized.
-       std::shared_ptr<AcceleratorBuffer> m_buffer;
-       
+       std::shared_ptr<AcceleratorBuffer> m_buffer;      
        // Map of gate tensors that we've initialized with ExaTN.
        // The list is indexed by Tensor Name.
        // Note: the tensor name is unique for each gate tensor, hence, for parameterized gate, 
