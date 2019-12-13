@@ -110,8 +110,95 @@ TEST(ExatnMPSVisitorTester, testSimpleGates) {
  
     auto program = ir->getComposites()[0];   
     qpu->execute(qubitReg, program);
-    // |1> state -> expected value is 1.0
+    // |1> state -> expected value is -1.0
     EXPECT_NEAR(-1.0, getExpectedValue(0, *qubitReg), 1e-12);
+  }
+
+  {
+    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps")});
+    auto qubitReg = xacc::qalloc(3);
+    auto xasmCompiler = xacc::getCompiler("xasm");
+    auto ir = xasmCompiler->compile(R"(__qpu__ void test4(qbit q) {
+      X(q[0]);
+      CNOT(q[0], q[1]);
+      Measure(q[1]);
+    })", qpu);
+
+    
+    auto program = ir->getComposites()[0];   
+    qpu->execute(qubitReg, program);
+    // Expected state: |11>
+    // Measure q1 should return -1
+    EXPECT_NEAR(-1.0, getExpectedValue(1, *qubitReg), 1e-12);
+  }
+
+  {
+    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps")});
+    auto qubitReg = xacc::qalloc(3);
+    auto xasmCompiler = xacc::getCompiler("xasm");
+    auto ir = xasmCompiler->compile(R"(__qpu__ void test5(qbit q) {
+      X(q[0]);
+      X(q[2]);
+      CNOT(q[1], q[2]);
+      Measure(q[2]);
+    })", qpu);
+    
+    // q1 is in |0> state => CNOT is not active.
+    auto program = ir->getComposites()[0];   
+    qpu->execute(qubitReg, program);
+    EXPECT_NEAR(-1.0, getExpectedValue(2, *qubitReg), 1e-12);
+  }
+
+  {
+    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps")});
+    auto qubitReg = xacc::qalloc(3);
+    auto xasmCompiler = xacc::getCompiler("xasm");
+    auto ir = xasmCompiler->compile(R"(__qpu__ void test6(qbit q) {
+      H(q[2]);
+      CNOT(q[2], q[1]);
+      CNOT(q[1], q[0]);
+      Measure(q[2]);
+    })", qpu);
+ 
+    auto program = ir->getComposites()[0];   
+    qpu->execute(qubitReg, program);
+    // GHZ state -> expected value is 0.0
+    EXPECT_NEAR(0.0, getExpectedValue(2, *qubitReg), 1e-12);
+  }
+}
+
+TEST(ExatnMPSVisitorTester, testMeasurement) {  
+  const int nbTrials = 100;
+  {
+    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps")});
+    auto qubitReg = xacc::qalloc(3);
+    auto xasmCompiler = xacc::getCompiler("xasm");
+    auto ir = xasmCompiler->compile(R"(__qpu__ void testMeasure1(qbit q) {
+      H(q[2]);
+      CNOT(q[2], q[1]);
+      CNOT(q[1], q[0]);
+      Measure(q[2]);
+      Measure(q[1]);
+      Measure(q[0]);
+    })", qpu);
+    
+    auto program = ir->getComposites()[0];   
+    for (int i = 0; i < nbTrials; ++i)
+    {
+      qpu->execute(qubitReg, program);
+    }
+
+    // This is GHZ state: |000> + |111>
+    // hence we should only get 2 results
+    EXPECT_EQ(qubitReg->getMeasurementCounts().size(), 2);
+    // Allow for some random variations
+    const int minCount = 0.4 * nbTrials;
+    const int maxCount = 0.6 * nbTrials;
+    for (const auto& resultToCount : qubitReg->getMeasurementCounts())
+    {
+      EXPECT_TRUE(resultToCount.first == "000" || resultToCount.first == "111");
+      EXPECT_TRUE(resultToCount.second > minCount && resultToCount.second < maxCount);
+    }
   }
 }
 

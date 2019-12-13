@@ -106,8 +106,19 @@ namespace tnqvm {
     private:
         int m_qubitIndex;
         double m_result;
-    }; 
+    };
 
+    class ApplyQubitMeasureFunctor : public DefaultTNQVMTensorFunctor
+    {
+    public:
+        ApplyQubitMeasureFunctor(int qubitIndex);
+        virtual int apply(talsh::Tensor& local_tensor) override;
+        // Get the result: 0/1 as boolean
+        bool getResult() const { return m_result; }
+    private:
+        int m_qubitIndex;
+        bool m_result;
+    };  
 
 // class ExaTNMPSVisitor : public TNQVMVisitor {
 
@@ -190,8 +201,52 @@ namespace tnqvm {
     using Tensor = exatn::numerics::Tensor;
     using TensorShape = exatn::numerics::TensorShape;
     using TensorLeg = exatn::numerics::TensorLeg;    
+    
+    class ExatnMPSVisitor;
+
+    // Special listener interface for unit testing/logging purposes
+    class IExatnListener
+    {
+        public:
+        // Called when the tensor network has been constructed, ready to be submitted.
+        virtual void preEvaluate(ExatnMPSVisitor* in_backEnd) = 0;
+        // Called just before measurement is applied 
+        // i.e. collapse then normalize the state vector. 
+        virtual void preMeasurement(ExatnMPSVisitor* in_backEnd, Measure& in_measureGate) = 0;
+        // After measurement
+        virtual void postMeasurement(ExatnMPSVisitor* in_backEnd, Measure& in_measureGate, bool in_bitResult, double in_expectedValue) = 0;
+        // Called before finalization, i.e. destroy the tensors.
+        // Note: if there is no measurement in the circuit, 
+        // this is where you can retrieve the final state vector.
+        virtual void onEvaluateComplete(ExatnMPSVisitor* in_backEnd) = 0;
+    };
+
+    // Debug logger
+    class ExatnDebugLogger: public IExatnListener
+    {
+    public:
+        static ExatnDebugLogger* GetInstance() {
+            static ExatnDebugLogger instance;
+            return &instance;
+        }
+
+        virtual void preEvaluate(ExatnMPSVisitor* in_backEnd) override; 
+        virtual void preMeasurement(ExatnMPSVisitor* in_backEnd, Measure& in_measureGate) override;
+        virtual void postMeasurement(tnqvm::ExatnMPSVisitor* in_backEnd, xacc::quantum::Measure& in_measureGate, bool in_bitResult, double in_expectedValue) override; 
+        virtual void onEvaluateComplete(tnqvm::ExatnMPSVisitor* in_backEnd) override {}
+
+    private:
+        ExatnDebugLogger() = default;
+        ~ExatnDebugLogger() = default;
+    
+        ExatnDebugLogger(const ExatnDebugLogger&) = delete;
+        ExatnDebugLogger& operator=(const ExatnDebugLogger&) = delete;
+        ExatnDebugLogger(ExatnDebugLogger&&) = delete;
+        ExatnDebugLogger& operator=(ExatnDebugLogger&&) = delete;
+    };
+
     // XACC simulation backend (TNQVM) visitor based on ExaTN
-    class ExatnMPSVisitor : public TNQVMVisitor 
+    class ExatnMPSVisitor : public TNQVMVisitor
     {
     public:
         // Constructor
@@ -227,6 +282,10 @@ namespace tnqvm {
         virtual void visit(CZ& in_CZGate) override;
         // others
         virtual void visit(Measure& in_MeasureGate) override;
+
+        void subscribe(IExatnListener* listener) { m_listeners.emplace_back(listener); }
+        std::vector<std::complex<double>> retrieveStateVector();
+    
     private:
         template<tnqvm::CommonGates GateType, typename... GateParams>
         void appendGateTensor(const xacc::Instruction& in_gateInstruction, GateParams&&... in_params);
@@ -236,7 +295,16 @@ namespace tnqvm {
        unsigned int m_tensorIdCounter;
        bool m_hasEvaluated;
        // The AcceleratorBuffer shared_ptr, null if not initialized.
-       std::shared_ptr<AcceleratorBuffer> m_buffer;      
+       std::shared_ptr<AcceleratorBuffer> m_buffer; 
+       
+       // List of listeners
+       std::vector<IExatnListener*> m_listeners;
+
+       // Bit-string of the measurement result, the bit order of this 
+       // is the order in which the measure gates are specified:
+       // e.g. Measure(q[2]); Measure (q[1]); Measure (q[0]); => q2q1q0, etc.
+       std::string m_resultBitString;
+
        // Map of gate tensors that we've initialized with ExaTN.
        // The list is indexed by Tensor Name.
        // Note: the tensor name is unique for each gate tensor, hence, for parameterized gate, 
@@ -247,6 +315,9 @@ namespace tnqvm {
        std::unordered_map<std::string, std::vector<std::complex<double>>> m_gateTensorBodies; 
        // Tensor body data represents a single qubit in the zero state. 
        static const std::vector<std::complex<double>> Q_ZERO_TENSOR_BODY;
+       static const std::vector<std::complex<double>> Q_ONE_TENSOR_BODY;
+       // Make the debug logger friend, e.g. retrieve internal states for logging purposes.
+       friend class ExatnDebugLogger;
     };
 } //end namespace tnqvm
 

@@ -88,6 +88,20 @@ namespace tnqvm {
 
     inline std::string GetGateName(CommonGates in_gateEnum) { return CommonGateNames[static_cast<size_t>(in_gateEnum)]; }
 
+    inline bool IsControlGate(CommonGates in_gateEnum) {
+        switch (in_gateEnum)
+        {
+            case CommonGates::CNOT:
+            case CommonGates::CZ:
+            case CommonGates::CPhase:
+            case CommonGates::CY:
+            case CommonGates::CH:
+            case CommonGates::CRZ: return true;
+            default: 
+                return false;
+        }
+    }
+
     template<typename tnqvm::CommonGates, typename... Args>
     std::vector<std::vector<std::complex<double>>> GetGateMatrix(Args... in_gateArgs) {
         // We don't expect this to be called if template specialization is not provided for a specific gate.         

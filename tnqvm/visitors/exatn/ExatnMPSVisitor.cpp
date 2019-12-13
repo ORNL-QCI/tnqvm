@@ -39,6 +39,9 @@
 #include "Instruction.hpp"
 #include "talshxx.hpp"
 #include <numeric>
+#include <random>
+#include <chrono> 
+#include <functional>
 
 namespace {
     // Helper to construct qubit tensor name:
@@ -69,6 +72,12 @@ namespace {
         });
 
         return (std::abs(norm - 1.0) < 1e-12);
+    }
+
+    inline double generateRandomProbability() 
+    {
+        auto randFunc = std::bind(std::uniform_real_distribution<double>(0, 1), std::mt19937(std::chrono::high_resolution_clock::now().time_since_epoch().count()));
+        return randFunc();
     }
 }
 
@@ -122,6 +131,7 @@ namespace tnqvm {
     }
     // Define the tensor body for a zero-state qubit
     const std::vector<std::complex<double>> ExatnMPSVisitor::Q_ZERO_TENSOR_BODY{ {1.0,0.0}, {0.0,0.0} };
+    const std::vector<std::complex<double>> ExatnMPSVisitor::Q_ONE_TENSOR_BODY{ {0.0,0.0}, {1.0,0.0} };
     
     int TensorComponentPrintFunctor::apply(talsh::Tensor& local_tensor) 
     {        
@@ -202,6 +212,114 @@ namespace tnqvm {
         return 0;
     }
 
+    ApplyQubitMeasureFunctor::ApplyQubitMeasureFunctor(int qubitIndex):
+        m_qubitIndex(qubitIndex)
+    {}
+
+    int ApplyQubitMeasureFunctor::apply(talsh::Tensor& local_tensor) 
+    {        
+        assert(local_tensor.getRank() > m_qubitIndex);
+        std::complex<double>* elements;
+        const auto N = local_tensor.getVolume();
+        const bool isOkay = local_tensor.getDataAccessHost(&elements);
+        if (isOkay)
+        {
+            const auto k_range = 1ULL << m_qubitIndex;        
+            const double randProbPick = generateRandomProbability();
+            double cumulativeProb = 0.0;
+            size_t stateSelect = 0;
+            //select a state based on cumulative distribution
+            while (cumulativeProb < randProbPick && stateSelect < N)
+            {
+                cumulativeProb += std::norm(elements[stateSelect++]);
+            }
+            stateSelect--;
+
+            //take the value of the measured bit
+	        m_result = ((stateSelect >> m_qubitIndex) & 1);
+            // Collapse the state vector according to the measurement result
+            double measProb = 0.0;
+            for (size_t g = 0; g < N; g += (k_range * 2))
+            {
+                for (size_t i = 0; i < k_range; ++i)
+                {
+                    if ((((i + g) >> m_qubitIndex) & 1) == m_result)
+                    {
+                        measProb += std::norm(elements[i + g]);
+				        elements[i + g + k_range] = 0.0; 
+                    }
+			        else
+			        {
+				        measProb += std::norm(elements[i + g + k_range]);
+				        elements[i + g] = 0.0;
+                    }
+                }
+            }
+            // Renormalize the state
+	        measProb = std::sqrt(measProb);
+            for (size_t g = 0; g < N; g += (k_range * 2))
+	        {
+		        for (size_t i = 0; i < k_range; i += 1)
+		        {
+			        if ((((i + g) >> m_qubitIndex) & 1) == m_result)
+			        {
+				        elements[i + g] /= measProb;
+			        }
+			        else
+			        {
+				        elements[i + g + k_range] /= measProb;
+                    }    
+		        }
+	        }
+        }
+
+        return 0;
+    }
+    
+    void ExatnDebugLogger::preEvaluate(tnqvm::ExatnMPSVisitor* in_backEnd)  
+    {
+        // If in Debug, print out tensor data using the Print Functor
+        auto functor = std::make_shared<tnqvm::TensorComponentPrintFunctor>();
+        for (auto iter = in_backEnd->m_tensorNetwork.cbegin(); iter != in_backEnd->m_tensorNetwork.cend(); ++iter)
+        {
+            const auto tensor = iter->second.getTensor();
+            if (tensor->getName().front() != '_')
+            {
+                std::cout << tensor->getName();
+                exatn::numericalServer->transformTensorSync(tensor->getName(), functor);
+            }
+        }
+    }
+    
+    void ExatnDebugLogger::preMeasurement(tnqvm::ExatnMPSVisitor* in_backEnd, xacc::quantum::Measure& in_measureGate)  
+    {
+        // Print out the state vector
+        std::cout << "Applying " << in_measureGate.name() << " @ " << in_measureGate.bits()[0] << "\n";
+        std::cout << "=========== BEFORE MEASUREMENT =================\n";
+        std::cout << "State Vector: [";
+        for (const auto& component : in_backEnd->retrieveStateVector())
+        {
+            std::cout << component;
+        }
+        std::cout << "]\n";
+    }
+    
+    void ExatnDebugLogger::postMeasurement(tnqvm::ExatnMPSVisitor* in_backEnd, xacc::quantum::Measure& in_measureGate, bool in_bitResult, double in_expectedValue)  
+    {
+        // Print out the state vector
+        std::cout << "=========== AFTER MEASUREMENT =================\n";
+        std::cout << "Qubit measurement result (random binary): " << in_bitResult << "\n";
+        std::cout << "Expected value (exp-val-z): " << in_expectedValue << "\n";
+        std::cout << "State Vector: [";
+        for (const auto& component : in_backEnd->retrieveStateVector())
+        {
+            std::cout << component;
+        }
+        std::cout << "]\n";
+        std::cout << "=============================================\n";
+    }
+
+
     ExatnMPSVisitor::ExatnMPSVisitor():
         m_tensorNetwork(),
         m_tensorIdCounter(0),
@@ -239,13 +357,31 @@ namespace tnqvm {
             m_tensorIdCounter++;
             m_tensorNetwork.appendTensor(m_tensorIdCounter, exatn::getTensor(generateQubitTensorName(i)), std::vector<std::pair<unsigned int, unsigned int>>{});
         }
+
+        // Add the Debug logging listener
+        #ifdef _DEBUG
+        subscribe(ExatnDebugLogger::GetInstance());
+        #endif
+    }
+
+    std::vector<std::complex<double>> ExatnMPSVisitor::retrieveStateVector()
+    {
+        std::vector<std::complex<double>> stateVec;
+        auto stateVecFunctor = std::make_shared<ReconstructStateVectorFunctor>(m_buffer, stateVec);
+        exatn::numericalServer->transformTensorSync(m_tensorNetwork.getTensor(0)->getName(), stateVecFunctor);
+        exatn::sync();
+        return stateVec;   
     }
 
     void ExatnMPSVisitor::evaluateNetwork() 
     {
-        #ifdef _DEBUG
-        m_tensorNetwork.printIt();
-        #endif
+        // Notify listeners
+        {
+            for (auto& listener: m_listeners)
+            {
+                listener->preEvaluate(this);
+            }
+        }
         
         // Evaluate the tensor network (quantum circuit):
         // For ExaTN, we only evaluate during finalization, i.e. after all gates have been visited. 
@@ -258,35 +394,6 @@ namespace tnqvm {
         }
 
         assert(m_tensorNetwork.getRank() == m_buffer->size());
-        
-        #ifdef _DEBUG
-        {
-            // If in Debug, print out tensor data
-            auto functor = std::make_shared<TensorComponentPrintFunctor>();
-            for (auto iter = m_tensorNetwork.cbegin(); iter != m_tensorNetwork.cend(); ++iter)
-            {
-                const auto tensor = iter->second.getTensor();
-                std::cout << tensor->getName();
-                exatn::numericalServer->transformTensorSync(tensor->getName(), functor);
-                exatn::sync();
-            }
-        }      
-        
-        {
-            std::cout << "Root tensor: " << m_tensorNetwork.getTensor(0)->getName() << "\n";
-            std::vector<std::complex<double>> stateVec;
-            // Print out the state vector
-            auto stateVecFunctor = std::make_shared<ReconstructStateVectorFunctor>(m_buffer, stateVec);
-            exatn::numericalServer->transformTensorSync(m_tensorNetwork.getTensor(0)->getName(), stateVecFunctor);
-            exatn::sync();
-            std::cout << "[";
-            for (const auto& component : stateVec)
-            {
-                std::cout << component;
-            }
-            std::cout << "]\n";
-        }      
-        #endif
     }
     
     void ExatnMPSVisitor::finalize() 
@@ -296,6 +403,23 @@ namespace tnqvm {
             // If we haven't evaluated the network, do it now (end of circuit).
             evaluateNetwork();
         }
+                
+        // Notify listeners
+        {
+            for (auto& listener: m_listeners)
+            {
+                listener->onEvaluateComplete(this);
+            }
+        }
+
+        // Set the bit string from measurement to the buffer
+        if (!m_resultBitString.empty())
+        {
+            m_buffer->appendMeasurement(m_resultBitString);
+            // Clear the result bit string after appending.
+            m_resultBitString.clear();
+        }        
+
         // Destroy gate tensors
         for (const auto& gateTensor : m_gateTensorBodies)
         {
@@ -393,24 +517,44 @@ namespace tnqvm {
     void ExatnMPSVisitor::visit(Measure& in_MeasureGate) 
     { 
         // When we visit a measure gate, evaluate the current tensor network (up to this measurement)
-        // Note: currently, we cannot do multiple measurement operations yet.
-        // TODO: need to be able to re-sync the tensor network after each measurement to continue.
+        // Note: currently, we cannot do gate operations post measurement yet (i.e. multiple evaluateNetwork() calls).
+        // Multiple measurement ops at the end is supported, i.e. can measure the entire qubit register.
+        // TODO: reset the tensor network and continue appending gate tensors.
         if (!m_hasEvaluated)
         {
-            evaluateNetwork();
-            const int measQubit = in_MeasureGate.bits()[0];       
-            auto expectationFunctor = std::make_shared<CalculateExpectationValueFunctor>(measQubit);
-            exatn::numericalServer->transformTensorSync(m_tensorNetwork.getTensor(0)->getName(), expectationFunctor);
-            exatn::sync();
-            m_buffer->addExtraInfo("exp-val-z", expectationFunctor->getResult());
-            #ifdef _DEBUG       
-            std::cout << "applying " << in_MeasureGate.name() << " @ " << measQubit << ", " << expectationFunctor->getResult() << "\n";
-            #endif
+           // If this is the first measure gate that we visit,
+           // i.e. the tensor network hasn't been evaluate, do it now.
+           evaluateNetwork();
         }
-        else
+
+        // Notify listeners: before measurement
         {
-            xacc::error("Multiple measurement operations in one circuit is not supported yet.");
-        }        
+            for (auto& listener: m_listeners)
+            {
+                listener->preMeasurement(this, in_MeasureGate);
+            }
+        }
+
+        const int measQubit = in_MeasureGate.bits()[0];            
+        // Calculate the expected value
+        auto expectationFunctor = std::make_shared<CalculateExpectationValueFunctor>(measQubit);
+        exatn::numericalServer->transformTensorSync(m_tensorNetwork.getTensor(0)->getName(), expectationFunctor);
+                    
+        // Apply the measurement logic 
+        auto measurementFunctor = std::make_shared<ApplyQubitMeasureFunctor>(measQubit);
+        exatn::numericalServer->transformTensorSync(m_tensorNetwork.getTensor(0)->getName(), measurementFunctor);
+        exatn::sync();
+
+        m_buffer->addExtraInfo("exp-val-z", expectationFunctor->getResult());
+        // Append the boolean true/false as bit value
+        m_resultBitString.append(measurementFunctor->getResult() ? "1" : "0");
+        // Notify listeners: after measurement
+        {
+            for (auto& listener: m_listeners)
+            {
+                listener->postMeasurement(this, in_MeasureGate, measurementFunctor->getResult(), expectationFunctor->getResult());
+            }
+        }            
     }
     // === END: Gate Visitor Impls ===
     
@@ -453,6 +597,14 @@ namespace tnqvm {
         {
             gatePairing.emplace_back(qbitLoc);
         }
+
+        // For control gates (e.g. CNOT), we need to reverse the leg pairing because the (Control Index, Target Index)
+        // convention is the opposite of the MSB->LSB bit order when the CNOT matrix is specified.
+        // e.g. the state vector is indexed by q1q0.
+        if (IsControlGate(GateType))
+        {
+            std::reverse(gatePairing.begin(), gatePairing.end());
+        }  
 
         // Append the tensor for this gate to the network
         m_tensorNetwork.appendTensorGate(
