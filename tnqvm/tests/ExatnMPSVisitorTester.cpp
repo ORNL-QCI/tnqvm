@@ -33,9 +33,16 @@
 #include "TNQVM.hpp"
 #include "xacc.hpp"
 #include "base/Gates.hpp"
+#include "utils/GateMatrixAlgebra.hpp"
 
 using namespace tnqvm;
 using namespace xacc::quantum;
+
+namespace {
+  inline double getExpectedValue(AcceleratorBuffer& in_buffer) {
+    return  in_buffer["exp-val-z"].as<double>();
+  };
+}
 
 // This test is just to confirm that the ExaTN backend can be instaniated
 // and we can submit quantum circuit as tensors to the ExaTN backend. 
@@ -66,10 +73,6 @@ TEST(ExatnMPSVisitorTester, checkExatnMPSVisitor) {
 }
 
 TEST(ExatnMPSVisitorTester, testSimpleGates) {
-  const auto getExpectedValue = [](int in_qubitIndex, AcceleratorBuffer& in_buffer) -> double {
-    return  mpark::get<double>(in_buffer.getInformation("exp-val-z"));
-  };
-  
   {
     auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps")});
     auto qubitReg = xacc::qalloc(1);
@@ -81,7 +84,7 @@ TEST(ExatnMPSVisitorTester, testSimpleGates) {
     auto program = ir->getComposites()[0];   
     qpu->execute(qubitReg, program);
     // Initial qubit in |0> state -> expected value is 1.0
-    EXPECT_NEAR(1.0, getExpectedValue(0, *qubitReg), 1e-12);
+    EXPECT_NEAR(1.0, getExpectedValue(*qubitReg), 1e-12);
   }
 
   {
@@ -96,7 +99,7 @@ TEST(ExatnMPSVisitorTester, testSimpleGates) {
     auto program = ir->getComposites()[0];   
     qpu->execute(qubitReg, program);
     // |+> state -> expected value is 0.0
-    EXPECT_NEAR(0.0, getExpectedValue(0, *qubitReg), 1e-12);
+    EXPECT_NEAR(0.0, getExpectedValue(*qubitReg), 1e-12);
   }
 
   {
@@ -111,7 +114,7 @@ TEST(ExatnMPSVisitorTester, testSimpleGates) {
     auto program = ir->getComposites()[0];   
     qpu->execute(qubitReg, program);
     // |1> state -> expected value is -1.0
-    EXPECT_NEAR(-1.0, getExpectedValue(0, *qubitReg), 1e-12);
+    EXPECT_NEAR(-1.0, getExpectedValue(*qubitReg), 1e-12);
   }
 
   {
@@ -129,7 +132,7 @@ TEST(ExatnMPSVisitorTester, testSimpleGates) {
     qpu->execute(qubitReg, program);
     // Expected state: |11>
     // Measure q1 should return -1
-    EXPECT_NEAR(-1.0, getExpectedValue(1, *qubitReg), 1e-12);
+    EXPECT_NEAR(-1.0, getExpectedValue(*qubitReg), 1e-12);
   }
 
   {
@@ -146,7 +149,7 @@ TEST(ExatnMPSVisitorTester, testSimpleGates) {
     // q1 is in |0> state => CNOT is not active.
     auto program = ir->getComposites()[0];   
     qpu->execute(qubitReg, program);
-    EXPECT_NEAR(-1.0, getExpectedValue(2, *qubitReg), 1e-12);
+    EXPECT_NEAR(-1.0, getExpectedValue(*qubitReg), 1e-12);
   }
 
   {
@@ -163,7 +166,7 @@ TEST(ExatnMPSVisitorTester, testSimpleGates) {
     auto program = ir->getComposites()[0];   
     qpu->execute(qubitReg, program);
     // GHZ state -> expected value is 0.0
-    EXPECT_NEAR(0.0, getExpectedValue(2, *qubitReg), 1e-12);
+    EXPECT_NEAR(0.0, getExpectedValue(*qubitReg), 1e-12);
   }
 }
 
@@ -199,6 +202,58 @@ TEST(ExatnMPSVisitorTester, testMeasurement) {
       EXPECT_TRUE(resultToCount.first == "000" || resultToCount.first == "111");
       EXPECT_TRUE(resultToCount.second > minCount && resultToCount.second < maxCount);
     }
+  }
+}
+
+TEST(ExatnMPSVisitorTester, checkDeuteuron) {
+  auto accelerator = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps")});
+  // Make sure this is ExaTN
+  EXPECT_EQ(std::static_pointer_cast<tnqvm::TNQVM>(accelerator)->getVisitorName(), "exatn-mps"); 
+  auto xasmCompiler = xacc::getCompiler("xasm");
+  
+  const auto calculateExpectedResult = [](double in_theta) -> double {
+    // Create a 2-qubit state vector for validation 
+    auto expectedStateVector = AllocateStateVector(2);
+    ApplySingleQubitGate(expectedStateVector, 0, GetGateMatrix<CommonGates::X>());
+    ApplySingleQubitGate(expectedStateVector, 1, GetGateMatrix<CommonGates::Ry>(in_theta));
+    ApplyCNOTGate(expectedStateVector, 1, 0);
+    ApplySingleQubitGate(expectedStateVector, 0, GetGateMatrix<CommonGates::H>());
+    ApplySingleQubitGate(expectedStateVector, 1, GetGateMatrix<CommonGates::H>());
+    const bool result = ApplyMeasureOp(expectedStateVector, 0);
+    if (result)
+    {
+      // Q0 is 1 => 01 and 11  
+      EXPECT_NEAR(std::norm(expectedStateVector[0]), 0.0, 1e-12);
+      EXPECT_NEAR(std::norm(expectedStateVector[2]), 0.0, 1e-12);
+      return std::norm(expectedStateVector[1]) - std::norm(expectedStateVector[3]);     
+    }
+    else
+    {
+      // Q0 is 0 => 00 and 10
+      EXPECT_NEAR(std::norm(expectedStateVector[1]), 0.0, 1e-12);
+      EXPECT_NEAR(std::norm(expectedStateVector[3]), 0.0, 1e-12);
+      return std::norm(expectedStateVector[0]) - std::norm(expectedStateVector[2]); 
+    }
+  };  
+  
+  auto ir = xasmCompiler->compile(R"(__qpu__ void ansatz(qbit q, double t) {
+      X(q[0]);
+      Ry(q[1], t);
+      CX(q[1], q[0]);
+      H(q[0]);
+      H(q[1]);
+      Measure(q[0]);
+      Measure(q[1]);
+  })", accelerator);
+
+  auto program = ir->getComposite("ansatz");
+
+  const auto angles = linspace(-xacc::constants::pi, xacc::constants::pi, 20);
+  for (const auto &a : angles) {
+    auto buffer = xacc::qalloc(2);
+    auto evaled = program->operator()({a});
+    accelerator->execute(buffer, evaled);
+    EXPECT_NEAR(std::abs(getExpectedValue(*buffer)), std::abs(calculateExpectedResult(a)), 1e-12);
   }
 }
 

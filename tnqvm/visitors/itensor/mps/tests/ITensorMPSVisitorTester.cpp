@@ -292,6 +292,56 @@ TEST(ITensorMPSVisitorTester, checkSampling) {
   }
 }
 
+TEST(ITensorMPSVisitorTester, checkDeuteuron) {
+  auto accelerator = xacc::getAccelerator("tnqvm");
+  auto xasmCompiler = xacc::getCompiler("xasm");
+  
+  const auto calculateExpectedResult = [](double in_theta) -> double {
+    // Create a 2-qubit state vector for validation 
+    auto expectedStateVector = AllocateStateVector(2);
+    ApplySingleQubitGate(expectedStateVector, 0, GetGateMatrix<CommonGates::X>());
+    ApplySingleQubitGate(expectedStateVector, 1, GetGateMatrix<CommonGates::Ry>(in_theta));
+    ApplyCNOTGate(expectedStateVector, 1, 0);
+    ApplySingleQubitGate(expectedStateVector, 0, GetGateMatrix<CommonGates::H>());
+    ApplySingleQubitGate(expectedStateVector, 1, GetGateMatrix<CommonGates::H>());
+    const bool result = ApplyMeasureOp(expectedStateVector, 0);
+    if (result)
+    {
+      // Q0 is 1 => 01 and 11  
+      EXPECT_NEAR(std::norm(expectedStateVector[0]), 0.0, 1e-12);
+      EXPECT_NEAR(std::norm(expectedStateVector[2]), 0.0, 1e-12);
+      return std::norm(expectedStateVector[1]) - std::norm(expectedStateVector[3]);     
+    }
+    else
+    {
+      // Q0 is 0 => 00 and 10
+      EXPECT_NEAR(std::norm(expectedStateVector[1]), 0.0, 1e-12);
+      EXPECT_NEAR(std::norm(expectedStateVector[3]), 0.0, 1e-12);
+      return std::norm(expectedStateVector[0]) - std::norm(expectedStateVector[2]); 
+    }
+  };  
+  
+  auto ir = xasmCompiler->compile(R"(__qpu__ void ansatz(qbit q, double t) {
+      X(q[0]);
+      Ry(q[1], t);
+      CX(q[1], q[0]);
+      H(q[0]);
+      H(q[1]);
+      Measure(q[0]);
+      Measure(q[1]);
+  })", accelerator);
+
+  auto program = ir->getComposite("ansatz");
+
+  const auto angles = linspace(-xacc::constants::pi, xacc::constants::pi, 20);
+  for (const auto &a : angles) {
+    auto buffer = xacc::qalloc(2);
+    auto evaled = program->operator()({a});
+    accelerator->execute(buffer, evaled);
+    EXPECT_NEAR(std::abs(buffer->getExpectationValueZ()), std::abs(calculateExpectedResult(a)), 1e-12);
+  }
+}
+
 int main(int argc, char **argv) {
   xacc::Initialize(argc, argv);
   ::testing::InitGoogleTest(&argc, argv);
