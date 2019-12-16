@@ -185,6 +185,24 @@ namespace tnqvm {
     }
 
     template <> 
+    std::vector<std::vector<std::complex<double>>> GetGateMatrix<CommonGates::T>() {
+        return 
+        {
+            { 1.0, 0.0 },
+            { 0.0, std::exp(std::complex<double>(0, M_PI_4)) }
+        };    
+    }
+
+    template <> 
+    std::vector<std::vector<std::complex<double>>> GetGateMatrix<CommonGates::Tdg>() {
+        return 
+        {
+            { 1.0, 0.0 },
+            { 0.0, std::exp(std::complex<double>(0, -M_PI_4)) }
+        };    
+    }
+
+    template <> 
     std::vector<std::vector<std::complex<double>>> GetGateMatrix<CommonGates::CNOT>() {
         return 
         {

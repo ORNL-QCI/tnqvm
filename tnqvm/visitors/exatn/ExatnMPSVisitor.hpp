@@ -274,6 +274,8 @@ namespace tnqvm {
         virtual void visit(Rx& in_RxGate) override;
         virtual void visit(Ry& in_RyGate) override;
         virtual void visit(Rz& in_RzGate) override;
+        virtual void visit(T& in_TGate) override;
+        virtual void visit(Tdg& in_TdgGate) override;
         virtual void visit(CPhase& in_CPhaseGate) override;
         virtual void visit(U& in_UGate) override;
         // two-qubit gates
@@ -290,6 +292,8 @@ namespace tnqvm {
         template<tnqvm::CommonGates GateType, typename... GateParams>
         void appendGateTensor(const xacc::Instruction& in_gateInstruction, GateParams&&... in_params);
         void evaluateNetwork(); 
+        void resetExaTN(); 
+        void resetNetwork(); 
     private:
        TensorNetwork m_tensorNetwork;
        unsigned int m_tensorIdCounter;

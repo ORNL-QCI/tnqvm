@@ -257,6 +257,118 @@ TEST(ExatnMPSVisitorTester, checkDeuteuron) {
   }
 }
 
+TEST(ExatnMPSVisitorTester, testPostMeasurementSimulation) {
+  // Test that after-measurement simulation mode,
+  // i.e. multiple tensor evaluation runs on the backend.  
+  const int nbTrials = 100;
+  {
+    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps")});
+    auto qubitReg = xacc::qalloc(2);
+    auto xasmCompiler = xacc::getCompiler("xasm");
+    // Simple test: sampling a binary state from a 2-qubit register. 
+    auto ir = xasmCompiler->compile(R"(__qpu__ void testMulEval1(qbit q) {
+      H(q[0]);
+      Measure(q[0]);
+      H(q[1]);
+      Measure(q[1]);
+    })", qpu);
+    
+    auto program = ir->getComposites()[0];   
+    for (int i = 0; i < nbTrials; ++i)
+    {
+      qpu->execute(qubitReg, program);
+    }
+    // Since we are running quite a few trials, expect to get all possible states (4).
+    EXPECT_EQ(qubitReg->getMeasurementCounts().size(), 4);
+    for (const auto& resultToCount : qubitReg->getMeasurementCounts())
+    {
+      EXPECT_TRUE(resultToCount.first == "00" || 
+                  resultToCount.first == "01" ||
+                  resultToCount.first == "10" ||
+                  resultToCount.first == "11");
+    }
+  }
+}
+
+TEST(ExatnMPSVisitorTester, testGrover) {
+  // Test Grover's algorithm
+  // Amplify the amplitude of number 6 (110) state 
+  const int nbTrials = 100;
+  {
+    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps")});
+    // 3-qubit
+    auto qubitReg = xacc::qalloc(3);
+    auto xasmCompiler = xacc::getCompiler("xasm");
+   
+    auto ir = xasmCompiler->compile(R"(__qpu__ void testGrover(qbit q) {
+      H(q[0]);
+      H(q[1]);
+      H(q[2]);
+      X(q[0]);
+      H(q[2]);
+      H(q[2]);
+      CNOT(q[1], q[2]);
+      Tdg(q[2]);
+      CNOT(q[0], q[2]);
+      T(q[2]);
+      CNOT(q[1], q[2]);
+      Tdg(q[2]);
+      CNOT(q[0], q[2]);
+      T(q[2]);
+      H(q[2]);
+      T(q[1]);
+      CNOT(q[0], q[1]);
+      T(q[0]);
+      Tdg(q[1]);
+      CNOT(q[0], q[1]);
+      X(q[0]);
+      H(q[2]);
+      H(q[0]);
+      H(q[1]);
+      H(q[2]);
+      X(q[0]);
+      X(q[1]);
+      X(q[2]);
+      H(q[2]);
+      H(q[2]);
+      CNOT(q[1], q[2]);
+      Tdg(q[2]);
+      CNOT(q[0], q[2]);
+      T(q[2]);
+      CNOT(q[1], q[2]);
+      Tdg(q[2]);
+      CNOT(q[0], q[2]);
+      T(q[2]);
+      H(q[2]);
+      T(q[1]);
+      CNOT(q[0], q[1]);
+      T(q[0]);
+      Tdg(q[1]);
+      CNOT(q[0], q[1]);
+      H(q[2]);
+      X(q[0]);
+      X(q[1]);
+      X(q[2]);      
+      H(q[0]);
+      H(q[1]);
+      H(q[2]);
+      Measure(q[2]);
+      Measure(q[1]);
+      Measure(q[0]);
+    })", qpu);
+    
+    auto program = ir->getComposites()[0];   
+    for (int i = 0; i < nbTrials; ++i)
+    {
+      qpu->execute(qubitReg, program);
+    }
+    
+    // Expected result: |110> is amplified to about 70% probability after a single iteration
+    const int resultCount = qubitReg->getMeasurementCounts()["110"]; 
+    EXPECT_GT(1.0 * resultCount/nbTrials, 0.5);  // lower bound: 50%
+  }
+}
+
 int main(int argc, char **argv) 
 {
   xacc::Initialize();

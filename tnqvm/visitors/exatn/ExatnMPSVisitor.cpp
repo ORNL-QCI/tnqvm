@@ -42,6 +42,7 @@
 #include <random>
 #include <chrono> 
 #include <functional>
+#include <unordered_set>
 
 namespace {
     // Helper to construct qubit tensor name:
@@ -395,6 +396,55 @@ namespace tnqvm {
 
         assert(m_tensorNetwork.getRank() == m_buffer->size());
     }
+
+
+    void ExatnMPSVisitor::resetExaTN()
+    {
+        std::unordered_set<std::string> tensorList;
+        for (auto iter = m_tensorNetwork.cbegin(); iter != m_tensorNetwork.cend(); ++iter)
+        {
+            tensorList.emplace(iter->second.getTensor()->getName());
+        }
+       
+        for (const auto& tensorName : tensorList)
+        {
+            const bool destroyed = exatn::destroyTensor(tensorName);
+            assert(destroyed);
+        }
+        m_gateTensorBodies.clear();
+      
+        // Synchronize after tensor destroy
+        exatn::sync();
+        exatn::finalize();
+    }
+
+    void ExatnMPSVisitor::resetNetwork()
+    {
+        // We must have evaluated the tensor network.
+        assert(m_hasEvaluated);
+        const auto stateVec = retrieveStateVector();
+        // Re-initialize ExaTN
+        resetExaTN();
+        exatn::initialize();
+        // The new qubit register tensor name will have name "RESET_"
+        const std::string resetTensorName = "RESET_";
+        // The qubit register tensor shape is {2, 2, 2, ...}, 1 leg for each qubit
+        std::vector<int> qubitRegResetTensorShape(m_buffer->size(), 2);        
+        const bool created = exatn::createTensor(resetTensorName, exatn::TensorElementType::COMPLEX64, qubitRegResetTensorShape); 
+        assert(created);
+        // Initialize the tensor body with the state vector from the previous evaluation.
+        const bool initialized = exatn::initTensorData(resetTensorName, std::move(stateVec));
+        assert(initialized);
+        // Create a new tensor network
+        m_tensorNetwork = TensorNetwork();
+        // Reset counter
+        m_tensorIdCounter = 1;
+        
+        // Use the root tensor from previous evaluation as the initial tensor
+        m_tensorNetwork.appendTensor(m_tensorIdCounter, exatn::getTensor(resetTensorName), std::vector<std::pair<unsigned int, unsigned int>>{});    
+        // Reset the evaluation flag after initialization.
+        m_hasEvaluated = false;
+    }
     
     void ExatnMPSVisitor::finalize() 
     {
@@ -419,27 +469,9 @@ namespace tnqvm {
             // Clear the result bit string after appending.
             m_resultBitString.clear();
         }        
-
-        // Destroy gate tensors
-        for (const auto& gateTensor : m_gateTensorBodies)
-        {
-            const bool destroyed = exatn::destroyTensor(gateTensor.first);
-            assert(destroyed);
-        }
-        m_gateTensorBodies.clear();
-
-        // Destroy qubit tensors 
-        for (int i = 0; i < m_buffer->size(); ++i)
-        {
-            const bool destroyed = exatn::destroyTensor(generateQubitTensorName(i)); 
-            assert(destroyed);
-        }
-
-        // Synchronize after tensor destroy
-        exatn::sync();
-
+        
         m_buffer.reset();
-        exatn::finalize();
+        resetExaTN();
     }
 
     // === BEGIN: Gate Visitor Impls ===
@@ -489,6 +521,17 @@ namespace tnqvm {
         appendGateTensor<CommonGates::Rz>(in_RzGate, theta);
     }
     
+    void ExatnMPSVisitor::visit(T& in_TGate) 
+    {
+        appendGateTensor<CommonGates::T>(in_TGate); 
+    }
+
+    void ExatnMPSVisitor::visit(Tdg& in_TdgGate)
+    {
+        appendGateTensor<CommonGates::Tdg>(in_TdgGate); 
+    }
+
+
     void ExatnMPSVisitor::visit(CPhase& in_CPhaseGate) 
     { 
         appendGateTensor<CommonGates::CPhase>(in_CPhaseGate);
@@ -561,6 +604,15 @@ namespace tnqvm {
     template<tnqvm::CommonGates GateType, typename... GateParams>
     void ExatnMPSVisitor::appendGateTensor(const xacc::Instruction& in_gateInstruction, GateParams&&... in_params)
     { 
+        if (m_hasEvaluated)
+        {
+            // If we have evaluated the tensor network,
+            // for example, because of measurement,
+            // and now we want to append more quantum gates,
+            // we need to reset the network before appending more gate tensors.
+            resetNetwork();
+        }       
+        
         const auto gateName = GetGateName(GateType);
         const GateInstanceIdentifier gateInstanceId(gateName, in_params...);
         const std::string uniqueGateName = gateInstanceId.toNameString();
