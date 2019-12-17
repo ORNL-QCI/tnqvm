@@ -220,6 +220,8 @@ namespace tnqvm {
         virtual void visit(CZ& in_CZGate) override;
         // others
         virtual void visit(Measure& in_MeasureGate) override;
+        
+        virtual const double getExpectationValueZ(std::shared_ptr<CompositeInstruction> in_function) override;
 
         void subscribe(IExatnListener* listener) { m_listeners.emplace_back(listener); }
         std::vector<std::complex<double>> retrieveStateVector();

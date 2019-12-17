@@ -728,6 +728,36 @@ namespace tnqvm {
             gatePairing
         ); 
     }
+        
+    const double ExatnMPSVisitor::getExpectationValueZ(std::shared_ptr<CompositeInstruction> in_function) 
+    {
+        if (!m_buffer)
+        {
+            xacc::error("Please initialize the visitor backend before calling getExpectationValueZ()!");
+            return 0.0;
+        }
+        
+        // Walk the circuit and visit all gates
+        InstructionIterator it(in_function);
+        while (it.hasNext()) 
+        {
+            auto nextInst = it.next();
+            if (nextInst->isEnabled()) 
+            {
+                nextInst->accept(this);
+            }
+        }
+
+        if (!m_hasEvaluated)
+        {
+            // No measurement was specified in the circuit.
+            xacc::warning("Expectation Value Z cannot be evaluated because there is no measurement.");
+            return 0.0;
+        }
+
+        const auto expectation = (*m_buffer)["exp-val-z"].as<double>();
+        return expectation;             
+    } 
 }  // end namespace tnqvm
 
 #endif //TNQVM_HAS_EXATENSOR
