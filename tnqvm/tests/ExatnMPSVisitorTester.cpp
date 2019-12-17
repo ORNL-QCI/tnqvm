@@ -294,13 +294,9 @@ TEST(ExatnMPSVisitorTester, testGrover) {
   // Test Grover's algorithm
   // Amplify the amplitude of number 6 (110) state 
   const int nbTrials = 100;
-  {
-    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps")});
-    // 3-qubit
-    auto qubitReg = xacc::qalloc(3);
-    auto xasmCompiler = xacc::getCompiler("xasm");
-   
-    auto ir = xasmCompiler->compile(R"(__qpu__ void testGrover(qbit q) {
+
+  const auto generateGroverSrc = [](const std::string& in_name) {
+    return ("__qpu__ void " + in_name).append(R"((qbit q) { 
       H(q[0]);
       H(q[1]);
       H(q[2]);
@@ -355,7 +351,17 @@ TEST(ExatnMPSVisitorTester, testGrover) {
       Measure(q[2]);
       Measure(q[1]);
       Measure(q[0]);
-    })", qpu);
+    })");
+  };
+
+  {
+    // Single-shot mode, run multiple times
+    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps")});
+    // 3-qubit
+    auto qubitReg = xacc::qalloc(3);
+    auto xasmCompiler = xacc::getCompiler("xasm");
+   
+    auto ir = xasmCompiler->compile(generateGroverSrc("testGrover1"), qpu);
     
     auto program = ir->getComposites()[0];   
     for (int i = 0; i < nbTrials; ++i)
@@ -366,6 +372,31 @@ TEST(ExatnMPSVisitorTester, testGrover) {
     // Expected result: |110> is amplified to about 70% probability after a single iteration
     const int resultCount = qubitReg->getMeasurementCounts()["110"]; 
     EXPECT_GT(1.0 * resultCount/nbTrials, 0.5);  // lower bound: 50%
+    qubitReg->print(std::cout);
+  }
+
+  {
+    // Single run with multiple shots
+    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps"), std::make_pair("n-shots", nbTrials)});
+    // 3-qubit
+    auto qubitReg = xacc::qalloc(3);
+    auto xasmCompiler = xacc::getCompiler("xasm");   
+    auto ir = xasmCompiler->compile(generateGroverSrc("testGrover2"), qpu);    
+    auto program = ir->getComposites()[0];   
+    // Execute
+    qpu->execute(qubitReg, program);
+    
+    int shotCount = 0;
+    for (const auto& resultToCount: qubitReg->getMeasurementCounts())
+    {
+      shotCount += resultToCount.second;
+    }
+
+    EXPECT_EQ(shotCount, nbTrials);
+    // Expected result: |110> is amplified to about 70% probability after a single iteration
+    const int resultCount = qubitReg->getMeasurementCounts()["110"]; 
+    EXPECT_GT(1.0 * resultCount/nbTrials, 0.5);  // lower bound: 50%
+    qubitReg->print(std::cout);
   }
 }
 

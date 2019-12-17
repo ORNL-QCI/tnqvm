@@ -118,6 +118,15 @@ namespace tnqvm {
     private:
         int m_qubitIndex;
         bool m_result;
+    };
+
+    class ResetTensorDataFunctor : public DefaultTNQVMTensorFunctor
+    {
+    public:
+        ResetTensorDataFunctor(const std::vector<std::complex<double>>& in_stateVec);
+        virtual int apply(talsh::Tensor& local_tensor) override;
+    private:
+        const std::vector<std::complex<double>>& m_stateVec;
     };  
 
 // class ExaTNMPSVisitor : public TNQVMVisitor {
@@ -253,7 +262,7 @@ namespace tnqvm {
         ExatnMPSVisitor();
         
         // Virtual function impls:        
-        virtual void initialize(std::shared_ptr<AcceleratorBuffer> buffer) override;
+        virtual void initialize(std::shared_ptr<AcceleratorBuffer> buffer, int nbShots) override;
         virtual void finalize() override;
         
         // Service name as defined in manifest.json
@@ -308,6 +317,9 @@ namespace tnqvm {
        // is the order in which the measure gates are specified:
        // e.g. Measure(q[2]); Measure (q[1]); Measure (q[0]); => q2q1q0, etc.
        std::string m_resultBitString;
+       // Count of the number of shots that was requested.
+       int m_shots; 
+       std::vector<int> m_measureQbIdx;
 
        // Map of gate tensors that we've initialized with ExaTN.
        // The list is indexed by Tensor Name.

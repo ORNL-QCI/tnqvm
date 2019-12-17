@@ -88,6 +88,17 @@ public:
       // No visitor type was specified, use the default.
       backendName = DEFAULT_VISITOR_BACKEND;
       xacc::warning("No visitor backend was specified. The default visitor backend of type '" + DEFAULT_VISITOR_BACKEND + "' will be used.");
+    }
+
+    if (config.keyExists<int>("n-shots")) {
+      nbShots = config.get<int>("n-shots");
+      if (nbShots < 1) {
+        xacc::error("Invalid n-shots parameter.");
+      }
+
+      if (nbShots > 1 && backendName == "itensor-mps") {
+        xacc::warning("Multi-shot simulation is not available for 'itensor-mps' backend. This option will be ignored. \nPlease use 'exatn-mps' backend if you want to run multi-shot simulation.");
+      }
     }    
   }
   const std::vector<std::string> configurationKeys() override { return {}; }
@@ -133,6 +144,8 @@ private:
   // The backend name that is configured.
   // Initialized to the default.
   std::string backendName = DEFAULT_VISITOR_BACKEND;
+  // Number of *shots* (randomized runs) requested.
+  int nbShots = 1;
 };
 } // namespace tnqvm
 

@@ -46,7 +46,7 @@ void TNQVM::execute(
     visitor = xacc::getService<TNQVMVisitor>(getVisitorName())->clone();
 
     // Initialize the visitor
-    visitor->initialize(buffer);
+    visitor->initialize(buffer, nbShots);
 
     // Walk the IR tree, and visit each node
     InstructionIterator it(std::dynamic_pointer_cast<CompositeInstruction>(
@@ -94,7 +94,7 @@ void TNQVM::execute(std::shared_ptr<xacc::AcceleratorBuffer> buffer,
   visitor = xacc::getService<TNQVMVisitor>(getVisitorName());
 
   // Initialize the visitor
-  visitor->initialize(buffer);
+  visitor->initialize(buffer, nbShots);
 
   // Walk the IR tree, and visit each node
   InstructionIterator it(kernel);
@@ -136,7 +136,7 @@ TNQVM::getAcceleratorState(std::shared_ptr<CompositeInstruction> program) {
   auto buffer = std::make_shared<xacc::AcceleratorBuffer>("q", maxBit + 1);
 
   // Initialize the visitor
-  visitor->initialize(buffer);
+  visitor->initialize(buffer, nbShots);
 
   // Walk the IR tree, and visit each node
   InstructionIterator it(program);

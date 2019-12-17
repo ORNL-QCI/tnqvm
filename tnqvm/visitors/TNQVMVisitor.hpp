@@ -42,7 +42,7 @@ namespace tnqvm {
 class TNQVMVisitor : public AllGateVisitor, public OptionsProvider,
                      public xacc::Cloneable<TNQVMVisitor> {
 public:
-  virtual void initialize(std::shared_ptr<AcceleratorBuffer> buffer) = 0;
+  virtual void initialize(std::shared_ptr<AcceleratorBuffer> buffer, int nbShots = 1) = 0;
   virtual const double
   getExpectationValueZ(std::shared_ptr<CompositeInstruction> function) {
     XACCLogger::instance()->error(

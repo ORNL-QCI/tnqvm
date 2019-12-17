@@ -276,6 +276,25 @@ namespace tnqvm {
 
         return 0;
     }
+
+    ResetTensorDataFunctor::ResetTensorDataFunctor(const std::vector<std::complex<double>>& in_stateVec):
+        m_stateVec(in_stateVec)
+    {}
+
+    int ResetTensorDataFunctor::apply(talsh::Tensor& local_tensor) 
+    {
+        std::complex<double>* elements;
+       
+        if (local_tensor.getDataAccessHost(&elements))
+        {
+            for (size_t i = 0; i < local_tensor.getVolume(); ++i)
+            {
+                elements[i] = m_stateVec[i];
+            }
+        }
+        
+        return 0;        
+    }
     
     void ExatnDebugLogger::preEvaluate(tnqvm::ExatnMPSVisitor* in_backEnd)  
     {
@@ -329,15 +348,15 @@ namespace tnqvm {
         // TODO
     }
     
-    void ExatnMPSVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer) 
+    void ExatnMPSVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int nbShots) 
     {
         // Initialize ExaTN
         exatn::initialize();
         assert(exatn::isInitialized());
 
         m_buffer = std::move(buffer);
-       
-
+        m_shots = nbShots;
+    
         // Create the qubit register tensor
         for (int i = 0; i < m_buffer->size(); ++i)
         {
@@ -453,7 +472,39 @@ namespace tnqvm {
             // If we haven't evaluated the network, do it now (end of circuit).
             evaluateNetwork();
         }
-                
+
+        if (m_shots > 1)
+        {
+            const auto cachedStateVec = retrieveStateVector();            
+            for (int i = 0; i < m_shots; ++i)
+            {
+                for (const auto& idx: m_measureQbIdx)
+                {
+                    // Calculate the expected value
+                    auto expectationFunctor = std::make_shared<CalculateExpectationValueFunctor>(idx);
+                    exatn::numericalServer->transformTensorSync(m_tensorNetwork.getTensor(0)->getName(), expectationFunctor);
+                        
+                    // Apply the measurement logic 
+                    auto measurementFunctor = std::make_shared<ApplyQubitMeasureFunctor>(idx);
+                    exatn::numericalServer->transformTensorSync(m_tensorNetwork.getTensor(0)->getName(), measurementFunctor);
+                    exatn::sync();
+
+                    m_buffer->addExtraInfo("exp-val-z", expectationFunctor->getResult());
+                    // Append the boolean true/false as bit value
+                    m_resultBitString.append(measurementFunctor->getResult() ? "1" : "0");    
+
+                }
+                // Finish measuring all qubits, append the bit-string measurement result.
+                m_buffer->appendMeasurement(m_resultBitString);
+                // Clear the result bit string after appending (to be constructed in the next shot)
+                m_resultBitString.clear();
+
+                // Restore state vector for the next shot
+                exatn::numericalServer->transformTensorSync(m_tensorNetwork.getTensor(0)->getName(), std::make_shared<ResetTensorDataFunctor>(cachedStateVec));
+                exatn::sync();
+            }     
+        }
+
         // Notify listeners
         {
             for (auto& listener: m_listeners)
@@ -578,7 +629,17 @@ namespace tnqvm {
             }
         }
 
-        const int measQubit = in_MeasureGate.bits()[0];            
+        const int measQubit = in_MeasureGate.bits()[0];
+
+        // Handle multi-shot simulation: i.e. specifying the number of shots (randomized by measurement)
+        // Don't need to re-run the simulation, just sample from the result state vector in the end.
+        if (m_shots > 1) 
+        {
+            // Capture the list of qubit that we want to measure.
+            m_measureQbIdx.emplace_back(measQubit);
+            return;
+        }
+
         // Calculate the expected value
         auto expectationFunctor = std::make_shared<CalculateExpectationValueFunctor>(measQubit);
         exatn::numericalServer->transformTensorSync(m_tensorNetwork.getTensor(0)->getName(), expectationFunctor);
