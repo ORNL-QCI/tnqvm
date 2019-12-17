@@ -377,7 +377,7 @@ TEST(ExatnMPSVisitorTester, testGrover) {
 
   {
     // Single run with multiple shots
-    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps"), std::make_pair("n-shots", nbTrials)});
+    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps"), std::make_pair("shots", nbTrials)});
     // 3-qubit
     auto qubitReg = xacc::qalloc(3);
     auto xasmCompiler = xacc::getCompiler("xasm");   

@@ -90,10 +90,10 @@ public:
       xacc::warning("No visitor backend was specified. The default visitor backend of type '" + DEFAULT_VISITOR_BACKEND + "' will be used.");
     }
 
-    if (config.keyExists<int>("n-shots")) {
-      nbShots = config.get<int>("n-shots");
+    if (config.keyExists<int>("shots")) {
+      nbShots = config.get<int>("shots");
       if (nbShots < 1) {
-        xacc::error("Invalid n-shots parameter.");
+        xacc::error("Invalid 'shots' parameter.");
       }
 
       if (nbShots > 1 && backendName == "itensor-mps") {
