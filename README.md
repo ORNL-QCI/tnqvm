@@ -15,6 +15,21 @@ $ cmake .. -DXACC_DIR=$HOME/.xacc (or wherever you installed XACC)
 $ make install
 ```
 
+TNQVM can be built with [ExaTN](https://github.com/ornl-qci/exatn) support, providing a tensor network processing backend that scales on Summit-like architectures. To enable this support, first follow the ExaTN [README](https://github.com/ORNL-QCI/exatn/blob/devel/README.md) to build and install ExaTN. Now configure TNQVM with CMake and build/install
+```bash
+$ mkdir build && cd build
+$ cmake .. -DXACC_DIR=$HOME/.xacc -DEXATN_DIR=$HOME/.exatn
+$ make install
+```
+To switch tensor processing backends use 
+```
+auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn")});
+```
+or in Python
+```
+qpu = xacc.getAccelerator('tnqvm', {'tnqvm-visitor':'exatn'})
+```
+
 Documentation
 -------------
 
