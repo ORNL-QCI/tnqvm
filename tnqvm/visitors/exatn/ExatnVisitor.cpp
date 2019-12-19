@@ -29,10 +29,10 @@
  *   Implementation - Dmitry Lyakh 2017/10/05 - active;
  *
  **********************************************************************************/
-#ifdef TNQVM_HAS_EXATENSOR
+#ifdef TNQVM_HAS_EXATN
 #define _DEBUG_DIL
 
-#include "ExatnMPSVisitor.hpp"
+#include "ExatnVisitor.hpp"
 #include "base/Gates.hpp"
 #include "exatn.hpp"
 #include "tensor_basic.hpp"
@@ -131,8 +131,8 @@ namespace tnqvm {
         }
     }
     // Define the tensor body for a zero-state qubit
-    const std::vector<std::complex<double>> ExatnMPSVisitor::Q_ZERO_TENSOR_BODY{ {1.0,0.0}, {0.0,0.0} };
-    const std::vector<std::complex<double>> ExatnMPSVisitor::Q_ONE_TENSOR_BODY{ {0.0,0.0}, {1.0,0.0} };
+    const std::vector<std::complex<double>> ExatnVisitor::Q_ZERO_TENSOR_BODY{ {1.0,0.0}, {0.0,0.0} };
+    const std::vector<std::complex<double>> ExatnVisitor::Q_ONE_TENSOR_BODY{ {0.0,0.0}, {1.0,0.0} };
     
     int TensorComponentPrintFunctor::apply(talsh::Tensor& local_tensor) 
     {        
@@ -180,39 +180,38 @@ namespace tnqvm {
         return 0;
     }
 
-    CalculateExpectationValueFunctor::CalculateExpectationValueFunctor(int qubitIndex):
-        m_qubitIndex(qubitIndex)
+    CalculateExpectationValueFunctor::CalculateExpectationValueFunctor(const std::vector<int>& qubitIndex):
+        m_qubitIndices(qubitIndex)
     {}
     
     int CalculateExpectationValueFunctor::apply(talsh::Tensor& local_tensor) 
     {        
-        assert(local_tensor.getRank() > m_qubitIndex);
-        
-        const auto N = local_tensor.getVolume();
-	    const auto k_range = 1ULL << m_qubitIndex;
-        m_result = 0.0;
-        // The measurement result of a state
-        double measureResult = 1.0;
+        const auto hasEvenParity = [](size_t x, const std::vector<int>& in_qubitIndices) -> bool {
+            size_t count = 0;            
+            for (const auto& bitIdx : in_qubitIndices) 
+            {
+                if (x & (1ULL << bitIdx)) 
+                {
+                    count++;
+                }            
+            }            
+            return (count % 2) == 0;
+        };
+ 
         std::complex<double>* elements;
-        
         const bool isOkay = local_tensor.getDataAccessHost(&elements);
+        m_result = 0.0; 
         if (isOkay)
         {
-            for(uint64_t i = 0; i < N; i += k_range)
+            for(uint64_t i = 0; i < local_tensor.getVolume(); ++i)
             {
-                for (uint64_t j = 0; j < k_range; ++j)
-                {
-                    m_result += measureResult * std::norm(elements[i + j]);
-                }
-                
-                // The measurement result toggles between -1.0 and 1.0
-                measureResult *= -1.0;
+                m_result += (hasEvenParity(i, m_qubitIndices) ? 1.0 : -1.0) * std::norm(elements[i]);
             }
         }
        
         return 0;
     }
-
+    
     ApplyQubitMeasureFunctor::ApplyQubitMeasureFunctor(int qubitIndex):
         m_qubitIndex(qubitIndex)
     {}
@@ -296,7 +295,7 @@ namespace tnqvm {
         return 0;        
     }
     
-    void ExatnDebugLogger::preEvaluate(tnqvm::ExatnMPSVisitor* in_backEnd)  
+    void ExatnDebugLogger::preEvaluate(tnqvm::ExatnVisitor* in_backEnd)  
     {
         // If in Debug, print out tensor data using the Print Functor
         auto functor = std::make_shared<tnqvm::TensorComponentPrintFunctor>();
@@ -311,7 +310,7 @@ namespace tnqvm {
         }
     }
     
-    void ExatnDebugLogger::preMeasurement(tnqvm::ExatnMPSVisitor* in_backEnd, xacc::quantum::Measure& in_measureGate)  
+    void ExatnDebugLogger::preMeasurement(tnqvm::ExatnVisitor* in_backEnd, xacc::quantum::Measure& in_measureGate)  
     {
         // Print out the state vector
         std::cout << "Applying " << in_measureGate.name() << " @ " << in_measureGate.bits()[0] << "\n";
@@ -324,7 +323,7 @@ namespace tnqvm {
         std::cout << "]\n";
     }
     
-    void ExatnDebugLogger::postMeasurement(tnqvm::ExatnMPSVisitor* in_backEnd, xacc::quantum::Measure& in_measureGate, bool in_bitResult, double in_expectedValue)  
+    void ExatnDebugLogger::postMeasurement(tnqvm::ExatnVisitor* in_backEnd, xacc::quantum::Measure& in_measureGate, bool in_bitResult, double in_expectedValue)  
     {
         // Print out the state vector
         std::cout << "=========== AFTER MEASUREMENT =================\n";
@@ -340,7 +339,7 @@ namespace tnqvm {
     }
 
 
-    ExatnMPSVisitor::ExatnMPSVisitor():
+    ExatnVisitor::ExatnVisitor():
         m_tensorNetwork(),
         m_tensorIdCounter(0),
         m_hasEvaluated(false)
@@ -348,7 +347,7 @@ namespace tnqvm {
         // TODO
     }
     
-    void ExatnMPSVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int nbShots) 
+    void ExatnVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int nbShots) 
     {
         // Initialize ExaTN
         exatn::initialize();
@@ -384,7 +383,7 @@ namespace tnqvm {
         #endif
     }
 
-    std::vector<std::complex<double>> ExatnMPSVisitor::retrieveStateVector()
+    std::vector<std::complex<double>> ExatnVisitor::retrieveStateVector()
     {
         std::vector<std::complex<double>> stateVec;
         auto stateVecFunctor = std::make_shared<ReconstructStateVectorFunctor>(m_buffer, stateVec);
@@ -393,7 +392,7 @@ namespace tnqvm {
         return stateVec;   
     }
 
-    void ExatnMPSVisitor::evaluateNetwork() 
+    void ExatnVisitor::evaluateNetwork() 
     {
         // Notify listeners
         {
@@ -417,7 +416,7 @@ namespace tnqvm {
     }
 
 
-    void ExatnMPSVisitor::resetExaTN()
+    void ExatnVisitor::resetExaTN()
     {
         std::unordered_set<std::string> tensorList;
         for (auto iter = m_tensorNetwork.cbegin(); iter != m_tensorNetwork.cend(); ++iter)
@@ -437,7 +436,7 @@ namespace tnqvm {
         exatn::finalize();
     }
 
-    void ExatnMPSVisitor::resetNetwork()
+    void ExatnVisitor::resetNetwork()
     {
         // We must have evaluated the tensor network.
         assert(m_hasEvaluated);
@@ -465,7 +464,7 @@ namespace tnqvm {
         m_hasEvaluated = false;
     }
     
-    void ExatnMPSVisitor::finalize() 
+    void ExatnVisitor::finalize() 
     {
         if (!m_hasEvaluated)
         {
@@ -479,17 +478,11 @@ namespace tnqvm {
             for (int i = 0; i < m_shots; ++i)
             {
                 for (const auto& idx: m_measureQbIdx)
-                {
-                    // Calculate the expected value
-                    auto expectationFunctor = std::make_shared<CalculateExpectationValueFunctor>(idx);
-                    exatn::numericalServer->transformTensorSync(m_tensorNetwork.getTensor(0)->getName(), expectationFunctor);
-                        
+                {           
                     // Apply the measurement logic 
                     auto measurementFunctor = std::make_shared<ApplyQubitMeasureFunctor>(idx);
                     exatn::numericalServer->transformTensorSync(m_tensorNetwork.getTensor(0)->getName(), measurementFunctor);
-                    exatn::sync();
-
-                    m_buffer->addExtraInfo("exp-val-z", expectationFunctor->getResult());
+                    exatn::sync();         
                     // Append the boolean true/false as bit value
                     m_resultBitString.append(measurementFunctor->getResult() ? "1" : "0");    
 
@@ -514,7 +507,8 @@ namespace tnqvm {
         }
 
         // Set the bit string from measurement to the buffer
-        if (!m_resultBitString.empty())
+        // Note: if m_shots is not specified (-1), don't need to set the measurement bit string.
+        if (!m_resultBitString.empty() && m_shots > 0)
         {
             m_buffer->appendMeasurement(m_resultBitString);
             // Clear the result bit string after appending.
@@ -526,89 +520,89 @@ namespace tnqvm {
     }
 
     // === BEGIN: Gate Visitor Impls ===
-    void ExatnMPSVisitor::visit(Identity& in_IdentityGate) 
+    void ExatnVisitor::visit(Identity& in_IdentityGate) 
     {  
        appendGateTensor<CommonGates::I>(in_IdentityGate);
     }
     
-    void ExatnMPSVisitor::visit(Hadamard& in_HadamardGate) 
+    void ExatnVisitor::visit(Hadamard& in_HadamardGate) 
     { 
         appendGateTensor<CommonGates::H>(in_HadamardGate);
     }
     
-    void ExatnMPSVisitor::visit(X& in_XGate) 
+    void ExatnVisitor::visit(X& in_XGate) 
     { 
         appendGateTensor<CommonGates::X>(in_XGate);    
     }
 
-    void ExatnMPSVisitor::visit(Y& in_YGate) 
+    void ExatnVisitor::visit(Y& in_YGate) 
     { 
         appendGateTensor<CommonGates::Y>(in_YGate);
     }
     
-    void ExatnMPSVisitor::visit(Z& in_ZGate) 
+    void ExatnVisitor::visit(Z& in_ZGate) 
     { 
         appendGateTensor<CommonGates::Z>(in_ZGate); 
     }
     
-    void ExatnMPSVisitor::visit(Rx& in_RxGate) 
+    void ExatnVisitor::visit(Rx& in_RxGate) 
     { 
        assert(in_RxGate.nParameters() == 1);
        const double theta = in_RxGate.getParameter(0).as<double>();
        appendGateTensor<CommonGates::Rx>(in_RxGate, theta);
     }
     
-    void ExatnMPSVisitor::visit(Ry& in_RyGate) 
+    void ExatnVisitor::visit(Ry& in_RyGate) 
     { 
        assert(in_RyGate.nParameters() == 1);
        const double theta = in_RyGate.getParameter(0).as<double>();
        appendGateTensor<CommonGates::Ry>(in_RyGate, theta);
     }
     
-    void ExatnMPSVisitor::visit(Rz& in_RzGate) 
+    void ExatnVisitor::visit(Rz& in_RzGate) 
     { 
         assert(in_RzGate.nParameters() == 1);
         const double theta = in_RzGate.getParameter(0).as<double>();
         appendGateTensor<CommonGates::Rz>(in_RzGate, theta);
     }
     
-    void ExatnMPSVisitor::visit(T& in_TGate) 
+    void ExatnVisitor::visit(T& in_TGate) 
     {
         appendGateTensor<CommonGates::T>(in_TGate); 
     }
 
-    void ExatnMPSVisitor::visit(Tdg& in_TdgGate)
+    void ExatnVisitor::visit(Tdg& in_TdgGate)
     {
         appendGateTensor<CommonGates::Tdg>(in_TdgGate); 
     }
 
 
-    void ExatnMPSVisitor::visit(CPhase& in_CPhaseGate) 
+    void ExatnVisitor::visit(CPhase& in_CPhaseGate) 
     { 
         appendGateTensor<CommonGates::CPhase>(in_CPhaseGate);
     }
     
-    void ExatnMPSVisitor::visit(U& in_UGate) 
+    void ExatnVisitor::visit(U& in_UGate) 
     { 
         appendGateTensor<CommonGates::U>(in_UGate);
     }
     
-    void ExatnMPSVisitor::visit(CNOT& in_CNOTGate) 
+    void ExatnVisitor::visit(CNOT& in_CNOTGate) 
     { 
        appendGateTensor<CommonGates::CNOT>(in_CNOTGate);
     }
     
-    void ExatnMPSVisitor::visit(Swap& in_SwapGate) 
+    void ExatnVisitor::visit(Swap& in_SwapGate) 
     { 
         appendGateTensor<CommonGates::Swap>(in_SwapGate);
     }
     
-    void ExatnMPSVisitor::visit(CZ& in_CZGate) 
+    void ExatnVisitor::visit(CZ& in_CZGate) 
     { 
         appendGateTensor<CommonGates::CZ>(in_CZGate);
     }
     
-    void ExatnMPSVisitor::visit(Measure& in_MeasureGate) 
+    void ExatnVisitor::visit(Measure& in_MeasureGate) 
     { 
         // When we visit a measure gate, evaluate the current tensor network (up to this measurement)
         // Note: currently, we cannot do gate operations post measurement yet (i.e. multiple evaluateNetwork() calls).
@@ -630,18 +624,16 @@ namespace tnqvm {
         }
 
         const int measQubit = in_MeasureGate.bits()[0];
-
-        // Handle multi-shot simulation: i.e. specifying the number of shots (randomized by measurement)
-        // Don't need to re-run the simulation, just sample from the result state vector in the end.
+        m_measureQbIdx.emplace_back(measQubit);
+       
+        // If multi-shot was requested, we skip measurement till the end.
         if (m_shots > 1) 
         {
-            // Capture the list of qubit that we want to measure.
-            m_measureQbIdx.emplace_back(measQubit);
             return;
         }
 
         // Calculate the expected value
-        auto expectationFunctor = std::make_shared<CalculateExpectationValueFunctor>(measQubit);
+        auto expectationFunctor = std::make_shared<CalculateExpectationValueFunctor>(m_measureQbIdx);
         exatn::numericalServer->transformTensorSync(m_tensorNetwork.getTensor(0)->getName(), expectationFunctor);
                     
         // Apply the measurement logic 
@@ -663,7 +655,7 @@ namespace tnqvm {
     // === END: Gate Visitor Impls ===
     
     template<tnqvm::CommonGates GateType, typename... GateParams>
-    void ExatnMPSVisitor::appendGateTensor(const xacc::Instruction& in_gateInstruction, GateParams&&... in_params)
+    void ExatnVisitor::appendGateTensor(const xacc::Instruction& in_gateInstruction, GateParams&&... in_params)
     { 
         if (m_hasEvaluated)
         {
@@ -729,7 +721,7 @@ namespace tnqvm {
         ); 
     }
         
-    const double ExatnMPSVisitor::getExpectationValueZ(std::shared_ptr<CompositeInstruction> in_function) 
+    const double ExatnVisitor::getExpectationValueZ(std::shared_ptr<CompositeInstruction> in_function) 
     {
         if (!m_buffer)
         {
@@ -760,4 +752,4 @@ namespace tnqvm {
     } 
 }  // end namespace tnqvm
 
-#endif //TNQVM_HAS_EXATENSOR
+#endif //TNQVM_HAS_EXATN

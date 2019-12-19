@@ -97,7 +97,7 @@ public:
       }
 
       if (nbShots > 1 && backendName == "itensor-mps") {
-        xacc::warning("Multi-shot simulation is not available for 'itensor-mps' backend. This option will be ignored. \nPlease use 'exatn-mps' backend if you want to run multi-shot simulation.");
+        xacc::warning("Multi-shot simulation is not available for 'itensor-mps' backend. This option will be ignored. \nPlease use 'exatn' backend if you want to run multi-shot simulation.");
       }
     }    
   }
@@ -139,13 +139,16 @@ private:
   bool executedOnce = false;
   bool vqeMode = true;
   // Default visitor backend is ITensor.
-  // TODO: we may eventually use our exatn-mps as default.
+  // TODO: we may eventually use our exatn as default.
   static const std::string DEFAULT_VISITOR_BACKEND;
   // The backend name that is configured.
   // Initialized to the default.
   std::string backendName = DEFAULT_VISITOR_BACKEND;
   // Number of *shots* (randomized runs) requested.
-  int nbShots = 1;
+  // If not specified (i.e. left as -1), 
+  // then we don't return the binary measurement result (as a bit string).
+  // This is to make sure that on the XACC side, it can interpret the avarage-Z result correctly.
+  int nbShots = -1;
 };
 } // namespace tnqvm
 

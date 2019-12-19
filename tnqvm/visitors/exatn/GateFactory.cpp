@@ -47,9 +47,9 @@ constexpr const GateBodyFactory::TensDataType GateBodyFactory::CNBody[TWO_BODY_V
 constexpr const GateBodyFactory::TensDataType GateBodyFactory::CZBody[TWO_BODY_VOL];
 constexpr const GateBodyFactory::TensDataType GateBodyFactory::SWBody[TWO_BODY_VOL];
 
-#ifdef TNQVM_HAS_EXATENSOR
+#ifdef TNQVM_HAS_EXATN
 // constexpr const std::size_t GateFactory::OneBodyShape[ONE_BODY_RANK];
 // constexpr const std::size_t GateFactory::TwoBodyShape[TWO_BODY_RANK];
-#endif //TNQVM_HAS_EXATENSOR
+#endif //TNQVM_HAS_EXATN
 
 } //namespace tnqvm

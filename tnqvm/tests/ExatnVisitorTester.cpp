@@ -46,11 +46,11 @@ namespace {
 
 // This test is just to confirm that the ExaTN backend can be instaniated
 // and we can submit quantum circuit as tensors to the ExaTN backend. 
-TEST(ExatnMPSVisitorTester, checkExatnMPSVisitor) {
+TEST(ExatnVisitorTester, checkExatnVisitor) {
   TNQVM acc;
 
-  acc.initialize({std::make_pair("tnqvm-visitor", "exatn-mps")});  
-  EXPECT_EQ(acc.getVisitorName(), "exatn-mps"); 
+  acc.initialize({std::make_pair("tnqvm-visitor", "exatn")});  
+  EXPECT_EQ(acc.getVisitorName(), "exatn"); 
 
   auto qreg1 = xacc::qalloc(3);       // 3-qubit accelerator buffer
   auto provider = xacc::getIRProvider("quantum");
@@ -72,9 +72,9 @@ TEST(ExatnMPSVisitorTester, checkExatnMPSVisitor) {
   EXPECT_NO_THROW(acc.execute(qreg1, f));
 }
 
-TEST(ExatnMPSVisitorTester, testSimpleGates) {
+TEST(ExatnVisitorTester, testSimpleGates) {
   {
-    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps")});
+    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn")});
     auto qubitReg = xacc::qalloc(1);
     auto xasmCompiler = xacc::getCompiler("xasm");
     auto ir = xasmCompiler->compile(R"(__qpu__ void test1(qbit q) {
@@ -88,7 +88,7 @@ TEST(ExatnMPSVisitorTester, testSimpleGates) {
   }
 
   {
-    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps")});
+    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn")});
     auto qubitReg = xacc::qalloc(1);
     auto xasmCompiler = xacc::getCompiler("xasm");
     auto ir = xasmCompiler->compile(R"(__qpu__ void test2(qbit q) {
@@ -103,7 +103,7 @@ TEST(ExatnMPSVisitorTester, testSimpleGates) {
   }
 
   {
-    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps")});
+    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn")});
     auto qubitReg = xacc::qalloc(1);
     auto xasmCompiler = xacc::getCompiler("xasm");
     auto ir = xasmCompiler->compile(R"(__qpu__ void test3(qbit q) {
@@ -118,7 +118,7 @@ TEST(ExatnMPSVisitorTester, testSimpleGates) {
   }
 
   {
-    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps")});
+    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn")});
     auto qubitReg = xacc::qalloc(3);
     auto xasmCompiler = xacc::getCompiler("xasm");
     auto ir = xasmCompiler->compile(R"(__qpu__ void test4(qbit q) {
@@ -136,7 +136,7 @@ TEST(ExatnMPSVisitorTester, testSimpleGates) {
   }
 
   {
-    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps")});
+    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn")});
     auto qubitReg = xacc::qalloc(3);
     auto xasmCompiler = xacc::getCompiler("xasm");
     auto ir = xasmCompiler->compile(R"(__qpu__ void test5(qbit q) {
@@ -153,7 +153,7 @@ TEST(ExatnMPSVisitorTester, testSimpleGates) {
   }
 
   {
-    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps")});
+    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn")});
     auto qubitReg = xacc::qalloc(3);
     auto xasmCompiler = xacc::getCompiler("xasm");
     auto ir = xasmCompiler->compile(R"(__qpu__ void test6(qbit q) {
@@ -170,10 +170,10 @@ TEST(ExatnMPSVisitorTester, testSimpleGates) {
   }
 }
 
-TEST(ExatnMPSVisitorTester, testMeasurement) {  
+TEST(ExatnVisitorTester, testMeasurement) {  
   const int nbTrials = 100;
   {
-    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps")});
+    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn"), std::make_pair("shots", 1)});
     auto qubitReg = xacc::qalloc(3);
     auto xasmCompiler = xacc::getCompiler("xasm");
     auto ir = xasmCompiler->compile(R"(__qpu__ void testMeasure1(qbit q) {
@@ -205,10 +205,10 @@ TEST(ExatnMPSVisitorTester, testMeasurement) {
   }
 }
 
-TEST(ExatnMPSVisitorTester, checkDeuteuron) {
-  auto accelerator = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps")});
+TEST(ExatnVisitorTester, checkDeuteuron) {
+  auto accelerator = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn")});
   // Make sure this is ExaTN
-  EXPECT_EQ(std::static_pointer_cast<tnqvm::TNQVM>(accelerator)->getVisitorName(), "exatn-mps"); 
+  EXPECT_EQ(std::static_pointer_cast<tnqvm::TNQVM>(accelerator)->getVisitorName(), "exatn"); 
   auto xasmCompiler = xacc::getCompiler("xasm");
   
   const auto calculateExpectedResult = [](double in_theta) -> double {
@@ -257,12 +257,12 @@ TEST(ExatnMPSVisitorTester, checkDeuteuron) {
   }
 }
 
-TEST(ExatnMPSVisitorTester, testPostMeasurementSimulation) {
+TEST(ExatnVisitorTester, testPostMeasurementSimulation) {
   // Test that after-measurement simulation mode,
   // i.e. multiple tensor evaluation runs on the backend.  
   const int nbTrials = 100;
   {
-    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps")});
+    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn"), std::make_pair("shots", 1)});
     auto qubitReg = xacc::qalloc(2);
     auto xasmCompiler = xacc::getCompiler("xasm");
     // Simple test: sampling a binary state from a 2-qubit register. 
@@ -290,7 +290,7 @@ TEST(ExatnMPSVisitorTester, testPostMeasurementSimulation) {
   }
 }
 
-TEST(ExatnMPSVisitorTester, testGrover) {
+TEST(ExatnVisitorTester, testGrover) {
   // Test Grover's algorithm
   // Amplify the amplitude of number 6 (110) state 
   const int nbTrials = 100;
@@ -356,7 +356,7 @@ TEST(ExatnMPSVisitorTester, testGrover) {
 
   {
     // Single-shot mode, run multiple times
-    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps")});
+    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn"), std::make_pair("shots", 1)});
     // 3-qubit
     auto qubitReg = xacc::qalloc(3);
     auto xasmCompiler = xacc::getCompiler("xasm");
@@ -377,7 +377,7 @@ TEST(ExatnMPSVisitorTester, testGrover) {
 
   {
     // Single run with multiple shots
-    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps"), std::make_pair("shots", nbTrials)});
+    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn"), std::make_pair("shots", nbTrials)});
     // 3-qubit
     auto qubitReg = xacc::qalloc(3);
     auto xasmCompiler = xacc::getCompiler("xasm");   

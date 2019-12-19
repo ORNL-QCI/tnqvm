@@ -29,10 +29,9 @@
  *   Implementation - Dmitry Lyakh 2017/10/05 - active;
  *
  **********************************************************************************/
-#ifndef TNQVM_EXATENSORMPSVISITOR_HPP_
-#define TNQVM_EXATENSORMPSVISITOR_HPP_
+#pragma once
 
-#ifdef TNQVM_HAS_EXATENSOR
+#ifdef TNQVM_HAS_EXATN
 
 #include <cstdlib>
 #include <complex>
@@ -96,15 +95,15 @@ namespace tnqvm {
         std::vector<std::complex<double>>& m_stateVec;
     }; 
 
-    // Functor to calculate the expected Z value of a qubit.
+    // Functor to calculate the expected Z value across a list of qubit.
     class CalculateExpectationValueFunctor : public DefaultTNQVMTensorFunctor
     {
     public:
-        CalculateExpectationValueFunctor(int qubitIndex);
+        CalculateExpectationValueFunctor(const std::vector<int>& qubitIndex);
         virtual int apply(talsh::Tensor& local_tensor) override;
         double getResult() const { return m_result; }
     private:
-        int m_qubitIndex;
+        const std::vector<int>& m_qubitIndices;
         double m_result;
     };
 
@@ -138,23 +137,23 @@ namespace tnqvm {
     using TensorShape = exatn::numerics::TensorShape;
     using TensorLeg = exatn::numerics::TensorLeg;    
     
-    class ExatnMPSVisitor;
+    class ExatnVisitor;
 
     // Special listener interface for unit testing/logging purposes
     class IExatnListener
     {
         public:
         // Called when the tensor network has been constructed, ready to be submitted.
-        virtual void preEvaluate(ExatnMPSVisitor* in_backEnd) = 0;
+        virtual void preEvaluate(ExatnVisitor* in_backEnd) = 0;
         // Called just before measurement is applied 
         // i.e. collapse then normalize the state vector. 
-        virtual void preMeasurement(ExatnMPSVisitor* in_backEnd, Measure& in_measureGate) = 0;
+        virtual void preMeasurement(ExatnVisitor* in_backEnd, Measure& in_measureGate) = 0;
         // After measurement
-        virtual void postMeasurement(ExatnMPSVisitor* in_backEnd, Measure& in_measureGate, bool in_bitResult, double in_expectedValue) = 0;
+        virtual void postMeasurement(ExatnVisitor* in_backEnd, Measure& in_measureGate, bool in_bitResult, double in_expectedValue) = 0;
         // Called before finalization, i.e. destroy the tensors.
         // Note: if there is no measurement in the circuit, 
         // this is where you can retrieve the final state vector.
-        virtual void onEvaluateComplete(ExatnMPSVisitor* in_backEnd) = 0;
+        virtual void onEvaluateComplete(ExatnVisitor* in_backEnd) = 0;
     };
 
     // Debug logger
@@ -166,10 +165,10 @@ namespace tnqvm {
             return &instance;
         }
 
-        virtual void preEvaluate(ExatnMPSVisitor* in_backEnd) override; 
-        virtual void preMeasurement(ExatnMPSVisitor* in_backEnd, Measure& in_measureGate) override;
-        virtual void postMeasurement(tnqvm::ExatnMPSVisitor* in_backEnd, xacc::quantum::Measure& in_measureGate, bool in_bitResult, double in_expectedValue) override; 
-        virtual void onEvaluateComplete(tnqvm::ExatnMPSVisitor* in_backEnd) override {}
+        virtual void preEvaluate(ExatnVisitor* in_backEnd) override; 
+        virtual void preMeasurement(ExatnVisitor* in_backEnd, Measure& in_measureGate) override;
+        virtual void postMeasurement(tnqvm::ExatnVisitor* in_backEnd, xacc::quantum::Measure& in_measureGate, bool in_bitResult, double in_expectedValue) override; 
+        virtual void onEvaluateComplete(tnqvm::ExatnVisitor* in_backEnd) override {}
 
     private:
         ExatnDebugLogger() = default;
@@ -182,22 +181,22 @@ namespace tnqvm {
     };
 
     // XACC simulation backend (TNQVM) visitor based on ExaTN
-    class ExatnMPSVisitor : public TNQVMVisitor
+    class ExatnVisitor : public TNQVMVisitor
     {
     public:
         // Constructor
-        ExatnMPSVisitor();
+        ExatnVisitor();
         
         // Virtual function impls:        
         virtual void initialize(std::shared_ptr<AcceleratorBuffer> buffer, int nbShots) override;
         virtual void finalize() override;
         
         // Service name as defined in manifest.json
-        virtual const std::string name() const override { return "exatn-mps"; }
+        virtual const std::string name() const override { return "exatn"; }
 
         virtual const std::string description() const override { return "ExaTN MPS Visitor"; }
 
-        virtual std::shared_ptr<TNQVMVisitor> clone() override { return std::make_shared<ExatnMPSVisitor>(); }
+        virtual std::shared_ptr<TNQVMVisitor> clone() override { return std::make_shared<ExatnVisitor>(); }
         
         virtual OptionPairs getOptions() override { /*TODO: define options */ return OptionPairs{}; }
     
@@ -266,6 +265,4 @@ namespace tnqvm {
     };
 } //end namespace tnqvm
 
-#endif //TNQVM_HAS_EXATENSOR
-
-#endif //TNQVM_EXATENSORMPSVISITOR_HPP_
+#endif //TNQVM_HAS_EXATN

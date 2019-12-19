@@ -189,7 +189,7 @@ public:
 } //end namespace tnqvm
 
 
-#ifdef TNQVM_HAS_EXATENSOR
+#ifdef TNQVM_HAS_EXATN
 
 namespace tnqvm {
 
@@ -307,6 +307,6 @@ namespace tnqvm {
 
 } //end namespace tnqvm
 
-#endif //TNQVM_HAS_EXATENSOR
+#endif //TNQVM_HAS_EXATN
 
 #endif //TNQVM_GATEFACTORY_HPP_

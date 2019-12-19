@@ -29,17 +29,18 @@
 #
 #**********************************************************************************/
 
-if (EXATENSOR_ROOT)
+if (EXATN_DIR)
    set (PACKAGE_NAME "TNQVM ExaTN Visitor")
    set (PACKAGE_DESCIPTION "TNQVM ExaTN backend")
    set (LIBRARY_NAME tnqvm-exatn)
-   # Checks that EXATENSOR_ROOT is a valid ExaTN install directory
-   if (IS_DIRECTORY ${EXATENSOR_ROOT} AND EXISTS ${EXATENSOR_ROOT}/exatn-config.cmake AND EXISTS ${EXATENSOR_ROOT}/bin/exatn-config)
-      message(STATUS "ExaTensor found at ${EXATENSOR_ROOT}")
+   # Checks that EXATN_DIR is a valid ExaTN install directory
+   get_filename_component(EXATN_DIR  "${EXATN_DIR}" ABSOLUTE)
+   if (IS_DIRECTORY ${EXATN_DIR} AND EXISTS ${EXATN_DIR}/exatn-config.cmake AND EXISTS ${EXATN_DIR}/bin/exatn-config)
+      message(STATUS "ExaTN found at ${EXATN_DIR}")
       # Gathers ExaTN configs: compiler flags, include directory, and linker flags.       
-      execute_process(COMMAND ${EXATENSOR_ROOT}/bin/exatn-config --cxxflags OUTPUT_VARIABLE EXATN_CXX_FLAGS)
-      execute_process(COMMAND ${EXATENSOR_ROOT}/bin/exatn-config --includes OUTPUT_VARIABLE EXATN_CXX_INCLUDES)
-      execute_process(COMMAND ${EXATENSOR_ROOT}/bin/exatn-config --libs OUTPUT_VARIABLE EXATN_CXX_LIBS)
+      execute_process(COMMAND ${EXATN_DIR}/bin/exatn-config --cxxflags OUTPUT_VARIABLE EXATN_CXX_FLAGS)
+      execute_process(COMMAND ${EXATN_DIR}/bin/exatn-config --includes OUTPUT_VARIABLE EXATN_CXX_INCLUDES)
+      execute_process(COMMAND ${EXATN_DIR}/bin/exatn-config --libs OUTPUT_VARIABLE EXATN_CXX_LIBS)
       # Sanitizes those configs to be used as CMake variables:
       # Removes EOL
       string(REGEX REPLACE "\n$" "" EXATN_CXX_FLAGS "${EXATN_CXX_FLAGS}")
@@ -50,10 +51,10 @@ if (EXATENSOR_ROOT)
       string(REGEX REPLACE "-I" "" EXATN_CXX_INCLUDES "${EXATN_CXX_INCLUDES}")
       string(REGEX REPLACE " " ";" EXATN_CXX_INCLUDES "${EXATN_CXX_INCLUDES}")
       # Set compiler flags and include directories
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DTNQVM_HAS_EXATENSOR ${EXATN_CXX_FLAGS}")
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DTNQVM_HAS_EXATN ${EXATN_CXX_FLAGS}")
       include_directories(${EXATN_CXX_INCLUDES})
    else()
-      message(FATAL_ERROR "Invalid EXATENSOR_ROOT path")
+      message(FATAL_ERROR "Invalid EXATN_DIR path")
    endif()
    
    file (GLOB HEADERS *.hpp)
@@ -81,8 +82,8 @@ if (EXATENSOR_ROOT)
    )
 
    include_directories(${XACC_INCLUDE_DIRS})
-   include_directories(${EXATENSOR_ROOT}/include/exatn)
-   link_directories(${EXATENSOR_ROOT}/lib)
+   include_directories(${EXATN_DIR}/include/exatn)
+   link_directories(${EXATN_DIR}/lib)
    # Links to ExaTN using its linker config flags.
    target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} xacc::quantum_gate lapack blas ${EXATN_CXX_LIBS})
    
@@ -99,5 +100,5 @@ if (EXATENSOR_ROOT)
    xacc_configure_plugin_rpath(${LIBRARY_NAME})
 
 else()
-   message(STATUS "ExaTENSOR not found, skipping ExaTensorMPSVisitor build")
+   message(STATUS "ExaTN not found, skipping ExaTNVisitor build")
 endif()
