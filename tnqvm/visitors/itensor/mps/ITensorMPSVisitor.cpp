@@ -58,7 +58,7 @@ double ipToDouble(xacc::InstructionParameter p) {
 ITensorMPSVisitor::ITensorMPSVisitor() : n_qbits(0), snapped(false) {}
 
 void ITensorMPSVisitor::initialize(
-    std::shared_ptr<AcceleratorBuffer> accbuffer_in) {
+    std::shared_ptr<AcceleratorBuffer> accbuffer_in, int nbShots) {
   verbose = xacc::optionExists("tnqvm-verbose");
   buffer = accbuffer_in;
   n_qbits = accbuffer_in->size();

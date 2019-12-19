@@ -30,10 +30,10 @@
  **********************************************************************************/
 #include "TNQVM.hpp"
 #include "PauliOperator.hpp"
-#include "xacc.hpp"
-#include "xacc_service.hpp"
 
 namespace tnqvm {
+
+const std::string TNQVM::DEFAULT_VISITOR_BACKEND = "itensor-mps";
 
 void TNQVM::execute(
     std::shared_ptr<AcceleratorBuffer> buffer,
@@ -43,10 +43,10 @@ void TNQVM::execute(
     // Here we assume we have one ansatz function,
     // functions[0]->getInstruction(0)
 
-    visitor = xacc::getService<TNQVMVisitor>("itensor-mps")->clone();
+    visitor = xacc::getService<TNQVMVisitor>(getVisitorName())->clone();
 
     // Initialize the visitor
-    visitor->initialize(buffer);
+    visitor->initialize(buffer, nbShots);
 
     // Walk the IR tree, and visit each node
     InstructionIterator it(std::dynamic_pointer_cast<CompositeInstruction>(
@@ -90,17 +90,11 @@ void TNQVM::execute(
 
 void TNQVM::execute(std::shared_ptr<xacc::AcceleratorBuffer> buffer,
                     const std::shared_ptr<xacc::CompositeInstruction> kernel) {
-
-  std::string visitorType = "itensor-mps";
-  if (xacc::optionExists("tnqvm-visitor")) {
-    visitorType = xacc::getOption("tnqvm-visitor");
-  }
-
   // Get the visitor backend
-  visitor = xacc::getService<TNQVMVisitor>(visitorType);
+  visitor = xacc::getService<TNQVMVisitor>(getVisitorName());
 
   // Initialize the visitor
-  visitor->initialize(buffer);
+  visitor->initialize(buffer, nbShots);
 
   // Walk the IR tree, and visit each node
   InstructionIterator it(kernel);
@@ -117,13 +111,8 @@ void TNQVM::execute(std::shared_ptr<xacc::AcceleratorBuffer> buffer,
 
 const std::vector<std::complex<double>>
 TNQVM::getAcceleratorState(std::shared_ptr<CompositeInstruction> program) {
-  std::string visitorType = "itensor-mps";
-  if (xacc::optionExists("tnqvm-visitor")) {
-    visitorType = xacc::getOption("tnqvm-visitor");
-  }
-
   // Get the visitor backend
-  visitor = xacc::getService<TNQVMVisitor>(visitorType);
+  visitor = xacc::getService<TNQVMVisitor>(getVisitorName());
 
   int maxBit = 0;
   if (!xacc::optionExists("n-qubits")) {
@@ -147,7 +136,7 @@ TNQVM::getAcceleratorState(std::shared_ptr<CompositeInstruction> program) {
   auto buffer = std::make_shared<xacc::AcceleratorBuffer>("q", maxBit + 1);
 
   // Initialize the visitor
-  visitor->initialize(buffer);
+  visitor->initialize(buffer, nbShots);
 
   // Walk the IR tree, and visit each node
   InstructionIterator it(program);
@@ -163,5 +152,4 @@ TNQVM::getAcceleratorState(std::shared_ptr<CompositeInstruction> program) {
 
   return visitor->getState();
 }
-
 } // namespace tnqvm

@@ -189,126 +189,124 @@ public:
 } //end namespace tnqvm
 
 
-#ifdef TNQVM_HAS_EXATENSOR
-
-#include "tensornet.hpp"
+#ifdef TNQVM_HAS_EXATN
 
 namespace tnqvm {
 
-class GateFactory{
+// class GateFactory{
 
-public:
+// public:
 
-//Type aliases:
+// //Type aliases:
 
- using TensDataType = GateBodyFactory::TensDataType;
- using Tensor = exatensor::TensorDenseAdpt<TensDataType>;
+//  using TensDataType = GateBodyFactory::TensDataType;
+//  using Tensor = exatensor::TensorDenseAdpt<TensDataType>;
 
-private:
+// private:
 
-//Static constants declaration:
+// //Static constants declaration:
 
- static constexpr const std::size_t OneBodyShape[ONE_BODY_RANK] = {BASE_SPACE_DIM,BASE_SPACE_DIM};
- static constexpr const std::size_t TwoBodyShape[TWO_BODY_RANK] = {BASE_SPACE_DIM,BASE_SPACE_DIM,BASE_SPACE_DIM,BASE_SPACE_DIM};
+//  static constexpr const std::size_t OneBodyShape[ONE_BODY_RANK] = {BASE_SPACE_DIM,BASE_SPACE_DIM};
+//  static constexpr const std::size_t TwoBodyShape[TWO_BODY_RANK] = {BASE_SPACE_DIM,BASE_SPACE_DIM,BASE_SPACE_DIM,BASE_SPACE_DIM};
 
-//Gate body factory member:
+// //Gate body factory member:
 
- GateBodyFactory GateBodies;
+//  GateBodyFactory GateBodies;
 
-//Data members (gate tensors):
+// //Data members (gate tensors):
 
- Tensor HadamardTensor;
- Tensor XTensor;
- Tensor YTensor;
- Tensor ZTensor;
- Tensor RxTensor;
- Tensor RyTensor;
- Tensor RzTensor;
- Tensor CPhaseTensor;
- Tensor CNOTTensor;
- Tensor CZTensor;
- Tensor SwapTensor;
+//  Tensor HadamardTensor;
+//  Tensor XTensor;
+//  Tensor YTensor;
+//  Tensor ZTensor;
+//  Tensor RxTensor;
+//  Tensor RyTensor;
+//  Tensor RzTensor;
+//  Tensor CPhaseTensor;
+//  Tensor CNOTTensor;
+//  Tensor CZTensor;
+//  Tensor SwapTensor;
 
-public:
+// public:
 
-//Life cycle:
+// //Life cycle:
 
- GateFactory():
-  HadamardTensor(ONE_BODY_RANK,OneBodyShape),
-  XTensor(ONE_BODY_RANK,OneBodyShape),
-  YTensor(ONE_BODY_RANK,OneBodyShape),
-  ZTensor(ONE_BODY_RANK,OneBodyShape),
-  RxTensor(ONE_BODY_RANK,OneBodyShape),
-  RyTensor(ONE_BODY_RANK,OneBodyShape),
-  RzTensor(ONE_BODY_RANK,OneBodyShape),
-  CPhaseTensor(TWO_BODY_RANK,TwoBodyShape),
-  CNOTTensor(TWO_BODY_RANK,TwoBodyShape),
-  CZTensor(TWO_BODY_RANK,TwoBodyShape),
-  SwapTensor(TWO_BODY_RANK,TwoBodyShape)
- {
- }
+//  GateFactory():
+//   HadamardTensor(ONE_BODY_RANK,OneBodyShape),
+//   XTensor(ONE_BODY_RANK,OneBodyShape),
+//   YTensor(ONE_BODY_RANK,OneBodyShape),
+//   ZTensor(ONE_BODY_RANK,OneBodyShape),
+//   RxTensor(ONE_BODY_RANK,OneBodyShape),
+//   RyTensor(ONE_BODY_RANK,OneBodyShape),
+//   RzTensor(ONE_BODY_RANK,OneBodyShape),
+//   CPhaseTensor(TWO_BODY_RANK,TwoBodyShape),
+//   CNOTTensor(TWO_BODY_RANK,TwoBodyShape),
+//   CZTensor(TWO_BODY_RANK,TwoBodyShape),
+//   SwapTensor(TWO_BODY_RANK,TwoBodyShape)
+//  {
+//  }
 
-//Returns the tensor for a concrete quantum gate:
+// //Returns the tensor for a concrete quantum gate:
 
- const Tensor & getTensor(const Hadamard & gate){
-  if(!(HadamardTensor.hasBody())) HadamardTensor.setBody(GateBodies.getBody(gate));
-  return HadamardTensor;
- }
+//  const Tensor & getTensor(const Hadamard & gate){
+//   if(!(HadamardTensor.hasBody())) HadamardTensor.setBody(GateBodies.getBody(gate));
+//   return HadamardTensor;
+//  }
 
- const Tensor & getTensor(const X & gate){
-  if(!(XTensor.hasBody())) XTensor.setBody(GateBodies.getBody(gate));
-  return XTensor;
- }
+//  const Tensor & getTensor(const X & gate){
+//   if(!(XTensor.hasBody())) XTensor.setBody(GateBodies.getBody(gate));
+//   return XTensor;
+//  }
 
- const Tensor & getTensor(const Y & gate){
-  if(!(YTensor.hasBody())) YTensor.setBody(GateBodies.getBody(gate));
-  return YTensor;
- }
+//  const Tensor & getTensor(const Y & gate){
+//   if(!(YTensor.hasBody())) YTensor.setBody(GateBodies.getBody(gate));
+//   return YTensor;
+//  }
 
- const Tensor & getTensor(const Z & gate){
-  if(!(ZTensor.hasBody())) ZTensor.setBody(GateBodies.getBody(gate));
-  return ZTensor;
- }
+//  const Tensor & getTensor(const Z & gate){
+//   if(!(ZTensor.hasBody())) ZTensor.setBody(GateBodies.getBody(gate));
+//   return ZTensor;
+//  }
 
- const Tensor & getTensor(const Rx & gate){
-  if(!(RxTensor.hasBody())) RxTensor.setBody(GateBodies.getBody(gate));
-  return RxTensor;
- }
+//  const Tensor & getTensor(const Rx & gate){
+//   if(!(RxTensor.hasBody())) RxTensor.setBody(GateBodies.getBody(gate));
+//   return RxTensor;
+//  }
 
- const Tensor & getTensor(const Ry & gate){
-  if(!(RyTensor.hasBody())) RyTensor.setBody(GateBodies.getBody(gate));
-  return RyTensor;
- }
+//  const Tensor & getTensor(const Ry & gate){
+//   if(!(RyTensor.hasBody())) RyTensor.setBody(GateBodies.getBody(gate));
+//   return RyTensor;
+//  }
 
- const Tensor & getTensor(const Rz & gate){
-  if(!(RzTensor.hasBody())) RzTensor.setBody(GateBodies.getBody(gate));
-  return RzTensor;
- }
+//  const Tensor & getTensor(const Rz & gate){
+//   if(!(RzTensor.hasBody())) RzTensor.setBody(GateBodies.getBody(gate));
+//   return RzTensor;
+//  }
 
- const Tensor & getTensor(const CPhase & gate){
-  if(!(CPhaseTensor.hasBody())) CPhaseTensor.setBody(GateBodies.getBody(gate));
-  return CPhaseTensor;
- }
+//  const Tensor & getTensor(const CPhase & gate){
+//   if(!(CPhaseTensor.hasBody())) CPhaseTensor.setBody(GateBodies.getBody(gate));
+//   return CPhaseTensor;
+//  }
 
- const Tensor & getTensor(const CNOT & gate){
-  if(!(CNOTTensor.hasBody())) CNOTTensor.setBody(GateBodies.getBody(gate));
-  return CNOTTensor;
- }
+//  const Tensor & getTensor(const CNOT & gate){
+//   if(!(CNOTTensor.hasBody())) CNOTTensor.setBody(GateBodies.getBody(gate));
+//   return CNOTTensor;
+//  }
 
- const Tensor & getTensor(const CZ & gate){
-  if(!(CZTensor.hasBody())) CZTensor.setBody(GateBodies.getBody(gate));
-  return CZTensor;
- }
+//  const Tensor & getTensor(const CZ & gate){
+//   if(!(CZTensor.hasBody())) CZTensor.setBody(GateBodies.getBody(gate));
+//   return CZTensor;
+//  }
 
- const Tensor & getTensor(const Swap & gate){
-  if(!(SwapTensor.hasBody())) SwapTensor.setBody(GateBodies.getBody(gate));
-  return SwapTensor;
- }
+//  const Tensor & getTensor(const Swap & gate){
+//   if(!(SwapTensor.hasBody())) SwapTensor.setBody(GateBodies.getBody(gate));
+//   return SwapTensor;
+//  }
 
-}; //end class GateFactory
+// }; //end class GateFactory
 
 } //end namespace tnqvm
 
-#endif //TNQVM_HAS_EXATENSOR
+#endif //TNQVM_HAS_EXATN
 
 #endif //TNQVM_GATEFACTORY_HPP_

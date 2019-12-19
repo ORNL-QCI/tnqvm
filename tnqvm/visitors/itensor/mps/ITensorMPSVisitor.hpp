@@ -32,7 +32,6 @@
 #define QUANTUM_GATE_ACCELERATORS_TNQVM_ITensorMPSVisitor_HPP_
 
 #include <cstdlib>
-#include "xacc.hpp"
 #include "TNQVMVisitor.hpp"
 #include "Cloneable.hpp"
 #include "itensor/all.h"
@@ -47,18 +46,19 @@ class ITensorMPSVisitor : public TNQVMVisitor {
 public:
   ITensorMPSVisitor();
   virtual ~ITensorMPSVisitor();
-
+  
   virtual std::shared_ptr<TNQVMVisitor> clone() {
     return std::make_shared<ITensorMPSVisitor>();
   }
 
   virtual const double getExpectationValueZ(std::shared_ptr<CompositeInstruction> function);
 
-  virtual void initialize(std::shared_ptr<AcceleratorBuffer> buffer);
+  virtual void initialize(std::shared_ptr<AcceleratorBuffer> buffer, int nbShots = 1) override;
   virtual void finalize() {}
 
   virtual const std::vector<std::complex<double>> getState();
-
+  
+  // Service name as defined in manifest.json
   virtual const std::string name() const { return "itensor-mps"; }
 
   virtual const std::string description() const { return ""; }

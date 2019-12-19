@@ -88,6 +88,20 @@ namespace tnqvm {
 
     inline std::string GetGateName(CommonGates in_gateEnum) { return CommonGateNames[static_cast<size_t>(in_gateEnum)]; }
 
+    inline bool IsControlGate(CommonGates in_gateEnum) {
+        switch (in_gateEnum)
+        {
+            case CommonGates::CNOT:
+            case CommonGates::CZ:
+            case CommonGates::CPhase:
+            case CommonGates::CY:
+            case CommonGates::CH:
+            case CommonGates::CRZ: return true;
+            default: 
+                return false;
+        }
+    }
+
     template<typename tnqvm::CommonGates, typename... Args>
     std::vector<std::vector<std::complex<double>>> GetGateMatrix(Args... in_gateArgs) {
         // We don't expect this to be called if template specialization is not provided for a specific gate.         
@@ -95,6 +109,51 @@ namespace tnqvm {
         return {};
     }
     
+    template <> 
+    std::vector<std::vector<std::complex<double>>> GetGateMatrix<CommonGates::I>() {
+        return 
+        {
+            { 1.0, 0.0 },
+            { 0.0, 1.0 }
+        };    
+    }
+
+    template <> 
+    std::vector<std::vector<std::complex<double>>> GetGateMatrix<CommonGates::H>() {
+        return 
+        {
+            { M_SQRT1_2, M_SQRT1_2 },
+            { M_SQRT1_2, -M_SQRT1_2 }
+        };    
+    }
+
+    template <> 
+    std::vector<std::vector<std::complex<double>>> GetGateMatrix<CommonGates::X>() {
+        return 
+        {
+            { 0.0, 1.0 },
+            { 1.0, 0.0 }
+        };    
+    }
+
+    template <> 
+    std::vector<std::vector<std::complex<double>>> GetGateMatrix<CommonGates::Y>() {
+        return 
+        {
+            { 0.0, std::complex<double>(0, -1) },
+            { std::complex<double>(0, 1), 0.0 }
+        };    
+    }
+
+    template <> 
+    std::vector<std::vector<std::complex<double>>> GetGateMatrix<CommonGates::Z>() {
+        return 
+        {
+            { 1.0, 0.0 },
+            { 0.0, -1.0 }
+        };    
+    }
+
     // Rx(theta) gate:
     template <> 
     std::vector<std::vector<std::complex<double>>> GetGateMatrix<CommonGates::Rx>(double in_theta) {
@@ -123,6 +182,40 @@ namespace tnqvm {
             { std::exp(std::complex<double>(0, -0.5 * in_theta)), 0.0 },
             { 0.0, std::exp(std::complex<double>(0, 0.5 * in_theta)) }
         };    
+    }
+
+    template <> 
+    std::vector<std::vector<std::complex<double>>> GetGateMatrix<CommonGates::T>() {
+        return 
+        {
+            { 1.0, 0.0 },
+            { 0.0, std::exp(std::complex<double>(0, M_PI_4)) }
+        };    
+    }
+
+    template <> 
+    std::vector<std::vector<std::complex<double>>> GetGateMatrix<CommonGates::Tdg>() {
+        return 
+        {
+            { 1.0, 0.0 },
+            { 0.0, std::exp(std::complex<double>(0, -M_PI_4)) }
+        };    
+    }
+
+    template <> 
+    std::vector<std::vector<std::complex<double>>> GetGateMatrix<CommonGates::CNOT>() {
+        return 
+        {
+            { 1.0, 0.0, 0.0 , 0.0 },
+            { 0.0, 1.0, 0.0 , 0.0 },
+            { 0.0, 0.0, 0.0 , 1.0 },
+            { 0.0, 0.0, 1.0 , 0.0 }
+        };    
+    }
+
+    template <> 
+    std::vector<std::vector<std::complex<double>>> GetGateMatrix<CommonGates::Measure>() {
+        return {};    
     }
 }
 

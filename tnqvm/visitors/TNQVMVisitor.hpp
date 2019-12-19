@@ -33,6 +33,7 @@
 
 #include "Identifiable.hpp"
 #include "AllGateVisitor.hpp"
+#include "xacc.hpp"
 
 using namespace xacc;
 using namespace xacc::quantum;
@@ -41,19 +42,15 @@ namespace tnqvm {
 class TNQVMVisitor : public AllGateVisitor, public OptionsProvider,
                      public xacc::Cloneable<TNQVMVisitor> {
 public:
-  virtual void initialize(std::shared_ptr<AcceleratorBuffer> buffer) = 0;
+  virtual void initialize(std::shared_ptr<AcceleratorBuffer> buffer, int nbShots = 1) = 0;
   virtual const double
-  getExpectationValueZ(std::shared_ptr<CompositeInstruction> function) {
-    XACCLogger::instance()->error(
-        "getExpectationValueZ not implemented by this visitor.");
-    return 0.0;
-  }
+  getExpectationValueZ(std::shared_ptr<CompositeInstruction> function) = 0;
 
   virtual const std::vector<std::complex<double>> getState() {
     return std::vector<std::complex<double>>{};
   }
   virtual void finalize() = 0;
-
+ 
 protected:
   std::shared_ptr<AcceleratorBuffer> buffer;
 };

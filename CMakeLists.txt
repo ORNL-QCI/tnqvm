@@ -47,6 +47,12 @@ else()
   message(STATUS "Build Type: ${CMAKE_BUILD_TYPE}.")
 endif()
 
+# Add DEBUG preprocessor def for debug-only code
+IF(CMAKE_BUILD_TYPE MATCHES "Debug")
+  add_compile_definitions(_DEBUG)
+ENDIF()
+
+
 # Find Xacc
 find_package(XACC REQUIRED)
 

@@ -32,7 +32,9 @@
 #define TNQVM_TNQVM_HPP_
 
 #include "xacc.hpp"
+#include "xacc_service.hpp"
 #include "TNQVMVisitor.hpp"
+#include <cassert>
 
 namespace tnqvm {
 
@@ -43,7 +45,9 @@ public:
       __verbose = 1;
     } else {
       __verbose = 0;
-    }
+    }    
+
+    // Force a configuration update.
     updateConfiguration(params);
   }
   void updateConfiguration(const HeterogeneousMap &config) override {
@@ -53,6 +57,49 @@ public:
     if (config.keyExists<bool>("vqe-mode")) {
       vqeMode = config.get<bool>("vqe-mode");
     }
+
+    if (config.stringExists("tnqvm-visitor")) {
+      const auto requestedBackend = config.getString("tnqvm-visitor");
+      const auto& allVisitorServices = xacc::getServices<TNQVMVisitor>();
+      // We must have at least one TNQVM service registered.
+      assert(!allVisitorServices.empty());
+      bool foundRequestedBackend = false;
+      
+      for (const auto& registeredService: allVisitorServices)
+      {
+        if (registeredService->name() == requestedBackend)
+        {
+          // Found it, use that service name.
+          backendName = registeredService->name();
+          foundRequestedBackend = true;
+          break;
+        }
+      }
+      // A visitor backend was explicitly specified but the corresponding service cannot be found,
+      // e.g. the service name was misspelled.
+      if (!foundRequestedBackend)
+      {
+        backendName = DEFAULT_VISITOR_BACKEND;
+        xacc::warning("The requested TNQVM visitor backend '" + requestedBackend + "' cannot be found in the service registry. Please make sure the name is correct and the service is installed.\n"
+          "The default visitor backend of type '" + DEFAULT_VISITOR_BACKEND + "' will be used.");
+      }
+    }
+    else {
+      // No visitor type was specified, use the default.
+      backendName = DEFAULT_VISITOR_BACKEND;
+      xacc::warning("No visitor backend was specified. The default visitor backend of type '" + DEFAULT_VISITOR_BACKEND + "' will be used.");
+    }
+
+    if (config.keyExists<int>("shots")) {
+      nbShots = config.get<int>("shots");
+      if (nbShots < 1) {
+        xacc::error("Invalid 'shots' parameter.");
+      }
+
+      if (nbShots > 1 && backendName == "itensor-mps") {
+        xacc::warning("Multi-shot simulation is not available for 'itensor-mps' backend. This option will be ignored. \nPlease use 'exatn' backend if you want to run multi-shot simulation.");
+      }
+    }    
   }
   const std::vector<std::string> configurationKeys() override { return {}; }
 //   const std::string getSignature() override {return name()+":";}
@@ -69,11 +116,13 @@ public:
   getAcceleratorState(std::shared_ptr<CompositeInstruction> program) override;
 
   const std::string name() const override { return "tnqvm"; }
-
+  
   const std::string description() const override {
-    return "XACC tensor netowrk quantum virtual machine (TNQVM) Accelerator";
+    return "XACC tensor network quantum virtual machine (TNQVM) Accelerator";
   }
 
+  const std::string& getVisitorName() const { return backendName; }
+  
   virtual ~TNQVM() {}
 
   int verbose() const { return __verbose; }
@@ -81,7 +130,7 @@ public:
   void set_verbose(int level) { __verbose = level; }
   void mute() { __verbose = 0; }
   void unmute() { __verbose = 1; } // default to 1
-
+  
 protected:
   std::shared_ptr<TNQVMVisitor> visitor;
 
@@ -89,6 +138,17 @@ private:
   int __verbose = 1;
   bool executedOnce = false;
   bool vqeMode = true;
+  // Default visitor backend is ITensor.
+  // TODO: we may eventually use our exatn as default.
+  static const std::string DEFAULT_VISITOR_BACKEND;
+  // The backend name that is configured.
+  // Initialized to the default.
+  std::string backendName = DEFAULT_VISITOR_BACKEND;
+  // Number of *shots* (randomized runs) requested.
+  // If not specified (i.e. left as -1), 
+  // then we don't return the binary measurement result (as a bit string).
+  // This is to make sure that on the XACC side, it can interpret the avarage-Z result correctly.
+  int nbShots = -1;
 };
 } // namespace tnqvm
 
