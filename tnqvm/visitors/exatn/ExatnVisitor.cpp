@@ -340,19 +340,18 @@ namespace tnqvm {
 
 
     ExatnVisitor::ExatnVisitor():
-        m_tensorNetwork(),
+        m_tensorNetwork("Quantum Circuit"),
         m_tensorIdCounter(0),
-        m_hasEvaluated(false)
-    {
-        // TODO
-    }
+        m_hasEvaluated(false),
+        m_isAppendingCircuitGates(true)
+    {}
     
     void ExatnVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int nbShots) 
     {
         // Initialize ExaTN
         exatn::initialize();
         assert(exatn::isInitialized());
-
+        m_hasEvaluated = false;
         m_buffer = std::move(buffer);
         m_shots = nbShots;
     
@@ -377,6 +376,12 @@ namespace tnqvm {
             m_tensorNetwork.appendTensor(m_tensorIdCounter, exatn::getTensor(generateQubitTensorName(i)), std::vector<std::pair<unsigned int, unsigned int>>{});
         }
 
+        {
+            // Copy the tensor network of qubit register
+            m_qubitRegTensor = m_tensorNetwork;
+            m_qubitRegTensor.rename("Qubit Register");
+        }
+        
         // Add the Debug logging listener
         #ifdef _DEBUG
         subscribe(ExatnDebugLogger::GetInstance());
@@ -421,7 +426,12 @@ namespace tnqvm {
         std::unordered_set<std::string> tensorList;
         for (auto iter = m_tensorNetwork.cbegin(); iter != m_tensorNetwork.cend(); ++iter)
         {
-            tensorList.emplace(iter->second.getTensor()->getName());
+            const auto& tensorName = iter->second.getTensor()->getName();
+            // Not a root tensor
+            if (!tensorName.empty() && tensorName[0] != '_')
+            {
+                tensorList.emplace(iter->second.getTensor()->getName());
+            }            
         }
        
         for (const auto& tensorName : tensorList)
@@ -430,7 +440,9 @@ namespace tnqvm {
             assert(destroyed);
         }
         m_gateTensorBodies.clear();
-      
+        m_tensorIdCounter = 0;
+        TensorNetwork emptyTensorNet;
+        m_tensorNetwork = emptyTensorNet;
         // Synchronize after tensor destroy
         exatn::sync();
         exatn::finalize();
@@ -683,6 +695,19 @@ namespace tnqvm {
             assert(created);
             // Init tensor body data
             exatn::initTensorData(uniqueGateName, flattenGateMatrix(gateMatrix));
+            // Register tensor isometry: 
+            // For rank-2 gate isometric leg groups are: {0}, {1}. 
+            // For rank-4 gate isometric leg groups are: {0,1}, {2,3}.
+            if (in_gateInstruction.nRequiredBits() == 1)
+            {
+                const bool registered = exatn::registerTensorIsometry(uniqueGateName, {0}, {1}); 
+                assert(registered);
+            }
+            else if (in_gateInstruction.nRequiredBits() == 2)
+            {
+                const bool registered = exatn::registerTensorIsometry(uniqueGateName, {0,1}, {2,3}); 
+                assert(registered);
+            }
         }
 
         // Helper to create unique tensor names in the format <GateTypeName>_<Counter>, e.g. H2, CNOT5, etc.
@@ -709,7 +734,13 @@ namespace tnqvm {
         if (IsControlGate(GateType))
         {
             std::reverse(gatePairing.begin(), gatePairing.end());
-        }  
+        }
+        
+        if (m_isAppendingCircuitGates)
+        {
+            // Append the gate tensor to the tracking list to apply inverse
+            m_appendedGateTensors.emplace_back(std::make_pair(uniqueGateName, gatePairing));
+        }
 
         // Append the tensor for this gate to the network
         m_tensorNetwork.appendTensorGate(
@@ -720,7 +751,355 @@ namespace tnqvm {
             gatePairing
         ); 
     }
+
+    ExatnVisitor::ObservableTerm::ObservableTerm(const std::vector<std::shared_ptr<Instruction>>& in_operatorsInProduct, const std::complex<double>& in_coeff /*= 1.0*/):
+        coefficient(in_coeff),
+        operators(in_operatorsInProduct)
+    {}
+
+    std::complex<double> ExatnVisitor::observableExpValCalc(std::shared_ptr<AcceleratorBuffer>& in_buffer, std::shared_ptr<CompositeInstruction>& in_function, const std::vector<ObservableTerm>& in_observableExpression)
+    {
+        if (!m_appendedGateTensors.empty() || !m_gateTensorBodies.empty())
+        {
+            // We don't support mixing this *observable* mode of execution with the regular mode.
+            xacc::error("observableExpValCalc can only be called on an ExatnVisitor that is not executing a circuit.");
+            return 0.0;
+        }
+
+        BaseInstructionVisitor* visitorCast = static_cast<BaseInstructionVisitor*>(this);
+        this->initialize(in_buffer, -1);
+        // Walk the IR tree, and visit each node
+        InstructionIterator it(in_function);
+        while (it.hasNext()) 
+        {
+            auto nextInst = it.next();
+            if (nextInst->isEnabled()) 
+            {
+                nextInst->accept(visitorCast);
+            }
+        }
+
+        const auto result = expVal(in_observableExpression);
+        // Set Evaluated flag, hence no need to evaluate the original circuit anymore.
+        // (we have calculated the expectation value by closing the entire tensor network)
+        m_hasEvaluated = true;
+        exatn::sync();
+        finalize();
+
+        return result;
+    }
+
+    std::complex<double> ExatnVisitor::expVal(const std::vector<ObservableTerm>& in_observableExpression)
+    {
+        std::complex<double> result = 0.0;
+        for (const auto& term: in_observableExpression)
+        {
+            result += (term.coefficient * evaluateTerm(term.operators));
+        }
+
+        return result;
+    }
+
+    std::complex<double> ExatnVisitor::evaluateTerm(const std::vector<std::shared_ptr<Instruction>>& in_observableTerm) 
+    {
+        std::complex<double> result = 0.0;
+        // Save/cache the tensor network
+        const auto cachedTensor = m_tensorNetwork;
+        const auto cachedIdCounter = m_tensorIdCounter;
+        m_isAppendingCircuitGates = false;
+        {
+            for (auto& inst: in_observableTerm)
+            {
+                // Adding the Hamiltonian term to the tensor network
+                inst->accept(static_cast<BaseInstructionVisitor*>(this));
+            }           
+        }
         
+        // Close the tensor network
+        applyInverse();        
+        
+        {
+            if(exatn::evaluateSync(m_tensorNetwork))
+            {
+                exatn::sync();
+                auto talsh_tensor = exatn::getLocalTensor(m_tensorNetwork.getTensor(0)->getName());
+                assert(talsh_tensor->getVolume() == 1);
+                const std::complex<double>* body_ptr;
+                if (talsh_tensor->getDataAccessHostConst(&body_ptr))
+                {
+                    result = *body_ptr;
+                }                
+            }           
+        }
+
+        m_isAppendingCircuitGates = true;
+        
+        // Restore the tensor network after evaluate the exp-val for the term
+        m_tensorNetwork = cachedTensor;
+        m_tensorIdCounter = cachedIdCounter;
+        return result;
+    }
+    
+    void ExatnVisitor::applyInverse() 
+    {
+        for (auto iter =  m_appendedGateTensors.rbegin(); iter != m_appendedGateTensors.rend(); ++iter)
+        {
+            m_tensorIdCounter++;
+            m_tensorNetwork.appendTensorGate(
+                m_tensorIdCounter,
+                // Get the gate tensor data which must have been initialized.
+                exatn::getTensor(iter->first),
+                // which qubits that the gate is acting on
+                iter->second,
+                // Set conjugate flag
+                true
+            );
+        }
+        {
+            auto bra = m_qubitRegTensor;    
+            // Conjugate the ket to get the bra (e.g. if it was initialized to a complex superposition)
+            bra.conjugate();    
+            // Closing the tensor network with the bra
+            std::vector<std::pair<unsigned int, unsigned int>> pairings;
+            for (unsigned int i = 0; i < m_buffer->size(); ++i)
+            {
+                pairings.emplace_back(std::make_pair(i, i));
+            }
+            m_tensorNetwork.appendTensorNetwork(std::move(bra), pairings);
+        }       
+           
+        {
+            const bool collapsed = m_tensorNetwork.collapseIsometries(); 
+        }
+    }
+
+    std::vector<std::complex<double>> ExatnVisitor::getReducedDensityMatrix(std::shared_ptr<AcceleratorBuffer>& in_buffer, std::shared_ptr<CompositeInstruction>& in_function, const std::vector<size_t>& in_qubitIdx)
+    {
+        if (!m_appendedGateTensors.empty() || !m_gateTensorBodies.empty())
+        {
+            // We don't support mixing this *RDM* mode of execution with the regular mode.
+            // TODO: Adding runtime logic to determine if we need to use this mode on *regular* circuit execution.
+            // e.g. if there are many qubits and we are requesting *shots* samping from a small subset of qubits.
+            xacc::error("getReducedDensityMatrix can only be called on an ExatnVisitor that is not executing a circuit.");
+            return {};
+        }
+
+        std::vector<std::complex<double>> resultRDM;               
+        BaseInstructionVisitor* visitorCast = static_cast<BaseInstructionVisitor*>(this);
+        this->initialize(in_buffer, -1);
+        // Walk the IR tree, and visit each node
+        InstructionIterator it(in_function);
+        while (it.hasNext()) 
+        {
+            auto nextInst = it.next();
+            if (nextInst->isEnabled() && nextInst->name() != "Measure") 
+            {
+                nextInst->accept(visitorCast);
+            }
+        }
+
+        auto inverseTensorNetwork = m_tensorNetwork;
+        inverseTensorNetwork.rename("Inverse Tensor Network");
+        inverseTensorNetwork.conjugate();
+
+        // Connect the original tensor network with its inverse 
+        // but leave those qubit lines that we want to get RDM open
+        {
+            auto combinedNetwork = m_tensorNetwork;
+            combinedNetwork.rename("Combined Tensor Network");
+            std::vector<std::pair<unsigned int, unsigned int>> pairings;
+            for (size_t i = 0; i < m_buffer->size(); ++i)
+            {
+               if (std::find(in_qubitIdx.begin(), in_qubitIdx.end(), i) == in_qubitIdx.end())
+               {
+                    // We want to close this leg (not one of those requested for RDM)
+                    pairings.emplace_back(std::make_pair(i, i));
+               }
+            }
+
+            combinedNetwork.appendTensorNetwork(std::move(inverseTensorNetwork), pairings);
+            const bool collapsed = combinedNetwork.collapseIsometries();                  
+            
+            if(exatn::evaluateSync(combinedNetwork))
+            {
+                exatn::sync();
+                auto talsh_tensor = exatn::getLocalTensor(combinedNetwork.getTensor(0)->getName());
+                const auto tensorVolume = talsh_tensor->getVolume();
+                // Double check the size of the RDM  
+                assert(tensorVolume == 1ULL << (2 * in_qubitIdx.size()));    
+                const std::complex<double>* body_ptr;
+                if (talsh_tensor->getDataAccessHostConst(&body_ptr))
+                {     
+                    resultRDM.assign(body_ptr, body_ptr + tensorVolume);
+                }                
+            }                 
+        }      
+               
+        m_hasEvaluated = true;
+        exatn::sync();
+        finalize();        
+        return resultRDM;         
+    }
+
+    std::vector<uint8_t> ExatnVisitor::getMeasureSample(std::shared_ptr<AcceleratorBuffer>& in_buffer, std::shared_ptr<CompositeInstruction>& in_function, const std::vector<size_t>& in_qubitIdx)
+    {
+        if (!m_appendedGateTensors.empty() || !m_gateTensorBodies.empty())
+        {
+            xacc::error("getMeasureSample can only be called on an ExatnVisitor that is not executing a circuit.");
+            return {};
+        }
+        
+        std::vector<uint8_t> resultBitString;
+        std::vector<double> resultProbs;
+        for (const auto& qubitIdx: in_qubitIdx)
+        {
+            std::vector<std::complex<double>> resultRDM;
+
+            BaseInstructionVisitor* visitorCast = static_cast<BaseInstructionVisitor*>(this);
+            this->initialize(in_buffer, -1);
+            // Walk the IR tree, and visit each node
+            InstructionIterator it(in_function);
+            while (it.hasNext()) 
+            {
+                auto nextInst = it.next();
+                if (nextInst->isEnabled() && nextInst->name() != "Measure") 
+                {
+                    nextInst->accept(visitorCast);
+                }
+            }
+
+            auto inverseTensorNetwork = m_tensorNetwork;
+            inverseTensorNetwork.rename("Inverse Tensor Network");
+            inverseTensorNetwork.conjugate();
+            
+            {       
+                {
+                    // Adding collapse tensors based on previous measurement results.
+                    // i.e. condition/renormalize the tensor network to be consistent with previous result.
+                    for(size_t measIdx = 0; measIdx < resultBitString.size(); ++measIdx)
+                    {
+                        const unsigned int qId = in_qubitIdx[measIdx];
+                        m_tensorIdCounter++;
+                        // If it was a "0":
+                        if (resultBitString[measIdx] == 0)
+                        {
+                            const std::vector<std::complex<double>> COLLAPSE_0 {
+                                // Renormalize based on the probability of this outcome
+                                {1.0/resultProbs[measIdx], 0.0}, {0.0, 0.0},
+                                {0.0, 0.0}, {0.0, 0.0}
+                            };              
+
+                            const std::string tensorName = "COLLAPSE_0@" + std::to_string(measIdx);
+                            const bool created = exatn::createTensor(tensorName, exatn::TensorElementType::COMPLEX64, TensorShape{2, 2});
+                            assert(created); 
+                            const bool registered =(exatn::registerTensorIsometry(tensorName, {0}, {1}));
+                            assert(registered); 
+                            const bool initialized = exatn::initTensorData(tensorName, COLLAPSE_0);
+                            assert(initialized);
+                            const bool appended = m_tensorNetwork.appendTensorGate(m_tensorIdCounter, exatn::getTensor(tensorName), {qId});
+                            assert(appended);                         
+                        }
+                        else
+                        {
+                            assert(resultBitString[measIdx] == 1);
+                            // Renormalize based on the probability of this outcome
+                            const std::vector<std::complex<double>> COLLAPSE_1 {
+                                {0.0, 0.0}, {0.0, 0.0},
+                                {0.0, 0.0}, {1.0/resultProbs[measIdx], 0.0}
+                            };              
+
+                            const std::string tensorName = "COLLAPSE_1@" + std::to_string(measIdx);
+                            const bool created = exatn::createTensor(tensorName, exatn::TensorElementType::COMPLEX64, TensorShape{2, 2});
+                            assert(created); 
+                            const bool registered =(exatn::registerTensorIsometry(tensorName, {0}, {1}));
+                            assert(registered); 
+                            const bool initialized = exatn::initTensorData(tensorName, COLLAPSE_1);
+                            assert(initialized);
+                            const bool appended = m_tensorNetwork.appendTensorGate(m_tensorIdCounter, exatn::getTensor(tensorName), {qId});
+                            assert(appended);               
+                        }
+                    }
+                }
+
+                auto combinedNetwork = m_tensorNetwork;
+                combinedNetwork.rename("Combined Tensor Network");
+                {
+                    // Append the conjugate network to calculate the RDM of the measure qubit
+                    std::vector<std::pair<unsigned int, unsigned int>> pairings;
+                    for (size_t i = 0; i < m_buffer->size(); ++i)
+                    {
+                        // Connect the original tensor network with its inverse 
+                        // but leave the measure qubit line open.
+                        if (i != qubitIdx)
+                        {
+                            pairings.emplace_back(std::make_pair(i, i));
+                        }
+                    }
+
+                    combinedNetwork.appendTensorNetwork(std::move(inverseTensorNetwork), pairings);
+                    const bool collapsed = combinedNetwork.collapseIsometries(); 
+                }
+               
+                // Evaluate                
+                if(exatn::evaluateSync(combinedNetwork))
+                {
+                    exatn::sync();
+                    auto talsh_tensor = exatn::getLocalTensor(combinedNetwork.getTensor(0)->getName());
+                    const auto tensorVolume = talsh_tensor->getVolume();
+                    // Single qubit density matrix
+                    assert(tensorVolume == 4);    
+                    const std::complex<double>* body_ptr;
+                    if (talsh_tensor->getDataAccessHostConst(&body_ptr))
+                    {     
+                        resultRDM.assign(body_ptr, body_ptr + tensorVolume);
+                    }
+                    #ifdef _DEBUG
+                    // Debug: print out RDM data
+                    {
+                        std::cout << "RDM @q" << qubitIdx << " = [";
+                        for (int i = 0; i < talsh_tensor->getVolume(); ++i)
+                        {
+                            const std::complex<double> element = body_ptr[i];
+                            std::cout << element;
+                        }
+                        std::cout << "]\n";
+                    } 
+                    #endif               
+                }                 
+            }      
+                
+            {
+                // Perform the measurement
+                assert(resultRDM.size() == 4);
+                const double prob_0 = resultRDM.front().real();
+                const double prob_1 = resultRDM.back().real();
+                assert(prob_0 >= 0.0 && prob_1 >= 0.0);
+                assert(std::fabs(1.0 - prob_0 - prob_1) < 1e-12);
+                
+                // Generate a random number
+                const double randProbPick = generateRandomProbability();
+                // If radom number < probability of 0 state -> pick zero, and vice versa.
+                resultBitString.emplace_back(randProbPick <= prob_0 ? 0 : 1);
+                resultProbs.emplace_back(randProbPick <= prob_0 ? prob_0 : prob_1);
+                #ifdef _DEBUG
+                {
+                    std::cout << ">> Measure @q" << qubitIdx << " prob(0) = " << prob_0 << "\n";
+                    std::cout << ">> Measure @q" << qubitIdx << " prob(1) = " << prob_1 << "\n";
+                    std::cout << ">> Measure @q" << qubitIdx << " random number = " << randProbPick << "\n";
+                    std::cout << ">> Measure @q" << qubitIdx << " pick " << std::to_string(resultBitString.back()) << "\n";
+                }
+                #endif  
+            }   
+
+            {
+                m_hasEvaluated = true;
+                finalize(); 
+            }    
+        }
+        
+        return resultBitString;
+    }
+
     const double ExatnVisitor::getExpectationValueZ(std::shared_ptr<CompositeInstruction> in_function) 
     {
         if (!m_buffer)

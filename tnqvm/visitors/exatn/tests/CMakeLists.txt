@@ -1,0 +1,3 @@
+add_xacc_test(ExatnVisitorInternal)
+target_include_directories(ExatnVisitorInternalTester PRIVATE ${CMAKE_SOURCE_DIR}/tnqvm/visitors/exatn)
+target_link_libraries(ExatnVisitorInternalTester tnqvm-exatn)
