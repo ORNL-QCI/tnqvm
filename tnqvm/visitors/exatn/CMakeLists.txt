@@ -52,7 +52,6 @@ if (EXATN_DIR)
       string(REGEX REPLACE " " ";" EXATN_CXX_INCLUDES "${EXATN_CXX_INCLUDES}")
       # Set compiler flags and include directories
       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DTNQVM_HAS_EXATN ${EXATN_CXX_FLAGS}")
-      include_directories(${EXATN_CXX_INCLUDES})
    else()
       message(FATAL_ERROR "Invalid EXATN_DIR path")
    endif()
@@ -82,11 +81,12 @@ if (EXATN_DIR)
    )
 
    include_directories(${XACC_INCLUDE_DIRS})
-   include_directories(${EXATN_DIR}/include/exatn)
-   link_directories(${EXATN_DIR}/lib)
+   target_include_directories(${LIBRARY_NAME} PUBLIC ${EXATN_CXX_INCLUDES})
    # Links to ExaTN using its linker config flags.
-   target_link_libraries(${LIBRARY_NAME} ${XACC_LIBRARIES} xacc::quantum_gate lapack blas ${EXATN_CXX_LIBS})
-   
+   target_link_libraries(${LIBRARY_NAME} PUBLIC ${XACC_LIBRARIES} xacc::quantum_gate)
+   # Note: ExaTN and XACC may export common libraries(e.g. gtest), hence only link PUBLIC to XACC.
+   target_link_libraries(${LIBRARY_NAME} PRIVATE lapack blas ${EXATN_CXX_LIBS})
+
    if(APPLE)
       set_target_properties(${LIBRARY_NAME} PROPERTIES INSTALL_RPATH "@loader_path/../lib")
       set_target_properties(${LIBRARY_NAME} PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
@@ -98,7 +98,10 @@ if (EXATN_DIR)
    install(TARGETS ${LIBRARY_NAME} DESTINATION ${CMAKE_INSTALL_PREFIX}/plugins)
   
    xacc_configure_plugin_rpath(${LIBRARY_NAME})
-
+   
+   if(TNQVM_BUILD_TESTS)
+	   add_subdirectory(tests)
+   endif()
 else()
    message(STATUS "ExaTN not found, skipping ExaTNVisitor build")
 endif()

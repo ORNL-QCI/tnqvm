@@ -224,13 +224,51 @@ namespace tnqvm {
 
         void subscribe(IExatnListener* listener) { m_listeners.emplace_back(listener); }
         std::vector<std::complex<double>> retrieveStateVector();
-    
+
+        // Advance API (based on unique capabilities of ExaTN/ExaTensor):
+        // (1) Calculate the expectation value for an arbitrary observable operator
+        // without explicitly evaluate the state vector.
+        // i.e. get the result of `<psi| Hamiltonian |psi>` for an arbitrary Hamiltonian.
+        // The Hamiltonian must be expressed as a sum of products of gates (with a complex coefficient for each term):
+        // e.g. a1*Z1Z2 + a2*X0X1 + .. + Y2Y3, etc.
+        struct ObservableTerm
+        {
+            ObservableTerm(const std::vector<std::shared_ptr<Instruction>>& in_operatorsInProduct, const std::complex<double>& in_coeff = 1.0);
+            std::complex<double> coefficient;
+            std::vector<std::shared_ptr<Instruction>> operators;
+        };
+        // Note: the composite function is the *ORIGINAL* circuit (aka the ansatz), i.e. no change-of-basis or measurement is required.
+        std::complex<double> observableExpValCalc(std::shared_ptr<AcceleratorBuffer>& in_buffer, std::shared_ptr<CompositeInstruction>& in_function, const std::vector<ObservableTerm>& in_observableExpression); 
+        
+
+        // (2) Get the RDM for a subset of qubit,
+        // e.g. to simulate samping (measurement) of those qubits.
+        //////////////////////////////////////////////////////
+        // o------|---------|-------------|---------|------o
+        // o------| Quantum |-------------| Inverse |------o
+        // o------| Circuit |---o RDM o---| Quantum |------o
+        // o------|         |---o RDM o---| Circuit |------o
+        // o------|---------|-------------|---------|------o
+        /////////////////////////////////////////////////////
+        // Returns the *flatten* RDM (size = 2^(2N)), N = number of *open* qubit wires.
+        std::vector<std::complex<double>> getReducedDensityMatrix(std::shared_ptr<AcceleratorBuffer>& in_buffer, std::shared_ptr<CompositeInstruction>& in_function, const std::vector<size_t>& in_qubitIdx);
+        
+
+        // (3) Get a sample measurement bit string:
+        // In this mode, we get RDM by opening one qubit line at a time (same order as the provided list).
+        // Then, we contract the whole tensor network to get the RDM for that qubit.
+        // Randomly select a binary (1/0) result based on the RDM, then close that tensor leg by projecting it onto the selected result.
+        // Continue with the next qubit line (conditioned on the previous measurement result).
+        std::vector<uint8_t> getMeasureSample(std::shared_ptr<AcceleratorBuffer>& in_buffer, std::shared_ptr<CompositeInstruction>& in_function, const std::vector<size_t>& in_qubitIdx);
     private:
         template<tnqvm::CommonGates GateType, typename... GateParams>
         void appendGateTensor(const xacc::Instruction& in_gateInstruction, GateParams&&... in_params);
         void evaluateNetwork(); 
         void resetExaTN(); 
-        void resetNetwork(); 
+        void resetNetwork();
+        std::complex<double> expVal(const std::vector<ObservableTerm>& in_observableExpression); 
+        std::complex<double> evaluateTerm(const std::vector<std::shared_ptr<Instruction>>& in_observableTerm); 
+        void applyInverse();
     private:
        TensorNetwork m_tensorNetwork;
        unsigned int m_tensorIdCounter;
@@ -260,6 +298,12 @@ namespace tnqvm {
        // Tensor body data represents a single qubit in the zero state. 
        static const std::vector<std::complex<double>> Q_ZERO_TENSOR_BODY;
        static const std::vector<std::complex<double>> Q_ONE_TENSOR_BODY;
+       // List of gate tensors (name and leg pairing) that we have appended to the network.
+       // We use this list to construct the inverse tensor sequence (e.g. isometric collapse)
+       std::vector<std::pair<std::string, std::vector<unsigned int>>> m_appendedGateTensors;
+       bool m_isAppendingCircuitGates;
+       // Tensor network of the qubit register (to close the tensor network for expectation calculation)
+       TensorNetwork m_qubitRegTensor;
        // Make the debug logger friend, e.g. retrieve internal states for logging purposes.
        friend class ExatnDebugLogger;
     };

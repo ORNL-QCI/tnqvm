@@ -195,8 +195,8 @@ TEST(ExatnVisitorTester, testMeasurement) {
     // hence we should only get 2 results
     EXPECT_EQ(qubitReg->getMeasurementCounts().size(), 2);
     // Allow for some random variations
-    const int minCount = 0.4 * nbTrials;
-    const int maxCount = 0.6 * nbTrials;
+    const int minCount = 0.3 * nbTrials;
+    const int maxCount = 0.7 * nbTrials;
     for (const auto& resultToCount : qubitReg->getMeasurementCounts())
     {
       EXPECT_TRUE(resultToCount.first == "000" || resultToCount.first == "111");
@@ -294,6 +294,12 @@ TEST(ExatnVisitorTester, testGrover) {
   // Test Grover's algorithm
   // Amplify the amplitude of number 6 (110) state 
   const int nbTrials = 100;
+#ifdef _DEBUG
+  const bool shouldTestGroverInShotsMode = true;
+#else
+  // Disable shot simulation to save time.
+  const bool shouldTestGroverInShotsMode = false;
+#endif
 
   const auto generateGroverSrc = [](const std::string& in_name) {
     return ("__qpu__ void " + in_name).append(R"((qbit q) { 
@@ -354,6 +360,7 @@ TEST(ExatnVisitorTester, testGrover) {
     })");
   };
 
+  if (shouldTestGroverInShotsMode)
   {
     // Single-shot mode, run multiple times
     auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn"), std::make_pair("shots", 1)});
