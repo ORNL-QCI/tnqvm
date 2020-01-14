@@ -248,7 +248,7 @@ TEST(ExatnVisitorTester, checkDeuteuron) {
 
   auto program = ir->getComposite("ansatz");
 
-  const auto angles = linspace(-xacc::constants::pi, xacc::constants::pi, 20);
+  const auto angles = xacc::linspace(-xacc::constants::pi, xacc::constants::pi, 20);
   for (const auto &a : angles) {
     auto buffer = xacc::qalloc(2);
     auto evaled = program->operator()({a});

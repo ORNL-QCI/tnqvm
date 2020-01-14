@@ -102,7 +102,7 @@ TEST(ExatnVisitorInternalTester, testTensorExpValCalc) {
         0.0
     };
      
-    const auto angles = linspace(-xacc::constants::pi, xacc::constants::pi, 20);
+    const auto angles = xacc::linspace(-xacc::constants::pi, xacc::constants::pi, 20);
     auto gateRegistry = xacc::getIRProvider("quantum");
     auto x0 = gateRegistry->createInstruction("X", std::vector<std::size_t>{0});
     auto x1 = gateRegistry->createInstruction("X", std::vector<std::size_t>{1});
