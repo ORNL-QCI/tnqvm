@@ -348,8 +348,7 @@ namespace tnqvm {
     
     void ExatnVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int nbShots) 
     {
-        // Initialize ExaTN
-        exatn::initialize();
+        // ExaTN should have been initialized globally when the service bundle started.
         assert(exatn::isInitialized());
         m_hasEvaluated = false;
         m_buffer = std::move(buffer);
@@ -433,19 +432,29 @@ namespace tnqvm {
                 tensorList.emplace(iter->second.getTensor()->getName());
             }            
         }
-       
+        // Add any tensors which have been created but are not in the tensor network.
+        // e.g. temporary tensors for expectation calculation.
+        for (const auto& iter : m_gateTensorBodies)
+        {
+            const auto& tensorName = iter.first;      
+            if (tensorList.find(tensorName) == tensorList.end())
+            {
+                tensorList.emplace(tensorName);      
+            }            
+        }
+
         for (const auto& tensorName : tensorList)
         {
             const bool destroyed = exatn::destroyTensor(tensorName);
             assert(destroyed);
         }
         m_gateTensorBodies.clear();
+        m_appendedGateTensors.clear();
         m_tensorIdCounter = 0;
         TensorNetwork emptyTensorNet;
         m_tensorNetwork = emptyTensorNet;
         // Synchronize after tensor destroy
         exatn::sync();
-        exatn::finalize();
     }
 
     void ExatnVisitor::resetNetwork()
