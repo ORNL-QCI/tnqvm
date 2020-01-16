@@ -26,7 +26,7 @@
 #**********************************************************************************/
 
 cmake_minimum_required(VERSION 3.12 FATAL_ERROR)
-project(TNQVM VERSION 1.0.0 LANGUAGES C CXX HOMEPAGE_URL "https://github.com/ornl-qci/tnqvm")
+project(TNQVM VERSION 1.0.0 LANGUAGES CXX Fortran HOMEPAGE_URL "https://github.com/ornl-qci/tnqvm")
 
 set(CMAKE_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD 14)
@@ -36,7 +36,7 @@ option(TNQVM_BUILD_TESTS "Build test programs" OFF)
 option(TNQVM_BUILD_EXAMPLES "Build example programs" OFF)
 
 if (NOT CMAKE_BUILD_TYPE)
-  # Default build type is "Release" if not specified 
+  # Default build type is "Release" if not specified
   message(STATUS "CMAKE_BUILD_TYPE was not specified. Default to \"Release\".")
 
   set(CMAKE_BUILD_TYPE "Release" CACHE STRING
@@ -64,6 +64,12 @@ if(NOT CUDA_FOUND)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DNO_GPU")
 else ()
   include_directories(${CUDA_INCLUDE_DIRS})
+endif()
+
+# Let our users specify EXATN_DIR or ExaTN_DIR,
+# find_package for ExaTN needs ExaTN_DIR
+if (EXATN_DIR)
+ set(ExaTN_DIR ${EXATN_DIR})
 endif()
 
 add_subdirectory(tnqvm)

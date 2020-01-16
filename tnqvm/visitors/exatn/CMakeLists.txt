@@ -29,39 +29,24 @@
 #
 #**********************************************************************************/
 
-if (EXATN_DIR)
+find_package(ExaTN)
+
+if (ExaTN_FOUND)
+   message(STATUS "Found ExaTN at ${EXATN_ROOT}")
    set (PACKAGE_NAME "TNQVM ExaTN Visitor")
    set (PACKAGE_DESCIPTION "TNQVM ExaTN backend")
    set (LIBRARY_NAME tnqvm-exatn)
    # Checks that EXATN_DIR is a valid ExaTN install directory
-   get_filename_component(EXATN_DIR  "${EXATN_DIR}" ABSOLUTE)
-   if (IS_DIRECTORY ${EXATN_DIR} AND EXISTS ${EXATN_DIR}/exatn-config.cmake AND EXISTS ${EXATN_DIR}/bin/exatn-config)
-      message(STATUS "ExaTN found at ${EXATN_DIR}")
-      # Gathers ExaTN configs: compiler flags, include directory, and linker flags.       
-      execute_process(COMMAND ${EXATN_DIR}/bin/exatn-config --cxxflags OUTPUT_VARIABLE EXATN_CXX_FLAGS)
-      execute_process(COMMAND ${EXATN_DIR}/bin/exatn-config --includes OUTPUT_VARIABLE EXATN_CXX_INCLUDES)
-      execute_process(COMMAND ${EXATN_DIR}/bin/exatn-config --libs OUTPUT_VARIABLE EXATN_CXX_LIBS)
-      # Sanitizes those configs to be used as CMake variables:
-      # Removes EOL
-      string(REGEX REPLACE "\n$" "" EXATN_CXX_FLAGS "${EXATN_CXX_FLAGS}")
-      string(REGEX REPLACE "\n$" "" EXATN_CXX_INCLUDES "${EXATN_CXX_INCLUDES}")
-      string(REGEX REPLACE "\n$" "" EXATN_CXX_LIBS "${EXATN_CXX_LIBS}")
-      # For include dirs, remove the "-I" prefix (intended for direct command line usage),
-      # and replace space delimiters with semicolons for multiple directories.
-      string(REGEX REPLACE "-I" "" EXATN_CXX_INCLUDES "${EXATN_CXX_INCLUDES}")
-      string(REGEX REPLACE " " ";" EXATN_CXX_INCLUDES "${EXATN_CXX_INCLUDES}")
-      # Set compiler flags and include directories
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DTNQVM_HAS_EXATN ${EXATN_CXX_FLAGS}")
-   else()
-      message(FATAL_ERROR "Invalid EXATN_DIR path")
-   endif()
-   
+
+   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DTNQVM_HAS_EXATN")
+   set(CMAKE_INSTALL_RPATH "${EXATN_ROOT}/lib")
+
    file (GLOB HEADERS *.hpp)
    file (GLOB SRC *.cpp)
-   
+
    usFunctionGetResourceSource(TARGET ${LIBRARY_NAME} OUT SRC)
    usFunctionGenerateBundleInit(TARGET ${LIBRARY_NAME} OUT SRC)
-   
+
    add_library(${LIBRARY_NAME} SHARED ${SRC})
 
    set(_bundle_name tnqvm_exatn)
@@ -80,25 +65,21 @@ if (EXATN_DIR)
       manifest.json
    )
 
-   include_directories(${XACC_INCLUDE_DIRS})
-   target_include_directories(${LIBRARY_NAME} PUBLIC ${EXATN_CXX_INCLUDES})
+   target_include_directories(${LIBRARY_NAME} PUBLIC . ..)
+
    # Links to ExaTN using its linker config flags.
-   target_link_libraries(${LIBRARY_NAME} PUBLIC ${XACC_LIBRARIES} xacc::quantum_gate)
-   # Note: ExaTN and XACC may export common libraries(e.g. gtest), hence only link PUBLIC to XACC.
-   target_link_libraries(${LIBRARY_NAME} PRIVATE lapack blas ${EXATN_CXX_LIBS})
+   target_link_libraries(${LIBRARY_NAME} PUBLIC xacc::xacc exatn::exatn xacc::quantum_gate tnqvm)
 
    if(APPLE)
       set_target_properties(${LIBRARY_NAME} PROPERTIES INSTALL_RPATH "@loader_path/../lib")
       set_target_properties(${LIBRARY_NAME} PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
    else()
-      set_target_properties(${LIBRARY_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/../lib")
+      set_target_properties(${LIBRARY_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/../lib;${EXATN_ROOT}/lib")
       set_target_properties(${LIBRARY_NAME} PROPERTIES LINK_FLAGS "-shared")
    endif()
 
    install(TARGETS ${LIBRARY_NAME} DESTINATION ${CMAKE_INSTALL_PREFIX}/plugins)
-  
-   xacc_configure_plugin_rpath(${LIBRARY_NAME})
-   
+
    if(TNQVM_BUILD_TESTS)
 	   add_subdirectory(tests)
    endif()

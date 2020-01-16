@@ -35,6 +35,7 @@
 #include "utils/GateMatrixAlgebra.hpp"
 #include <cmath>
 
+
 using namespace tnqvm;
 
 std::complex<double> calcMatrixTrace(const std::vector<std::complex<double>>& in_flattenedMatrix)
@@ -42,10 +43,10 @@ std::complex<double> calcMatrixTrace(const std::vector<std::complex<double>>& in
   const auto isPowerOfTwo = [](size_t in_number) -> bool {
      if(in_number == 0)
      {
-        return false; 
-     } 
-     
-     return (ceil(log2(in_number)) == floor(log2(in_number))); 
+        return false;
+     }
+
+     return (ceil(log2(in_number)) == floor(log2(in_number)));
   };
 
   assert(isPowerOfTwo(in_flattenedMatrix.size()));
@@ -60,7 +61,7 @@ std::complex<double> calcMatrixTrace(const std::vector<std::complex<double>>& in
     assert(pos < in_flattenedMatrix.size());
     trace += in_flattenedMatrix[pos];
   }
-  
+
   return trace;
 }
 
@@ -68,7 +69,7 @@ std::complex<double> calcMatrixTrace(const std::vector<std::complex<double>>& in
 TEST(ExatnVisitorInternalTester, testTensorExpValCalc) {
   // Test 1: deuteron_2 using *direct* observable for <X0X1>,
   // i.e. no need to change basis and measure.
-  {       
+  {
     auto xasmCompiler = xacc::getCompiler("xasm");
     // Just the base ansatz (no measurement)
     auto ir = xasmCompiler->compile(R"(__qpu__ void ansatz(qbit q, double t) {
@@ -101,28 +102,28 @@ TEST(ExatnVisitorInternalTester, testTensorExpValCalc) {
         0.324699,
         0.0
     };
-     
+
     const auto angles = xacc::linspace(-xacc::constants::pi, xacc::constants::pi, 20);
     auto gateRegistry = xacc::getIRProvider("quantum");
     auto x0 = gateRegistry->createInstruction("X", std::vector<std::size_t>{0});
     auto x1 = gateRegistry->createInstruction("X", std::vector<std::size_t>{1});
     // Observable term: X0X1
     const ExatnVisitor::ObservableTerm term1({x0, x1});
-    
-    for (size_t i = 0; i < angles.size(); ++i) 
+
+    for (size_t i = 0; i < angles.size(); ++i)
     {
         auto exatnVisitor = std::make_shared<ExatnVisitor>();
         auto buffer = xacc::qalloc(2);
         auto evaled = program->operator()({ angles[i] });
         // Calculate the expVal
         const auto expVal = exatnVisitor->observableExpValCalc(buffer, evaled, { term1 });
-        
+
         EXPECT_NEAR(expVal.imag(), 0.0, 1e-12);
         EXPECT_NEAR(expVal.real(), expectedResults[i], 1e-4);
     }
   }
   // Test 2: Full Observable expression: multiple terms
-  {       
+  {
     auto xasmCompiler = xacc::getCompiler("xasm");
     // Just the base ansatz (no measurement)
     auto ir = xasmCompiler->compile(R"(__qpu__ void ansatz1(qbit q, double t) {
@@ -132,15 +133,15 @@ TEST(ExatnVisitorInternalTester, testTensorExpValCalc) {
     })");
 
     auto program = ir->getComposite("ansatz1");
-         
+
     auto gateRegistry = xacc::getIRProvider("quantum");
     auto x0 = gateRegistry->createInstruction("X", std::vector<std::size_t>{0});
-    auto x1 = gateRegistry->createInstruction("X", std::vector<std::size_t>{1});    
+    auto x1 = gateRegistry->createInstruction("X", std::vector<std::size_t>{1});
     auto y0 = gateRegistry->createInstruction("Y", std::vector<std::size_t>{0});
     auto y1 = gateRegistry->createInstruction("Y", std::vector<std::size_t>{1});
     auto z0 = gateRegistry->createInstruction("Z", std::vector<std::size_t>{0});
     auto z1 = gateRegistry->createInstruction("Z", std::vector<std::size_t>{1});
-    
+
     // Observable: E = 5.907 - 2.1433 X0X1 - 2.1433 Y0Y1 + .21829 Z0 - 6.125 Z1
     const ExatnVisitor::ObservableTerm term0({}, 5.907);
     const ExatnVisitor::ObservableTerm term1({x0, x1}, -2.1433);
@@ -148,7 +149,7 @@ TEST(ExatnVisitorInternalTester, testTensorExpValCalc) {
     const ExatnVisitor::ObservableTerm term3({z0}, 0.21829);
     const ExatnVisitor::ObservableTerm term4({z1}, -6.125);
     // Theta -> Energy data (from VQE run using Pauli Observable)
-    std::vector<std::pair<double, double>> expectedResults = 
+    std::vector<std::pair<double, double>> expectedResults =
     {
       {0.0, -0.43629},
       {1.5708, 1.62039983003},
@@ -184,8 +185,8 @@ TEST(ExatnVisitorInternalTester, testTensorExpValCalc) {
       // The expVal is real (no imaginary part) and the real part matches the expected result.
       EXPECT_NEAR(expVal.imag(), 0.0, 1e-12);
       EXPECT_NEAR(expVal.real(), energy, 1e-4);
-    }   
-  }  
+    }
+  }
 }
 
 
@@ -211,7 +212,7 @@ TEST(ExatnVisitorInternalTester, testReducedDensityMatrixCalc) {
     H(q[9]);
     Measure(q[5]);
   })");
- 
+
   const auto calcExpValByRdm = [](std::shared_ptr<CompositeInstruction>& in_function) -> double {
     auto exatnVisitor = std::make_shared<ExatnVisitor>();
     auto buffer = xacc::qalloc(10);
@@ -249,7 +250,7 @@ TEST(ExatnVisitorInternalTester, testReducedDensityMatrixCalc) {
 }
 
 // Test tensor sampling by sequential collapse -> project
-TEST(ExatnVisitorInternalTester, testSequentialCollapse) 
+TEST(ExatnVisitorInternalTester, testSequentialCollapse)
 {
   auto xasmCompiler = xacc::getCompiler("xasm");
   auto ir = xasmCompiler->compile(R"(__qpu__ void test2(qbit q) {
@@ -268,11 +269,11 @@ TEST(ExatnVisitorInternalTester, testSequentialCollapse)
   EXPECT_TRUE(areAllBitsEqual);
 }
 
-int main(int argc, char **argv) 
+int main(int argc, char **argv)
 {
   ::testing::InitGoogleTest(&argc, argv);
   xacc::Initialize();
   auto ret = RUN_ALL_TESTS();
   xacc::Finalize();
   return ret;
-} 
+}
