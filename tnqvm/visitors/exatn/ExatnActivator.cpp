@@ -1,5 +1,4 @@
 #include "ExatnVisitor.hpp"
-#include "exatn.hpp"
 
 #include "OptionsProvider.hpp"
 
@@ -14,8 +13,6 @@ public:
   ExaTNActivator() {}
 
   void Start(BundleContext context) {
-    // Initialize ExaTN
-    exatn::initialize();
     auto visitor = std::make_shared<tnqvm::ExatnVisitor>();
     context.RegisterService<tnqvm::TNQVMVisitor>(visitor);
     context.RegisterService<xacc::OptionsProvider>(visitor);

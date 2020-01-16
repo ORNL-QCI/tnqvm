@@ -68,7 +68,7 @@ if (ExaTN_FOUND)
    target_include_directories(${LIBRARY_NAME} PUBLIC . ..)
 
    # Links to ExaTN using its linker config flags.
-   target_link_libraries(${LIBRARY_NAME} PUBLIC xacc::xacc exatn::exatn xacc::quantum_gate tnqvm)
+   target_link_libraries(${LIBRARY_NAME} PUBLIC xacc::xacc exatn::exatn xacc::quantum_gate)
 
    if(APPLE)
       set_target_properties(${LIBRARY_NAME} PROPERTIES INSTALL_RPATH "@loader_path/../lib")

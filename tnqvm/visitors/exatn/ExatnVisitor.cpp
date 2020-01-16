@@ -348,8 +348,12 @@ namespace tnqvm {
     
     void ExatnVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int nbShots) 
     {
-        // ExaTN should have been initialized globally when the service bundle started.
-        assert(exatn::isInitialized());
+        if(!exatn::isInitialized())
+        {
+            // If exaTN has not been initialized, do it now.
+            exatn::initialize();
+        }
+
         m_hasEvaluated = false;
         m_buffer = std::move(buffer);
         m_shots = nbShots;
@@ -464,7 +468,6 @@ namespace tnqvm {
         const auto stateVec = retrieveStateVector();
         // Re-initialize ExaTN
         resetExaTN();
-        exatn::initialize();
         // The new qubit register tensor name will have name "RESET_"
         const std::string resetTensorName = "RESET_";
         // The qubit register tensor shape is {2, 2, 2, ...}, 1 leg for each qubit
