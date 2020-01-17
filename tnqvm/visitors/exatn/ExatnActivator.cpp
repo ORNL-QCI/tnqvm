@@ -5,6 +5,7 @@
 #include "cppmicroservices/BundleActivator.h"
 #include "cppmicroservices/BundleContext.h"
 #include "cppmicroservices/ServiceProperties.h"
+#include "ExatnTearDown.hpp"
 
 using namespace cppmicroservices;
 
@@ -16,6 +17,8 @@ public:
     auto visitor = std::make_shared<tnqvm::ExatnVisitor>();
     context.RegisterService<tnqvm::TNQVMVisitor>(visitor);
     context.RegisterService<xacc::OptionsProvider>(visitor);
+    // Register the ExaTN teardown service to properly finalize ExaTN.
+    context.RegisterService<xacc::TearDown>(std::make_shared<tnqvm::ExatnTearDown>());
   }
 
   void Stop(BundleContext context) {}
