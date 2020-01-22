@@ -29,7 +29,7 @@
 #
 #**********************************************************************************/
 
-find_package(ExaTN)
+find_package(ExaTN QUIET)
 
 if (ExaTN_FOUND)
    message(STATUS "Found ExaTN at ${EXATN_ROOT}")
