@@ -12,7 +12,6 @@ usFunctionGetResourceSource(TARGET ${LIBRARY_NAME} OUT SRC)
 usFunctionGenerateBundleInit(TARGET ${LIBRARY_NAME} OUT SRC)
 
 add_library(${LIBRARY_NAME} SHARED ${SRC})
-add_dependencies(${LIBRARY_NAME} projitensor)
 
 set(_bundle_name xacc_tnqvm_accelerator)
 set_target_properties(${LIBRARY_NAME} PROPERTIES

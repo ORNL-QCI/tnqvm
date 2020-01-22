@@ -1,39 +1,45 @@
 set (LIBRARY_NAME tnqvm-itensor)
 
-include(ProcessorCount)
-ProcessorCount(N)
-if (N EQUAL 0)
-   set(N 1)
-endif()
-
-include(ExternalProject)
-set(ITENSOR_ROOT ${CMAKE_SOURCE_DIR}/ITensor)
-if (OPENMP_FOUND)
-ExternalProject_Add(projitensor
-    SOURCE_DIR ${ITENSOR_ROOT}
-    BINARY_DIR ${ITENSOR_ROOT}
-    CONFIGURE_COMMAND cp optionsopenmp.mk.sample options.mk
-    BUILD_COMMAND make -j${N} PLATFORM=lapack
-    INSTALL_COMMAND ""
-)
-else()
-ExternalProject_Add(projitensor
-	SOURCE_DIR ${ITENSOR_ROOT}
-	BINARY_DIR ${ITENSOR_ROOT}
-	CONFIGURE_COMMAND cp options.mk.sample options.mk
-	BUILD_COMMAND make -j${N} PLATFORM=lapack
-	INSTALL_COMMAND ""
-	)
-endif()
-
 file (GLOB HEADERS mps/*.hpp)
-file (GLOB SRC mps/*.cpp *.cpp)
+set (SRC mps/ITensorMPSVisitor.cpp ITensorActivator.cpp tpls/itensor/util/args.cc
+         tpls/itensor/util/input.cc
+         tpls/itensor/util/cputime.cc
+         tpls/itensor/tensor/lapack_wrap.cc
+         tpls/itensor/tensor/vec.cc
+         tpls/itensor/tensor/mat.cc
+         tpls/itensor/tensor/gemm.cc
+         tpls/itensor/tensor/algs.cc
+         tpls/itensor/tensor/contract.cc
+         tpls/itensor/itdata/dense.cc
+         tpls/itensor/itdata/combiner.cc
+         tpls/itensor/itdata/diag.cc
+         tpls/itensor/itdata/qdense.cc
+         tpls/itensor/itdata/qcombiner.cc
+         tpls/itensor/itdata/qdiag.cc
+         tpls/itensor/itdata/qmixed.cc
+         tpls/itensor/itdata/scalar.cc
+         tpls/itensor/index.cc
+         tpls/itensor/itensor_interface.cc
+         tpls/itensor/itensor_operators.cc
+         tpls/itensor/itensor.cc
+         tpls/itensor/qn.cc
+         tpls/itensor/iqindex.cc
+         tpls/itensor/iqtensor.cc
+         tpls/itensor/spectrum.cc
+         tpls/itensor/decomp.cc
+         tpls/itensor/svd.cc
+         tpls/itensor/hermitian.cc
+         tpls/itensor/mps/mps.cc
+         tpls/itensor/mps/mpsalgs.cc
+         tpls/itensor/mps/mpo.cc
+         tpls/itensor/mps/mpoalgs.cc
+         tpls/itensor/mps/autompo.cc)
 
 usFunctionGetResourceSource(TARGET ${LIBRARY_NAME} OUT SRC)
 usFunctionGenerateBundleInit(TARGET ${LIBRARY_NAME} OUT SRC)
 
+set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-result -O2 -DNDEBUG -DPLATFORM_lapack -D__ASSERT_MACROS_DEFINE_VERSIONS_WITHOUT_UNDERSCORES=0")
 add_library(${LIBRARY_NAME} SHARED ${SRC})
-add_dependencies(${LIBRARY_NAME} projitensor)
 
 set(_bundle_name tnqvm_itensor)
 set_target_properties(${LIBRARY_NAME} PROPERTIES
@@ -51,8 +57,8 @@ usFunctionEmbedResources(TARGET ${LIBRARY_NAME}
     manifest.json
     )
 
-target_include_directories(${LIBRARY_NAME} PUBLIC ${ITENSOR_ROOT} mps ${XACC_INCLUDE_ROOT}/eigen)
-target_link_libraries(${LIBRARY_NAME} PUBLIC xacc::xacc xacc::quantum_gate ${ITENSOR_ROOT}/lib/libitensor-g.a lapack blas)
+target_include_directories(${LIBRARY_NAME} PUBLIC ${ITENSOR_ROOT} mps ${XACC_INCLUDE_ROOT}/eigen tpls)
+target_link_libraries(${LIBRARY_NAME} PUBLIC xacc::xacc xacc::quantum_gate lapack blas)
 
 xacc_configure_plugin_rpath(${LIBRARY_NAME})
 
