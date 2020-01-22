@@ -37,13 +37,24 @@ if (ExaTN_FOUND)
    set (PACKAGE_NAME "TNQVM ExaTN Visitor")
    set (PACKAGE_DESCIPTION "TNQVM ExaTN backend")
    set (LIBRARY_NAME tnqvm-exatn)
+
    # Checks that EXATN_DIR is a valid ExaTN install directory
 
    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DTNQVM_HAS_EXATN")
    set(CMAKE_INSTALL_RPATH "${EXATN_ROOT}/lib")
+   set(EXATN_VISITOR_CPP_FILE ExatnVisitor.cpp)
+
+   if (EXATN_BLAS_LIB MATCHES MKL)
+      # Fix for bug #30
+      message(STATUS "Exatn built with MKL, updating our build: ${EXATN_MKL_PATH}")
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DTNQVM_EXATN_USES_MKL_BLAS")
+      configure_file("${CMAKE_CURRENT_SOURCE_DIR}/ExatnVisitor.cpp"
+               "${CMAKE_BINARY_DIR}/tnqvm/visitors/exatn/ExatnVisitor.cpp" @ONLY)
+      set(EXATN_VISITOR_CPP_FILE ${CMAKE_BINARY_DIR}/tnqvm/visitors/exatn/ExatnVisitor.cpp)
+   endif()
 
    file (GLOB HEADERS *.hpp)
-   file (GLOB SRC *.cpp)
+   file (GLOB SRC ${EXATN_VISITOR_CPP_FILE} ExatnActivator.cpp GateFactory.cpp)
 
    usFunctionGetResourceSource(TARGET ${LIBRARY_NAME} OUT SRC)
    usFunctionGenerateBundleInit(TARGET ${LIBRARY_NAME} OUT SRC)
