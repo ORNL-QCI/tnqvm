@@ -33,7 +33,6 @@ find_package(ExaTN QUIET)
 
 if (ExaTN_FOUND)
    message(STATUS "Found ExaTN at ${EXATN_ROOT}")
-   message(STATUS "EXATENSOR: ${REQUIRED_EXATENSOR_LIBS}")
    set (PACKAGE_NAME "TNQVM ExaTN Visitor")
    set (PACKAGE_DESCIPTION "TNQVM ExaTN backend")
    set (LIBRARY_NAME tnqvm-exatn)
