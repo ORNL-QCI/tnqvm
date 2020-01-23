@@ -52,19 +52,8 @@ IF(CMAKE_BUILD_TYPE MATCHES "Debug")
   add_compile_definitions(_DEBUG)
 ENDIF()
 
-
 # Find Xacc
 find_package(XACC REQUIRED)
-
-find_package(CUDA)
-find_package(BLAS REQUIRED)
-find_package(LAPACK REQUIRED)
-
-if(NOT CUDA_FOUND)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DNO_GPU")
-else ()
-  include_directories(${CUDA_INCLUDE_DIRS})
-endif()
 
 # Let our users specify EXATN_DIR or ExaTN_DIR,
 # find_package for ExaTN needs ExaTN_DIR

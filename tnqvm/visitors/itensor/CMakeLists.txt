@@ -1,5 +1,8 @@
 set (LIBRARY_NAME tnqvm-itensor)
 
+find_package(BLAS REQUIRED)
+find_package(LAPACK REQUIRED)
+
 file (GLOB HEADERS mps/*.hpp)
 set (SRC mps/ITensorMPSVisitor.cpp ITensorActivator.cpp tpls/itensor/util/args.cc
          tpls/itensor/util/input.cc
@@ -58,7 +61,7 @@ usFunctionEmbedResources(TARGET ${LIBRARY_NAME}
     )
 
 target_include_directories(${LIBRARY_NAME} PUBLIC ${ITENSOR_ROOT} mps ${XACC_INCLUDE_ROOT}/eigen tpls)
-target_link_libraries(${LIBRARY_NAME} PUBLIC xacc::xacc xacc::quantum_gate lapack blas)
+target_link_libraries(${LIBRARY_NAME} PUBLIC xacc::xacc xacc::quantum_gate ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
 
 xacc_configure_plugin_rpath(${LIBRARY_NAME})
 
