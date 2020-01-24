@@ -1,6 +1,6 @@
 
 add_xacc_test(TNQVM)
-target_link_libraries(TNQVMTester tnqvm)
+target_link_libraries(TNQVMTester xacc::xacc)
 
 if (EXATN_DIR)
     add_xacc_test(ExatnVisitor)

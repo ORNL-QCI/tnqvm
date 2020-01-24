@@ -30,13 +30,11 @@
  **********************************************************************************/
 #include <memory>
 #include <gtest/gtest.h>
-#include "TNQVM.hpp"
 #include "xacc.hpp"
 #include "xacc_service.hpp"
-#include "base/Gates.hpp"
 
-using namespace tnqvm;
-using namespace xacc::quantum;
+using namespace xacc;
+// using namespace xacc::quantum;
 
 const std::string uccsdSrc = R"uccsdSrc(def foo(buffer, theta0,theta1):
    X(0)
@@ -200,75 +198,24 @@ const std::string uccsdSrc = R"uccsdSrc(def foo(buffer, theta0,theta1):
 )uccsdSrc";
 
 TEST(TNQVMTester, checkKernelExecution) {
-  TNQVM acc;
+  auto acc = xacc::getAccelerator("tnqvm");//TNQVM acc;
   auto qreg1 = xacc::qalloc(3);
-  
+
   auto provider = xacc::getIRProvider("quantum");
   auto f = provider->createComposite("foo", {});
-  
-  auto x = provider->createInstruction(GetGateName(CommonGates::X), 0);
-  auto h = provider->createInstruction(GetGateName(CommonGates::H), 1);
-  auto cn1 = provider->createInstruction(GetGateName(CommonGates::CNOT), { 1, 2 });
-  auto cn2 = provider->createInstruction(GetGateName(CommonGates::CNOT), { 0, 1 });
-  auto h2 = provider->createInstruction(GetGateName(CommonGates::H), 0);
+
+  auto x = provider->createInstruction("X", 0);
+  auto h = provider->createInstruction("H", 1);
+  auto cn1 = provider->createInstruction("CNOT", { 1, 2 });
+  auto cn2 = provider->createInstruction("CNOT", { 0, 1 });
+  auto h2 = provider->createInstruction("H", 0);
 
   f->addInstruction(x);
   f->addInstruction(h);
   f->addInstruction(cn1);
   f->addInstruction(cn2);
   f->addInstruction(h2);
-  acc.execute(qreg1, f);
-}
-
-TEST(TNQVMTester, checkGetState) {
-  TNQVM acc;
-
-  // 1 qubit problems become 2 qubit problems in TNQVM
-  // due to bug
-  auto provider = xacc::getIRProvider("quantum");
-  auto f = provider->createComposite("foo", {});
- 
-  auto h = provider->createInstruction(GetGateName(CommonGates::H), 0);
-  f->addInstruction(h);
-
-  auto state = acc.getAcceleratorState(f);
-  EXPECT_EQ(4, state.size());
-  EXPECT_NEAR(1.0 / std::sqrt(2.0), std::real(state[2]), 1e-4);
-  EXPECT_NEAR(1.0 / std::sqrt(2.0), std::real(state[3]), 1e-4);
-  EXPECT_NEAR(0.0, std::real(state[0]), 1e-4);
-  EXPECT_NEAR(0.0, std::real(state[1]), 1e-4);
-
-  if (xacc::hasCompiler("xacc-py")) {
-    auto c = xacc::getService<Compiler>("xacc-py");
-    auto f = c->compile(uccsdSrc)->getComposites()[0];
-
-    std::vector<double> p{ 0, -.0571583356234};
-    auto fevaled = (*f)(p);
-
-    std::cout << "F:\n" << f->toString() << "\n";
-
-    state = acc.getAcceleratorState(fevaled);
-    EXPECT_NEAR(-0.114068, std::real(state[3]), 1e-4);
-    EXPECT_NEAR(.993473, std::real(state[12]), 1e-4);
-
-    int count = 0;
-    for (auto s : state) {
-      if (count != 3 && count != 12)
-        EXPECT_NEAR(0.0, std::real(s), 1e-4);
-      count++;
-    }
-
-    fevaled = (*f)(std::vector<double>(2));
-    // should be hartree fock state
-    state = acc.getAcceleratorState(fevaled);
-    EXPECT_NEAR(1.0, std::real(state[12]), 1e-4);
-    count = 0;
-    for (auto s : state) {
-      if (count != 12)
-        EXPECT_NEAR(0.0, std::real(s), 1e-4);
-      count++;
-    }
-  }
+  acc->execute(qreg1, f);
 }
 
 int main(int argc, char **argv) {
