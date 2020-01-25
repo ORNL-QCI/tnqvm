@@ -1,10 +1,18 @@
 set (LIBRARY_NAME tnqvm-itensor)
 
+if (DEFINED ENV{MKLROOT})
+  message(STATUS "MKLROOT is set. For ITensor we force use of ATLAS BLAS")
+  unset(ENV{MKLROOT})
+  set(BLA_VENDOR Generic)
+endif()
+
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
 
 file (GLOB HEADERS mps/*.hpp)
-set (SRC mps/ITensorMPSVisitor.cpp ITensorActivator.cpp tpls/itensor/util/args.cc
+set (SRC mps/ITensorMPSVisitor.cpp
+         ITensorActivator.cpp
+         tpls/itensor/util/args.cc
          tpls/itensor/util/input.cc
          tpls/itensor/util/cputime.cc
          tpls/itensor/tensor/lapack_wrap.cc
