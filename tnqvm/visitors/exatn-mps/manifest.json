@@ -1,0 +1,6 @@
+{
+  "bundle.symbolic_name" : "tnqvm_exatn_mps",
+  "bundle.activator" : true,
+  "bundle.name" : "XACC ExaTN MPS backend",
+  "bundle.description" : "This bundle provides an MPS tensor network Accelerator for Gate Model QC."
+}
