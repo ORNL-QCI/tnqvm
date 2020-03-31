@@ -1,6 +1,7 @@
 #pragma once
 
 #include "TNQVMVisitor.hpp"
+#include "GateTensorAggregator.hpp"
 
 namespace tnqvm {
 class ExatnMpsVisitor : public TNQVMVisitor
@@ -39,5 +40,8 @@ public:
     virtual void visit(Measure& in_MeasureGate) override;
 
     virtual const double getExpectationValueZ(std::shared_ptr<CompositeInstruction> in_function) override;
+
+private:
+    TensorAggrerator m_aggrerator;
 };
 } 
