@@ -47,17 +47,18 @@ private:
         {
             std::cout << id << ", ";
         }
-        std::cout << "\n";
+        std::cout << "|| Number of gates = " << in_group.instructions.size() << "\n";
 
         for (const auto& inst : in_group.instructions)
         {
             std::cout << inst->toString() << "\n";
         }
+        std::cout << "=============================================\n";
     }   
     
     AggreratedGroup& getGroup(xacc::Instruction* in_gateInstruction)
     {
-        std::cout << "Process " << in_gateInstruction->toString() << "\n";
+        // std::cout << "Process " << in_gateInstruction->toString() << "\n";
         if (in_gateInstruction->bits().size() == 1)
         {
             // If 1-qubit gate:
@@ -109,12 +110,12 @@ private:
                 if (existingGroupIter2->second->qubitIdx.size() < m_configs.maxWidth)
                 {
                     // Still have some room, add first qubit to this group 
-                    std::cout << "Current bits:"; 
-                    for (const auto& x : existingGroupIter2->second->qubitIdx)
-                    {
-                        std::cout << x << ", ";
-                    }
-                    std::cout << "\n Insert bit: " << in_gateInstruction->bits()[0] << "\n"; 
+                    // std::cout << "Current bits:"; 
+                    // for (const auto& x : existingGroupIter2->second->qubitIdx)
+                    // {
+                    //     std::cout << x << ", ";
+                    // }
+                    // std::cout << "\n Insert bit: " << in_gateInstruction->bits()[0] << "\n"; 
                     existingGroupIter2->second->qubitIdx.emplace(in_gateInstruction->bits()[0]);
                     return *(existingGroupIter2->second);
                 }
