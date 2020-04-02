@@ -9,6 +9,14 @@ ExatnMpsVisitor::ExatnMpsVisitor()
 
 void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int nbShots) 
 { 
+    // Check if we have any specific config for the gate aggregator
+    if (options.keyExists<int>("agg-width"))
+    {
+        const int aggregatorWidth = options.get<int>("agg-width");
+        AggreratorConfigs configs(aggregatorWidth);
+        TensorAggrerator newAggr(configs);
+        m_aggrerator = newAggr;
+    }
     // TODO 
 }
 

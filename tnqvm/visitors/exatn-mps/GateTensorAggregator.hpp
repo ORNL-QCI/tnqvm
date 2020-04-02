@@ -69,14 +69,26 @@ private:
             }
             else
             {
-                // New group
-                AggreratedGroup newGroup;
-                newGroup.qubitIdx.emplace(in_gateInstruction->bits()[0]);
-
-                m_groups.emplace_back(newGroup);
-                m_qubitToGroup.emplace(in_gateInstruction->bits()[0], &m_groups.back());
-
-                return m_groups.back();
+                if (m_pendingGroup.qubitIdx.size() < m_configs.maxWidth)
+                {
+                    m_pendingGroup.qubitIdx.emplace(in_gateInstruction->bits()[0]);
+                    return m_pendingGroup;
+                }
+                else
+                {
+                    // Add the pending group to the master list
+                    // since it is full.
+                    m_groups.emplace_back(m_pendingGroup);
+                    for (const auto& bit : m_pendingGroup.qubitIdx)
+                    {
+                        m_qubitToGroup.emplace(bit, &m_groups.back());
+                    }
+                    // Crete a new pending group for 1-q gates
+                    AggreratedGroup newGroup;
+                    newGroup.qubitIdx.emplace(in_gateInstruction->bits()[0]);
+                    m_pendingGroup = newGroup;
+                    return m_pendingGroup;
+                }
             }
         }
         else if (in_gateInstruction->bits().size() == 2)
@@ -220,5 +232,8 @@ private:
     AggreratorConfigs m_configs;
     std::unordered_map<int, AggreratedGroup*> m_qubitToGroup;
     std::deque<AggreratedGroup> m_groups;
+    // Pending group of 1-qubit gate:
+    // We group 1-qubit gate into 1 group (up to max-width).
+    AggreratedGroup m_pendingGroup;
 };
 }

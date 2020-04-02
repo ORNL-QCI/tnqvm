@@ -50,9 +50,10 @@ public:
     return std::vector<std::complex<double>>{};
   }
   virtual void finalize() = 0;
- 
+  void setOptions(const HeterogeneousMap& in_options) { options = in_options; }
 protected:
   std::shared_ptr<AcceleratorBuffer> buffer;
+  HeterogeneousMap options;
 };
 
 } // namespace tnqvm

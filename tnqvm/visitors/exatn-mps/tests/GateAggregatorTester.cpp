@@ -1365,7 +1365,11 @@ TEST(GateAggregatorTester, checkSimple)
 
 TEST(GateAggregatorTester, checkSycamoreCirc) 
 {    
-    auto accelerator = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps")});
+    const int AGG_WIDTH = 8;
+    auto accelerator = xacc::getAccelerator("tnqvm", {
+        std::make_pair("tnqvm-visitor", "exatn-mps"),
+        std::make_pair("agg-width", AGG_WIDTH)
+    });
     // The circuit uses a subset (53) of up to 100 qubits.
     // This doesn't matter for the aggregator, just ask for an 100-qubit register.
     auto qubitReg = xacc::qalloc(100);

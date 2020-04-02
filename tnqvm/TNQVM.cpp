@@ -44,6 +44,7 @@ void TNQVM::execute(
     // functions[0]->getInstruction(0)
 
     visitor = xacc::getService<TNQVMVisitor>(getVisitorName())->clone();
+    visitor->setOptions(options);
 
     // Initialize the visitor
     visitor->initialize(buffer, nbShots);
@@ -92,6 +93,7 @@ void TNQVM::execute(std::shared_ptr<xacc::AcceleratorBuffer> buffer,
                     const std::shared_ptr<xacc::CompositeInstruction> kernel) {
   // Get the visitor backend
   visitor = xacc::getService<TNQVMVisitor>(getVisitorName());
+  visitor->setOptions(options);
 
   // Initialize the visitor
   visitor->initialize(buffer, nbShots);
