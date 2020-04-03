@@ -4,7 +4,7 @@
 #include "GateTensorAggregator.hpp"
 
 namespace tnqvm {
-class ExatnMpsVisitor : public TNQVMVisitor
+class ExatnMpsVisitor : public TNQVMVisitor, public IAggreratorListener
 {
 public:
     // Constructor
@@ -40,7 +40,8 @@ public:
     virtual void visit(Measure& in_MeasureGate) override;
 
     virtual const double getExpectationValueZ(std::shared_ptr<CompositeInstruction> in_function) override;
-
+    virtual void onFlush(const AggreratedGroup& in_group) override;
+ 
 private:
     TensorAggrerator m_aggrerator;
 };

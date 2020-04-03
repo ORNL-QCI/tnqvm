@@ -87,7 +87,20 @@ namespace tnqvm {
     };
 
     inline std::string GetGateName(CommonGates in_gateEnum) { return CommonGateNames[static_cast<size_t>(in_gateEnum)]; }
-
+    
+    inline CommonGates GetGateType(const std::string& in_gateName)
+    {
+        for (int i = 0; i < static_cast<int>(CommonGates::GateCount); ++i)
+        {
+            if (CommonGateNames[i] == in_gateName)
+            {
+                return static_cast<CommonGates>(i);
+            }
+        }
+        // Invalid
+        return CommonGates::GateCount;
+    }
+    
     inline bool IsControlGate(CommonGates in_gateEnum) {
         switch (in_gateEnum)
         {

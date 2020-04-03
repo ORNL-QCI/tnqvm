@@ -2,7 +2,8 @@
 
 namespace tnqvm {
 
-ExatnMpsVisitor::ExatnMpsVisitor()
+ExatnMpsVisitor::ExatnMpsVisitor():
+    m_aggrerator(this)
 {
     // TODO
 }
@@ -14,7 +15,7 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
     {
         const int aggregatorWidth = options.get<int>("agg-width");
         AggreratorConfigs configs(aggregatorWidth);
-        TensorAggrerator newAggr(configs);
+        TensorAggrerator newAggr(configs, this);
         m_aggrerator = newAggr;
     }
     // TODO 
@@ -130,4 +131,20 @@ const double ExatnMpsVisitor::getExpectationValueZ(std::shared_ptr<CompositeInst
     return 0.0;
 }
 
+void ExatnMpsVisitor::onFlush(const AggreratedGroup& in_group)
+{
+    // DEBUG:
+    std::cout << "Flushing qubit line ";
+    for (const auto& id : in_group.qubitIdx)
+    {
+        std::cout << id << ", ";
+    }
+    std::cout << "|| Number of gates = " << in_group.instructions.size() << "\n";
+
+    for (const auto& inst : in_group.instructions)
+    {
+        std::cout << inst->toString() << "\n";
+    }
+    std::cout << "=============================================\n";
+}
 }

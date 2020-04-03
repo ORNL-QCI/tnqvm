@@ -19,16 +19,24 @@ struct AggreratedGroup
    std::vector<xacc::Instruction*> instructions;   
 };
 
+struct IAggreratorListener
+{
+    virtual void onFlush(const AggreratedGroup& in_group) = 0;
+};
+
 class TensorAggrerator
 {
 public:
     static constexpr int DEFAULT_WIDTH = 4;
-    TensorAggrerator() :
-        m_configs(DEFAULT_WIDTH)
+    TensorAggrerator(IAggreratorListener* io_listener) :
+        m_configs(DEFAULT_WIDTH),
+        m_listener(io_listener)
     {}
 
-    TensorAggrerator(const AggreratorConfigs& in_configs) :
-        m_configs(in_configs)
+    TensorAggrerator(const AggreratorConfigs& in_configs, IAggreratorListener* io_listener) :
+        m_configs(in_configs),
+        m_listener(io_listener)
+
     {}
 
     void addGate(xacc::Instruction* in_gateInstruction)
@@ -40,20 +48,7 @@ public:
 private:
     void flush(const AggreratedGroup& in_group) 
     {
-        // TODO: construct sub-tensor network associated with this group
-        // DEBUG:
-        std::cout << "Flushing qubit line ";
-        for (const auto& id : in_group.qubitIdx)
-        {
-            std::cout << id << ", ";
-        }
-        std::cout << "|| Number of gates = " << in_group.instructions.size() << "\n";
-
-        for (const auto& inst : in_group.instructions)
-        {
-            std::cout << inst->toString() << "\n";
-        }
-        std::cout << "=============================================\n";
+        m_listener->onFlush(in_group);
     }   
     
     AggreratedGroup& getGroup(xacc::Instruction* in_gateInstruction)
@@ -235,5 +230,6 @@ private:
     // Pending group of 1-qubit gate:
     // We group 1-qubit gate into 1 group (up to max-width).
     AggreratedGroup m_pendingGroup;
+    IAggreratorListener* m_listener;
 };
 }
