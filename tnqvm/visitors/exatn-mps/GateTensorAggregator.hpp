@@ -15,8 +15,12 @@ struct AggreratorConfigs
 
 struct AggreratedGroup
 {
-   std::unordered_set<int> qubitIdx;
-   std::vector<xacc::Instruction*> instructions;   
+    AggreratedGroup():
+        flushed(false)
+    {}
+    std::unordered_set<int> qubitIdx;
+    std::vector<xacc::Instruction*> instructions;   
+    bool flushed;
 };
 
 struct IAggreratorListener
@@ -44,11 +48,28 @@ public:
         AggreratedGroup& group = getGroup(in_gateInstruction);
         group.instructions.emplace_back(in_gateInstruction);
     }
+    // Flush all remaining groups (not yet flushed while adding gates)
+    void flushAll()
+    {
+        for(auto& group : m_groups)
+        {
+            if(!group.flushed)
+            {
+                flush(group);
+            }
+        }
+
+        if (!m_pendingGroup.instructions.empty())
+        {
+            flush(m_pendingGroup);
+        }
+    }
 
 private:
-    void flush(const AggreratedGroup& in_group) 
+    void flush(AggreratedGroup& io_group) 
     {
-        m_listener->onFlush(in_group);
+        io_group.flushed = true;
+        m_listener->onFlush(io_group);
     }   
     
     AggreratedGroup& getGroup(xacc::Instruction* in_gateInstruction)
@@ -88,6 +109,20 @@ private:
         }
         else if (in_gateInstruction->bits().size() == 2)
         {
+            // Elevate the pending group if it contains a qubit line of this 2-qubit gate.
+            if (m_pendingGroup.qubitIdx.find(in_gateInstruction->bits()[0]) != m_pendingGroup.qubitIdx.end() ||
+                m_pendingGroup.qubitIdx.find(in_gateInstruction->bits()[1]) != m_pendingGroup.qubitIdx.end())
+            {
+                m_groups.emplace_back(m_pendingGroup);
+                for (const auto& bit : m_pendingGroup.qubitIdx)
+                {
+                    m_qubitToGroup.emplace(bit, &m_groups.back());
+                }
+                // Crete a new pending group 
+                AggreratedGroup newGroup;
+                m_pendingGroup = newGroup;
+            }
+
             // If 2-qubit gate:
             auto existingGroupIter1 = m_qubitToGroup.find(in_gateInstruction->bits()[0]);
             auto existingGroupIter2 = m_qubitToGroup.find(in_gateInstruction->bits()[1]);

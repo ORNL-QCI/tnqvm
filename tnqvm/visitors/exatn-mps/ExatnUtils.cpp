@@ -6,7 +6,7 @@ GateTensor GateTensorConstructor::getGateTensor(xacc::Instruction& in_gate)
 {
     GateTensor resultTensor;
     static const std::vector<int> SINGLE_QUBIT_SHAPE{2, 2};
-    static const std::vector<int> TWO_QUBIT_SHAPE{2, 2};
+    static const std::vector<int> TWO_QUBIT_SHAPE{2, 2, 2, 2};
     static const std::pair<std::vector<unsigned int>,  std::vector<unsigned int>> SINGLE_QUBIT_ISO{{0}, {1}};
     static const std::pair<std::vector<unsigned int>,  std::vector<unsigned int>> TWO_QUBIT_ISO{{0, 1}, {2, 3}};
     

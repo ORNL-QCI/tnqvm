@@ -1352,33 +1352,56 @@ namespace {
 
 TEST(GateAggregatorTester, checkSimple) 
 {    
-    auto tmp = xacc::getService<xacc::Instruction>("qft");
-    auto qft = std::dynamic_pointer_cast<xacc::CompositeInstruction>(tmp);
-    qft->expand({std::make_pair("nq", 20)});
-    // DEBUG:
-    std::cout << "QFT Circuit: \n" << qft->toString() << "\n";
+   auto xasmCompiler = xacc::getCompiler("xasm");
+    auto ir = xasmCompiler->compile(R"(__qpu__ void test(qbit q) {
+      X(q[0]);
+      X(q[1]);
+      X(q[2]);
+      X(q[3]);
+      X(q[4]);
+      X(q[5]);
+      X(q[6]);
+      X(q[7]);
+      CX(q[1], q[0]);
+      CX(q[2], q[1]);
+      CX(q[3], q[2]);
+      CX(q[4], q[3]);
+      CX(q[5], q[4]);
+      CX(q[6], q[5]);
+      CX(q[7], q[6]);
+      X(q[0]);
+      X(q[1]);
+      X(q[2]);
+      X(q[3]);
+      X(q[4]);
+      X(q[5]);
+      X(q[6]);
+      X(q[7]);
+    })");
+
+    auto program = ir->getComposite("test");
     auto accelerator = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps")});
-    auto qreg = xacc::qalloc(20);
-    accelerator->execute(qreg, qft);
+    auto qreg = xacc::qalloc(8);
+    accelerator->execute(qreg, program);
 }
 
 
-TEST(GateAggregatorTester, checkSycamoreCirc) 
-{    
-    const int AGG_WIDTH = 8;
-    auto accelerator = xacc::getAccelerator("tnqvm", {
-        std::make_pair("tnqvm-visitor", "exatn-mps"),
-        std::make_pair("agg-width", AGG_WIDTH)
-    });
+// TEST(GateAggregatorTester, checkSycamoreCirc) 
+// {    
+//     const int AGG_WIDTH = 8;
+//     auto accelerator = xacc::getAccelerator("tnqvm", {
+//         std::make_pair("tnqvm-visitor", "exatn-mps"),
+//         std::make_pair("agg-width", AGG_WIDTH)
+//     });
     
-    auto qubitReg = xacc::qalloc(53);
-    auto xasmCompiler = xacc::getCompiler("xasm");
-    auto ir = xasmCompiler->compile(sycamoreXASM, accelerator);
-    auto program = ir->getComposite("testSycamore");
-    // There are 1337 instructions in total:
-    EXPECT_EQ(program->nInstructions(), 1337);
-    accelerator->execute(qubitReg, program);
-}
+//     auto qubitReg = xacc::qalloc(53);
+//     auto xasmCompiler = xacc::getCompiler("xasm");
+//     auto ir = xasmCompiler->compile(sycamoreXASM, accelerator);
+//     auto program = ir->getComposite("testSycamore");
+//     // There are 1337 instructions in total:
+//     EXPECT_EQ(program->nInstructions(), 1337);
+//     accelerator->execute(qubitReg, program);
+// }
 
 int main(int argc, char **argv) 
 {

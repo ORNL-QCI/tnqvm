@@ -2,6 +2,7 @@
 
 #include "TNQVMVisitor.hpp"
 #include "GateTensorAggregator.hpp"
+#include "tensor_network.hpp"
 
 namespace tnqvm {
 class ExatnMpsVisitor : public TNQVMVisitor, public IAggreratorListener
@@ -44,5 +45,11 @@ public:
  
 private:
     TensorAggrerator m_aggrerator;
+    std::shared_ptr<AcceleratorBuffer> m_buffer; 
+    std::vector<std::string> m_qubitTensorNames;
+    exatn::numerics::TensorNetwork m_tensorNetwork;
+    size_t m_tensorIdCounter;
+    size_t m_aggregatedGroupCounter;
+    std::unordered_set<std::string> m_registeredGateTensors;
 };
 } 
