@@ -3,6 +3,7 @@
 #include "tensor_basic.hpp"
 #include "talshxx.hpp"
 #include "ExatnUtils.hpp"
+#include "utils/GateMatrixAlgebra.hpp"
 
 #ifdef TNQVM_EXATN_USES_MKL_BLAS
 #include <dlfcn.h>
@@ -62,6 +63,8 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
     m_tensorNetwork = emptyTensorNet;
     m_aggregatedGroupCounter = 0;
     m_registeredGateTensors.clear();
+    m_measureQubits.clear();
+    m_shotCount = nbShots;
 
     for (int i = 0; i < m_buffer->size(); ++i) 
     {   
@@ -94,7 +97,12 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
 
 void ExatnMpsVisitor::finalize() 
 { 
-   m_aggrerator.flushAll();
+    m_aggrerator.flushAll();
+    evaluateTensorNetwork(m_tensorNetwork, m_stateVec);
+    if (!m_measureQubits.empty())
+    {
+        addMeasureBitStringProbability(m_measureQubits, m_stateVec, m_shotCount);
+    }
 }
 
 
@@ -161,8 +169,7 @@ void ExatnMpsVisitor::visit(Tdg& in_TdgGate)
 // others
 void ExatnMpsVisitor::visit(Measure& in_MeasureGate) 
 { 
-    // TODO
-    m_aggrerator.addGate(&in_MeasureGate); 
+   m_measureQubits.emplace_back(in_MeasureGate.bits()[0]);
 }
 
 void ExatnMpsVisitor::visit(U& in_UGate) 
@@ -206,18 +213,18 @@ const double ExatnMpsVisitor::getExpectationValueZ(std::shared_ptr<CompositeInst
 void ExatnMpsVisitor::onFlush(const AggreratedGroup& in_group)
 {
     // DEBUG:
-    std::cout << "Flushing qubit line ";
-    for (const auto& id : in_group.qubitIdx)
-    {
-        std::cout << id << ", ";
-    }
-    std::cout << "|| Number of gates = " << in_group.instructions.size() << "\n";
+    // std::cout << "Flushing qubit line ";
+    // for (const auto& id : in_group.qubitIdx)
+    // {
+    //     std::cout << id << ", ";
+    // }
+    // std::cout << "|| Number of gates = " << in_group.instructions.size() << "\n";
 
-    for (const auto& inst : in_group.instructions)
-    {
-        std::cout << inst->toString() << "\n";
-    }
-    std::cout << "=============================================\n";
+    // for (const auto& inst : in_group.instructions)
+    // {
+    //     std::cout << inst->toString() << "\n";
+    // }
+    // std::cout << "=============================================\n";
 
     // Construct tensor network
     // exatn::numerics::TensorNetwork aggregatedGateTensor("AggregatedTensorNetwork" + std::to_string(m_aggregatedGroupCounter));
@@ -261,7 +268,52 @@ void ExatnMpsVisitor::onFlush(const AggreratedGroup& in_group)
     }
 
     // DEBUG:
-    std::cout << "AGGREGATED TENSOR NETWORK:\n";
-    aggregatedGateTensor.printIt();
+    // std::cout << "AGGREGATED TENSOR NETWORK:\n";
+    // aggregatedGateTensor.printIt();
+}
+
+void ExatnMpsVisitor::evaluateTensorNetwork(exatn::numerics::TensorNetwork& io_tensorNetwork, std::vector<std::complex<double>>& out_stateVec)
+{
+    out_stateVec.clear();
+    const bool evaluated = exatn::evaluateSync(io_tensorNetwork);
+    assert(evaluated);
+    // Synchronize:
+    exatn::sync();
+
+    std::function<int(talsh::Tensor& in_tensor)> accessFunc = [&out_stateVec](talsh::Tensor& in_tensor){
+        out_stateVec.reserve(in_tensor.getVolume());
+        std::complex<double> *elements;
+        if (in_tensor.getDataAccessHost(&elements)) 
+        {
+            out_stateVec.assign(elements, elements + in_tensor.getVolume());
+        }
+
+        return 0;
+    };
+
+    auto functor = std::make_shared<ExatnMpsVisitor::ExaTnTensorFunctor>(accessFunc);
+
+    exatn::numericalServer->transformTensorSync(io_tensorNetwork.getTensor(0)->getName(), functor);
+    exatn::sync();
+    // DEBUG: 
+    // for (const auto& elem : out_stateVec)
+    // {
+    //     std::cout << elem.real() <<  " + i " <<  elem.imag() << "\n";
+    // }
+}
+
+void ExatnMpsVisitor::addMeasureBitStringProbability(const std::vector<size_t>& in_bits, const std::vector<std::complex<double>>& in_stateVec, int in_shotCount)
+{
+    for (int i = 0; i < in_shotCount; ++i)
+    {
+        std::string bitString;
+        auto stateVecCopy = in_stateVec;
+        for (const auto& bit : in_bits)    
+        {
+            bitString.append(std::to_string(ApplyMeasureOp(stateVecCopy, bit)));
+        }
+
+        m_buffer->appendMeasurement(bitString);
+    }
 }
 }

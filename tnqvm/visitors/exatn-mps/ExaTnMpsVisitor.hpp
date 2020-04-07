@@ -42,7 +42,27 @@ public:
 
     virtual const double getExpectationValueZ(std::shared_ptr<CompositeInstruction> in_function) override;
     virtual void onFlush(const AggreratedGroup& in_group) override;
- 
+
+private:
+    class ExaTnTensorFunctor : public talsh::TensorFunctor<exatn::Identifiable>
+    {
+    public:
+        ExaTnTensorFunctor(const std::function<int(talsh::Tensor& in_tensor)>& in_func) :
+            m_func(in_func)
+        {}
+
+        const std::string name() const override { return "default"; }
+        const std::string description() const override { return ""; }
+        virtual void pack(BytePacket& packet) override {};
+        virtual void unpack(BytePacket& packet) override {};
+        virtual int apply(talsh::Tensor& local_tensor) override { return m_func(local_tensor); }
+    private:
+        std::function<int(talsh::Tensor& in_tensor)> m_func;
+    }; 
+    
+    // Evaluates the whole tensor network and returns state vector
+    void evaluateTensorNetwork(exatn::numerics::TensorNetwork& io_tensorNetwork, std::vector<std::complex<double>>& out_stateVec);
+    void addMeasureBitStringProbability(const std::vector<size_t>& in_bits, const std::vector<std::complex<double>>& in_stateVec, int in_shotCount);
 private:
     TensorAggrerator m_aggrerator;
     std::shared_ptr<AcceleratorBuffer> m_buffer; 
@@ -51,5 +71,8 @@ private:
     size_t m_tensorIdCounter;
     size_t m_aggregatedGroupCounter;
     std::unordered_set<std::string> m_registeredGateTensors;
+    std::vector<std::complex<double>> m_stateVec;
+    std::vector<size_t> m_measureQubits;
+    int m_shotCount;
 };
 } 

@@ -1352,16 +1352,16 @@ namespace {
 
 TEST(GateAggregatorTester, checkSimple) 
 {    
-   auto xasmCompiler = xacc::getCompiler("xasm");
+    auto xasmCompiler = xacc::getCompiler("xasm");
     auto ir = xasmCompiler->compile(R"(__qpu__ void test(qbit q) {
-      X(q[0]);
-      X(q[1]);
-      X(q[2]);
-      X(q[3]);
-      X(q[4]);
-      X(q[5]);
-      X(q[6]);
-      X(q[7]);
+      H(q[0]);
+      H(q[1]);
+      H(q[2]);
+      H(q[3]);
+      H(q[4]);
+      H(q[5]);
+      H(q[6]);
+      H(q[7]);
       CX(q[1], q[0]);
       CX(q[2], q[1]);
       CX(q[3], q[2]);
@@ -1377,12 +1377,17 @@ TEST(GateAggregatorTester, checkSimple)
       X(q[5]);
       X(q[6]);
       X(q[7]);
+      Measure(q[4]);
     })");
 
     auto program = ir->getComposite("test");
-    auto accelerator = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps")});
+    auto accelerator = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps"), std::make_pair("shots", 1000)});
     auto qreg = xacc::qalloc(8);
     accelerator->execute(qreg, program);
+    // The circuit will create a balance distribution on all possible states,
+    // we measure just one qubit -> get 50-50 distribution
+    EXPECT_NEAR(qreg->computeMeasurementProbability("0"), 0.5, 0.01);
+    EXPECT_NEAR(qreg->computeMeasurementProbability("1"), 0.5, 0.01);
 }
 
 
