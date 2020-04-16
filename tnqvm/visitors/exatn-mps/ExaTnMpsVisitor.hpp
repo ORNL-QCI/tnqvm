@@ -74,5 +74,6 @@ private:
     std::vector<std::complex<double>> m_stateVec;
     std::vector<size_t> m_measureQubits;
     int m_shotCount;
+    bool m_aggrerateEnabled; 
 };
 } 

@@ -15,7 +15,10 @@ const std::vector<std::complex<double>> Q_ONE_TENSOR_BODY{{0.0, 0.0}, {1.0, 0.0}
 }
 namespace tnqvm {
 ExatnMpsVisitor::ExatnMpsVisitor():
-    m_aggrerator(this)
+    m_aggrerator(this),
+    // By default, don't enable aggreration, i.e. simply running gate-by-gate first. 
+    // TODO: implement aggreation processing with ExaTN.
+    m_aggrerateEnabled(false)
 {
     // TODO
 }
@@ -23,7 +26,7 @@ ExatnMpsVisitor::ExatnMpsVisitor():
 void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int nbShots) 
 { 
     // Check if we have any specific config for the gate aggregator
-    if (options.keyExists<int>("agg-width"))
+    if (m_aggrerateEnabled && options.keyExists<int>("agg-width"))
     {
         const int aggregatorWidth = options.get<int>("agg-width");
         AggreratorConfigs configs(aggregatorWidth);
@@ -97,73 +100,105 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
 
 void ExatnMpsVisitor::finalize() 
 { 
-    m_aggrerator.flushAll();
-    evaluateTensorNetwork(m_tensorNetwork, m_stateVec);
-    if (!m_measureQubits.empty())
+    if (m_aggrerateEnabled)
     {
-        addMeasureBitStringProbability(m_measureQubits, m_stateVec, m_shotCount);
+        m_aggrerator.flushAll();    
+        evaluateTensorNetwork(m_tensorNetwork, m_stateVec);
+        if (!m_measureQubits.empty())
+        {
+            addMeasureBitStringProbability(m_measureQubits, m_stateVec, m_shotCount);
+        }
     }
+    
 }
 
 
 void ExatnMpsVisitor::visit(Identity& in_IdentityGate) 
 { 
-    // TODO 
-    m_aggrerator.addGate(&in_IdentityGate);
+    if (m_aggrerateEnabled)
+    {
+        m_aggrerator.addGate(&in_IdentityGate);
+    }
 }
 
 void ExatnMpsVisitor::visit(Hadamard& in_HadamardGate) 
 { 
-    // TODO 
-    m_aggrerator.addGate(&in_HadamardGate);
+    if (m_aggrerateEnabled)
+    {
+        m_aggrerator.addGate(&in_HadamardGate);
+    }
 }
 
 void ExatnMpsVisitor::visit(X& in_XGate) 
 { 
     // TODO
-    m_aggrerator.addGate(&in_XGate); 
+    if (m_aggrerateEnabled)
+    {
+        m_aggrerator.addGate(&in_XGate); 
+    }
 }
 
 void ExatnMpsVisitor::visit(Y& in_YGate) 
 { 
     // TODO
-    m_aggrerator.addGate(&in_YGate); 
+    if (m_aggrerateEnabled)
+    {
+        m_aggrerator.addGate(&in_YGate); 
+    }
 }
 
 void ExatnMpsVisitor::visit(Z& in_ZGate) 
 { 
     // TODO
-    m_aggrerator.addGate(&in_ZGate); 
+    if (m_aggrerateEnabled)
+    {
+        m_aggrerator.addGate(&in_ZGate); 
+    }
 }
 
 void ExatnMpsVisitor::visit(Rx& in_RxGate) 
 { 
     // TODO
-    m_aggrerator.addGate(&in_RxGate); 
+    if (m_aggrerateEnabled)
+    {
+        m_aggrerator.addGate(&in_RxGate); 
+    }
 }
 
 void ExatnMpsVisitor::visit(Ry& in_RyGate) 
 { 
     // TODO
-    m_aggrerator.addGate(&in_RyGate); 
+    if (m_aggrerateEnabled)
+    {
+        m_aggrerator.addGate(&in_RyGate); 
+    }
 }
 
 void ExatnMpsVisitor::visit(Rz& in_RzGate) 
 { 
     // TODO
-    m_aggrerator.addGate(&in_RzGate); 
+    if (m_aggrerateEnabled)
+    {
+        m_aggrerator.addGate(&in_RzGate); 
+    }
 }
 
 void ExatnMpsVisitor::visit(T& in_TGate) 
 { 
     // TODO
-    m_aggrerator.addGate(&in_TGate); 
+    if (m_aggrerateEnabled)
+    {
+        m_aggrerator.addGate(&in_TGate); 
+    }
 }
 
 void ExatnMpsVisitor::visit(Tdg& in_TdgGate) 
 { 
     // TODO
-    m_aggrerator.addGate(&in_TdgGate); 
+    if (m_aggrerateEnabled)
+    {
+        m_aggrerator.addGate(&in_TdgGate); 
+    }
 }
 
 // others
@@ -175,7 +210,10 @@ void ExatnMpsVisitor::visit(Measure& in_MeasureGate)
 void ExatnMpsVisitor::visit(U& in_UGate) 
 { 
     // TODO
-    m_aggrerator.addGate(&in_UGate); 
+    if (m_aggrerateEnabled)
+    {
+        m_aggrerator.addGate(&in_UGate); 
+    }
 }
 
 // two-qubit gates: 
@@ -183,25 +221,37 @@ void ExatnMpsVisitor::visit(U& in_UGate)
 void ExatnMpsVisitor::visit(CNOT& in_CNOTGate) 
 { 
     // TODO
-    m_aggrerator.addGate(&in_CNOTGate); 
+    if (m_aggrerateEnabled)
+    {
+        m_aggrerator.addGate(&in_CNOTGate); 
+    }
 }
 
 void ExatnMpsVisitor::visit(Swap& in_SwapGate) 
 { 
     // TODO
-    m_aggrerator.addGate(&in_SwapGate); 
+    if (m_aggrerateEnabled)
+    {   
+        m_aggrerator.addGate(&in_SwapGate); 
+    }
 }
 
 void ExatnMpsVisitor::visit(CZ& in_CZGate) 
 { 
     // TODO
-    m_aggrerator.addGate(&in_CZGate); 
+    if (m_aggrerateEnabled)
+    {
+        m_aggrerator.addGate(&in_CZGate); 
+    }
 }
 
 void ExatnMpsVisitor::visit(CPhase& in_CPhaseGate) 
 { 
     // TODO
-    m_aggrerator.addGate(&in_CPhaseGate); 
+    if (m_aggrerateEnabled)
+    {
+        m_aggrerator.addGate(&in_CPhaseGate); 
+    }
 }
 
 const double ExatnMpsVisitor::getExpectationValueZ(std::shared_ptr<CompositeInstruction> in_function) 
