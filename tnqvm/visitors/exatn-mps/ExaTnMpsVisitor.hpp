@@ -63,11 +63,15 @@ private:
     // Evaluates the whole tensor network and returns state vector
     void evaluateTensorNetwork(exatn::numerics::TensorNetwork& io_tensorNetwork, std::vector<std::complex<double>>& out_stateVec);
     void addMeasureBitStringProbability(const std::vector<size_t>& in_bits, const std::vector<std::complex<double>>& in_stateVec, int in_shotCount);
+    void applyGate(xacc::Instruction& in_gateInstruction);
+    void printStateVec();
+
 private:
     TensorAggrerator m_aggrerator;
     std::shared_ptr<AcceleratorBuffer> m_buffer; 
     std::vector<std::string> m_qubitTensorNames;
-    exatn::numerics::TensorNetwork m_tensorNetwork;
+    std::shared_ptr<exatn::numerics::Tensor> m_rootTensor;
+    std::shared_ptr<exatn::numerics::TensorNetwork> m_tensorNetwork;
     size_t m_tensorIdCounter;
     size_t m_aggregatedGroupCounter;
     std::unordered_set<std::string> m_registeredGateTensors;

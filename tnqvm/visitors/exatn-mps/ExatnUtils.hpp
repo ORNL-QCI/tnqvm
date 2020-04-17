@@ -17,6 +17,6 @@ class GateTensorConstructor : public xacc::Identifiable
 public: 
     const std::string name() const override { return "default"; }
     const std::string description() const override { return ""; }
-    GateTensor getGateTensor(xacc::Instruction& in_gate);
+    static GateTensor getGateTensor(xacc::Instruction& in_gate);
 };
 }
