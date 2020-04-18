@@ -64,6 +64,8 @@ private:
     void evaluateTensorNetwork(exatn::numerics::TensorNetwork& io_tensorNetwork, std::vector<std::complex<double>>& out_stateVec);
     void addMeasureBitStringProbability(const std::vector<size_t>& in_bits, const std::vector<std::complex<double>>& in_stateVec, int in_shotCount);
     void applyGate(xacc::Instruction& in_gateInstruction);
+    void applyTwoQubitGate(xacc::Instruction& in_gateInstruction);
+
     void printStateVec();
 
 private:
