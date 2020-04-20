@@ -112,13 +112,7 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
     m_registeredGateTensors.clear();
     m_measureQubits.clear();
     m_shotCount = nbShots;
-    // Build MPS tensor network
     const std::vector<int> qubitTensorDim(m_buffer->size(), 2);
-    auto& networkBuildFactory = *(exatn::numerics::NetworkBuildFactory::get());
-    auto builder = networkBuildFactory.createNetworkBuilderShared("MPS");
-    // Initially, all bond dimensions are 1
-    const bool success = builder->setParameter("max_bond_dim", 1); 
-    assert(success);
     const bool rootCreated = exatn::createTensorSync(ROOT_TENSOR_NAME, exatn::TensorElementType::COMPLEX64, qubitTensorDim);
     assert(rootCreated);
 
@@ -126,7 +120,36 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
     assert(rootInitialized);
 
     m_rootTensor = exatn::getTensor(ROOT_TENSOR_NAME);
-    m_tensorNetwork = exatn::makeSharedTensorNetwork("Qubit Register", m_rootTensor, *builder);
+
+    // Build MPS tensor network
+    if (m_buffer->size() > 2)
+    {
+        auto& networkBuildFactory = *(exatn::numerics::NetworkBuildFactory::get());
+        auto builder = networkBuildFactory.createNetworkBuilderShared("MPS");
+        // Initially, all bond dimensions are 1
+        const bool success = builder->setParameter("max_bond_dim", 1); 
+        assert(success);
+        
+        m_tensorNetwork = exatn::makeSharedTensorNetwork("Qubit Register", m_rootTensor, *builder);
+    }
+    else if (m_buffer->size() == 2)
+    {
+        //Declare MPS tensors:
+        auto t1 = std::make_shared<exatn::Tensor>("T1", exatn::TensorShape{2,1});
+        auto t2 = std::make_shared<exatn::Tensor>("T2", exatn::TensorShape{1,2});  
+        m_tensorNetwork = std::make_shared<exatn::TensorNetwork>("Qubit Register",
+                 "Root(i0,i1)+=T1(i0,j0)*T2(j0,i1)",
+                 std::map<std::string,std::shared_ptr<exatn::Tensor>>{
+                  {"Root", exatn::getTensor(ROOT_TENSOR_NAME)}, {"T1",t1}, {"T2",t2}});
+    }
+    else if (m_buffer->size() == 1)
+    {
+        auto t1 = std::make_shared<exatn::Tensor>("T1", exatn::TensorShape{2});
+        m_tensorNetwork = std::make_shared<exatn::TensorNetwork>("Qubit Register",
+                 "Root(i0)+=T1(i0)",
+                 std::map<std::string,std::shared_ptr<exatn::Tensor>>{
+                  {"Root", exatn::getTensor(ROOT_TENSOR_NAME)}, {"T1",t1}});
+    }
     
     for (auto iter = m_tensorNetwork->cbegin(); iter != m_tensorNetwork->cend(); ++iter) 
     {
@@ -191,6 +214,14 @@ void ExatnMpsVisitor::finalize()
         m_aggrerator.flushAll();    
         evaluateTensorNetwork(*m_tensorNetwork, m_stateVec);
     }
+
+     
+    // Note: currently, we simulate measurement by full tensor contraction (to get the state vector)
+    // we can also implement repetitive bit count sampling 
+    // (will require many contractions but don't require large memory allocation) 
+    const bool evaledOk = exatn::evaluateSync(*m_tensorNetwork);
+    assert(evaledOk); 
+    // printStateVec();
 
     if (!m_measureQubits.empty())
     {
@@ -366,6 +397,11 @@ void ExatnMpsVisitor::visit(Swap& in_SwapGate)
     }
     else
     {
+        if (in_SwapGate.bits()[0] < in_SwapGate.bits()[1])
+        {
+            in_SwapGate.setBits({in_SwapGate.bits()[1], in_SwapGate.bits()[0]});
+        }
+
         applyGate(in_SwapGate);
     }
 }
@@ -483,15 +519,16 @@ void ExatnMpsVisitor::applyGate(xacc::Instruction& in_gateInstruction)
     // Init tensor body data
     const bool initialized = exatn::initTensorDataSync(uniqueGateTensorName, gateTensor.tensorData);
     assert(initialized);
-    m_tensorNetwork->printIt();
+    // m_tensorNetwork->printIt();
     // Contract gate tensor to the qubit tensor
     const auto contractGateTensor = [](int in_qIdx, const std::string& in_gateTensorName){
         // Pattern: 
         // (1) Boundary qubits (2 legs): Result(a, b) = Qi(a, i) * G (i, b)
         // (2) Middle qubits (3 legs): Result(a, b, c) = Qi(a, b, i) * G (i, c)
+        // (3) Single qubit (1 leg):  Result(a) = Q0(i) * G (i, a)
         const std::string qubitTensorName = "Q" + std::to_string(in_qIdx); 
         auto qubitTensor =  exatn::getTensor(qubitTensorName);
-        assert(qubitTensor->getRank() == 2 || qubitTensor->getRank() == 3);
+        assert(qubitTensor->getRank() == 1 || qubitTensor->getRank() == 2 || qubitTensor->getRank() == 3);
         auto gateTensor =  exatn::getTensor(in_gateTensorName);
         assert(gateTensor->getRank() == 2);
 
@@ -505,7 +542,13 @@ void ExatnMpsVisitor::applyGate(xacc::Instruction& in_gateInstruction)
         assert(resultTensorInitialized);
         
         std::string patternStr;
-        if (qubitTensor->getRank() == 2)
+        if (qubitTensor->getRank() == 1)
+        {
+            // Single qubit
+            assert(in_qIdx == 0);
+            patternStr = RESULT_TENSOR_NAME + "(a)=" + qubitTensorName + "(i)*" + in_gateTensorName + "(i,a)";
+        }
+        else if (qubitTensor->getRank() == 2)
         {
             if (in_qIdx == 0)
             {
@@ -522,7 +565,7 @@ void ExatnMpsVisitor::applyGate(xacc::Instruction& in_gateInstruction)
         }
 
         assert(!patternStr.empty());
-        std::cout << "Pattern string: " << patternStr << "\n";
+        // std::cout << "Pattern string: " << patternStr << "\n";
         
         const bool contractOk = exatn::contractTensorsSync(patternStr, 1.0);
         assert(contractOk);
@@ -546,8 +589,6 @@ void ExatnMpsVisitor::applyGate(xacc::Instruction& in_gateInstruction)
         assert(resultTensorDestroyed);
     };
     contractGateTensor(in_gateInstruction.bits()[0], uniqueGateTensorName);
-    const bool evaledOk = exatn::evaluateSync(*m_tensorNetwork);
-    assert(evaledOk);   
 
     // DEBUG:
     // printStateVec();
@@ -568,8 +609,8 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
     // Step 1: merge two tensor together
     auto q1Tensor = exatn::getTensor(q1TensorName);
     auto q2Tensor = exatn::getTensor(q2TensorName);
-    std::cout << "Before merge:\n";
-    m_tensorNetwork->printIt();
+    // std::cout << "Before merge:\n";
+    // m_tensorNetwork->printIt();
     const auto getQubitTensorId = [&](const std::string& in_tensorName) {
         const auto idsVec = m_tensorNetwork->getTensorIdsInNetwork(in_tensorName);
         assert(idsVec.size() == 1);
@@ -592,13 +633,13 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
         mergeContractionPattern.replace(mergeContractionPattern.find("R"), 1, q1TensorName);
     }
 
-    std::cout << "After merge:\n";
-    m_tensorNetwork->printIt();
+    // std::cout << "After merge:\n";
+    // m_tensorNetwork->printIt();
 
     auto mergedTensor =  m_tensorNetwork->getTensor(mergedTensorId);
     mergedTensor->rename("D");
     
-    std::cout << "Contraction Pattern: " << mergeContractionPattern << "\n";
+    // std::cout << "Contraction Pattern: " << mergeContractionPattern << "\n";
     const bool mergedTensorCreated = exatn::createTensorSync(mergedTensor, exatn::TensorElementType::COMPLEX64);
     assert(mergedTensorCreated);
     const bool mergedTensorInitialized = exatn::initTensorSync(mergedTensor->getName(), 0.0);
@@ -670,16 +711,16 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
         assert(m_buffer->size() == 2);
         if (q1 < q2)
         {
-            patternStr = RESULT_TENSOR_NAME + "(a,b)=" + mergedTensor->getName() + "(i,j)*" + uniqueGateTensorName + "(i,j,a,b)";
+            patternStr = RESULT_TENSOR_NAME + "(a,b)=" + mergedTensor->getName() + "(i,j)*" + uniqueGateTensorName + "(j,i,a,b)";
         }
         else
         {
-            patternStr = RESULT_TENSOR_NAME + "(a,b)=" + mergedTensor->getName() + "(i,j)*" + uniqueGateTensorName + "(j,i,c,a)";
+            patternStr = RESULT_TENSOR_NAME + "(a,b)=" + mergedTensor->getName() + "(i,j)*" + uniqueGateTensorName + "(i,j,a,b)";
         }
     }
     
     assert(!patternStr.empty());
-    std::cout << "Gate contraction pattern: " << patternStr << "\n";
+    // std::cout << "Gate contraction pattern: " << patternStr << "\n";
 
     const bool gateContractionOk = exatn::contractTensorsSync(patternStr, 1.0);
     assert(gateContractionOk);
@@ -821,7 +862,7 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
         return result;
     }();
 
-    std::cout << "MPS: " << mpsString << "\n";
+    // std::cout << "MPS: " << mpsString << "\n";
     m_tensorNetwork = std::make_shared<exatn::TensorNetwork>(m_tensorNetwork->getName(), mpsString, tensorMap);  
     const bool evaledOk = exatn::evaluateSync(*m_tensorNetwork);
     assert(evaledOk);    
