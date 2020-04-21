@@ -512,7 +512,7 @@ void ExatnMpsVisitor::applyGate(xacc::Instruction& in_gateInstruction)
     // Single qubit only in this path
     assert(in_gateInstruction.bits().size() == 1);
     const auto gateTensor = GateTensorConstructor::getGateTensor(in_gateInstruction);
-    const std::string& uniqueGateTensorName = gateTensor.uniqueName;
+    const std::string& uniqueGateTensorName = in_gateInstruction.name();
     // Create the tensor
     const bool created = exatn::createTensorSync(uniqueGateTensorName, exatn::TensorElementType::COMPLEX64, gateTensor.tensorShape);
     assert(created);
@@ -675,11 +675,11 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
         {
             if (q1 == 0)
             {
-                patternStr = RESULT_TENSOR_NAME + "(a,b,c)=" + mergedTensor->getName() + "(i,j,c)*" + uniqueGateTensorName + "(j,i,a,b)";
+                patternStr = RESULT_TENSOR_NAME + "(a,b,c)=" + mergedTensor->getName() + "(i,j,c)*" + uniqueGateTensorName + "(j,i,b,a)";
             }
             else
             {
-                patternStr = RESULT_TENSOR_NAME + "(a,b,c)=" + mergedTensor->getName() + "(a,i,j)*" + uniqueGateTensorName + "(j,i,b,c)";
+                patternStr = RESULT_TENSOR_NAME + "(a,b,c)=" + mergedTensor->getName() + "(a,i,j)*" + uniqueGateTensorName + "(j,i,c,b)";
             }
         }
         else
@@ -698,7 +698,7 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
     {
         if (q1 < q2)
         {
-            patternStr = RESULT_TENSOR_NAME + "(a,b,c,d)=" + mergedTensor->getName() + "(a,i,j,d)*" + uniqueGateTensorName + "(j,i,b,c)";
+            patternStr = RESULT_TENSOR_NAME + "(a,b,c,d)=" + mergedTensor->getName() + "(a,i,j,d)*" + uniqueGateTensorName + "(j,i,c,b)";
         }
         else
         {
@@ -711,7 +711,7 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
         assert(m_buffer->size() == 2);
         if (q1 < q2)
         {
-            patternStr = RESULT_TENSOR_NAME + "(a,b)=" + mergedTensor->getName() + "(i,j)*" + uniqueGateTensorName + "(j,i,a,b)";
+            patternStr = RESULT_TENSOR_NAME + "(a,b)=" + mergedTensor->getName() + "(i,j)*" + uniqueGateTensorName + "(j,i,b,a)";
         }
         else
         {

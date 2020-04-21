@@ -309,6 +309,149 @@ TEST(MpsGateTester, checkSingleQubit)
     }
 } 
 
+TEST(MpsGateTester, testDeuteron)
+{
+    auto accelerator = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps"), std::make_pair("shots", 10000)});
+    auto xasmCompiler = xacc::getCompiler("xasm");
+    auto ir = xasmCompiler->compile(R"(__qpu__ void ansatz(qbit q, double t) {
+      X(q[0]);
+      Ry(q[1], t);
+      CX(q[1], q[0]);
+      H(q[0]);
+      H(q[1]);
+      Measure(q[0]);
+      Measure(q[1]);
+    })", accelerator);
+
+    auto program = ir->getComposite("ansatz");
+    // Expected results from deuteron_2qbit_xasm_X0X1
+    const std::vector<double> expectedResults {
+        0.0,
+        -0.324699,
+        -0.614213,
+        -0.837166,
+        -0.9694,
+        -0.996584,
+        -0.915773,
+        -0.735724,
+        -0.475947,
+        -0.164595,
+        0.164595,
+        0.475947,
+        0.735724,
+        0.915773,
+        0.996584,
+        0.9694,
+        0.837166,
+        0.614213,
+        0.324699,
+        0.0
+    };
+
+    const auto angles = xacc::linspace(-xacc::constants::pi, xacc::constants::pi, 20);
+    for (size_t i = 0; i < angles.size(); ++i)
+    {
+        auto buffer = xacc::qalloc(2);
+        auto evaled = program->operator()({ angles[i] });
+        accelerator->execute(buffer, evaled);
+        
+        // std::cout << "Angle = " <<  angles[i] << "; exp-val-z = " << buffer->getExpectationValueZ() << "\n";
+        EXPECT_NEAR(buffer->getExpectationValueZ(), expectedResults[i], 0.05);
+    }
+}
+
+TEST(MpsGateTester, testGrover) 
+{
+    // Test Grover's algorithm
+    // Amplify the amplitude of number 6 (110) state 
+    const auto generateGroverSrc = [](const std::string& in_name) {
+        return ("__qpu__ void " + in_name).append(R"((qbit q) { 
+            H(q[0]);
+            H(q[1]);
+            H(q[2]);
+            X(q[0]);
+            H(q[2]);
+            H(q[2]);
+            CNOT(q[1], q[2]);
+            Tdg(q[2]);
+            CNOT(q[0], q[2]);
+            T(q[2]);
+            CNOT(q[1], q[2]);
+            Tdg(q[2]);
+            CNOT(q[0], q[2]);
+            T(q[2]);
+            H(q[2]);
+            T(q[1]);
+            CNOT(q[0], q[1]);
+            T(q[0]);
+            Tdg(q[1]);
+            CNOT(q[0], q[1]);
+            X(q[0]);
+            H(q[2]);
+            H(q[0]);
+            H(q[1]);
+            H(q[2]);
+            X(q[0]);
+            X(q[1]);
+            X(q[2]);
+            H(q[2]);
+            H(q[2]);
+            CNOT(q[1], q[2]);
+            Tdg(q[2]);
+            CNOT(q[0], q[2]);
+            T(q[2]);
+            CNOT(q[1], q[2]);
+            Tdg(q[2]);
+            CNOT(q[0], q[2]);
+            T(q[2]);
+            H(q[2]);
+            T(q[1]);
+            CNOT(q[0], q[1]);
+            T(q[0]);
+            Tdg(q[1]);
+            CNOT(q[0], q[1]);
+            H(q[2]);
+            X(q[0]);
+            X(q[1]);
+            X(q[2]);      
+            H(q[0]);
+            H(q[1]);
+            H(q[2]);
+            Measure(q[2]);
+            Measure(q[1]);
+            Measure(q[0]);
+        })");
+    };    
+    auto xasmCompiler = xacc::getCompiler("xasm");
+    auto ir = xasmCompiler->compile(generateGroverSrc("testGrover1"), nullptr);
+    // 3-qubit
+    {
+        auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps"), std::make_pair("shots", 10000)});
+        auto qubitReg = xacc::qalloc(3);
+        auto program = ir->getComposites()[0];   
+        qpu->execute(qubitReg, program);
+        qubitReg->print();
+        
+        // Expected result: |110> is amplified to about 70% probability 
+        const auto resultProb = qubitReg->computeMeasurementProbability("110"); 
+        EXPECT_GT(resultProb, 0.5);  // lower bound: 50%
+    }
+
+    // Embed into a 4-qubit register:
+    // This will test middle tensors inside the tensor train
+    {
+        auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps"), std::make_pair("shots", 10000)});
+        auto qubitReg = xacc::qalloc(4);
+        auto program = ir->getComposites()[0];   
+        qpu->execute(qubitReg, program);
+        qubitReg->print();
+        
+        // Expected result: |110> is amplified to about 70% probability 
+        const auto resultProb = qubitReg->computeMeasurementProbability("110"); 
+        EXPECT_GT(resultProb, 0.5);  // lower bound: 50%
+    } 
+}
+
 int main(int argc, char **argv) 
 {
   xacc::Initialize();

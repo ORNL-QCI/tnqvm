@@ -55,6 +55,8 @@ GateTensor GateTensorConstructor::getGateTensor(xacc::Instruction& in_gate)
             case CommonGates::X: return GetGateMatrix<CommonGates::X>();
             case CommonGates::Y: return GetGateMatrix<CommonGates::Y>();
             case CommonGates::Z: return GetGateMatrix<CommonGates::Z>();
+            case CommonGates::T: return GetGateMatrix<CommonGates::T>();
+            case CommonGates::Tdg: return GetGateMatrix<CommonGates::Tdg>();
             case CommonGates::CNOT: return GetGateMatrix<CommonGates::CNOT>();
             case CommonGates::Swap: return GetGateMatrix<CommonGates::Swap>();
             default: return GetGateMatrix<CommonGates::I>();
