@@ -883,6 +883,7 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
 
     // std::cout << "MPS: " << mpsString << "\n";
     m_tensorNetwork = std::make_shared<exatn::TensorNetwork>(m_tensorNetwork->getName(), mpsString, tensorMap);     
+    // truncateSvdTensors(q1TensorName, q2TensorName);
 }
 
 void ExatnMpsVisitor::evaluateTensorNetwork(exatn::numerics::TensorNetwork& io_tensorNetwork, std::vector<std::complex<double>>& out_stateVec)
@@ -1074,4 +1075,65 @@ std::vector<uint8_t> ExatnMpsVisitor::getMeasureSample(const std::vector<size_t>
     return resultBitString;
 }
 
+void ExatnMpsVisitor::truncateSvdTensors(const std::string& in_leftTensorName, const std::string& in_rightTensorName, double in_eps)
+{
+    int lhsTensorId = -1;
+    int rhsTensorId = -1;
+
+    for (auto iter = m_tensorNetwork->cbegin(); iter != m_tensorNetwork->cend(); ++iter) 
+    {
+        const auto& tensorName = iter->second.getTensor()->getName();
+        if (tensorName == in_leftTensorName)
+        {
+            lhsTensorId = iter->first;
+        }
+        if (tensorName == in_rightTensorName)
+        {
+            rhsTensorId = iter->first;
+        }
+    }
+
+    assert(lhsTensorId > 0 && rhsTensorId > 0 && rhsTensorId != lhsTensorId);
+    auto lhsConnections = m_tensorNetwork->getTensorConnections(lhsTensorId);
+    auto rhsConnections = m_tensorNetwork->getTensorConnections(rhsTensorId);
+    assert(lhsConnections && rhsConnections);
+
+    exatn::TensorLeg lhsBondLeg;
+    exatn::TensorLeg rhsBondLeg;
+    for (const auto& leg : *lhsConnections)
+    {
+        if (leg.getTensorId() == rhsTensorId)
+        {
+            lhsBondLeg = leg;
+            break;
+        }
+    }
+
+    for (const auto& leg : *rhsConnections)
+    {
+        if (leg.getTensorId() == lhsTensorId)
+        {
+            rhsBondLeg = leg;
+            break;
+        }
+    }
+
+    // std::cout << in_leftTensorName << " leg " << rhsBondLeg.getDimensionId() << "--" << in_rightTensorName << " leg " << lhsBondLeg.getDimensionId() << "\n";
+
+    const int lhsBondId = rhsBondLeg.getDimensionId();
+    const int rhsBondId = lhsBondLeg.getDimensionId();
+    auto lhsTensor = exatn::getTensor(in_leftTensorName);
+    auto rhsTensor = exatn::getTensor(in_rightTensorName);
+
+    assert(lhsBondId < lhsTensor->getRank());
+    assert(rhsBondId < rhsTensor->getRank());
+    assert(lhsTensor->getDimExtent(lhsBondId) == rhsTensor->getDimExtent(rhsBondId));
+
+    // std::cout << "Bond dim (" << in_leftTensorName << ", " << in_rightTensorName << ") = " << lhsTensor->getDimExtent(lhsBondId) << "\n";
+
+    // Algorithm: 
+    // Lnorm(k) = Sum_ab [L(a,b,k)^2] and Rnorm(k) = Sum_c [R(k,c)]
+    // Truncate k dimension by to k_opt where Lnorm(k_opt) < eps &&  Rnorm(k_opt) < eps
+    // TODO: wait for Norm calc. API being implemented in ExaTN
+}
 }

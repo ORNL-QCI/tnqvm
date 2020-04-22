@@ -72,6 +72,8 @@ private:
     // Continue with the next qubit line (conditioned on the previous measurement result).
     std::vector<uint8_t> getMeasureSample(const std::vector<size_t>& in_qubitIdx);
     void printStateVec();
+    // Truncate the bond dimension between two tensors that are decomposed by SVD
+    void truncateSvdTensors(const std::string& in_leftTensorName, const std::string& in_rightTensorName, double in_eps = std::numeric_limits<double>::min());
 
 private:
     TensorAggrerator m_aggrerator;
