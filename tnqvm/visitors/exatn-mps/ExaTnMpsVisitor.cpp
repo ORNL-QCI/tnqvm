@@ -13,6 +13,13 @@ namespace {
 const std::vector<std::complex<double>> Q_ZERO_TENSOR_BODY{{1.0, 0.0}, {0.0, 0.0}};
 const std::vector<std::complex<double>> Q_ONE_TENSOR_BODY{{0.0, 0.0}, {1.0, 0.0}};  
 const std::string ROOT_TENSOR_NAME = "Root";
+// The max number of qubits that we allow full state vector contraction. 
+// Above this limit, only tensor-based calculation is allowed.
+// e.g. simulating bit-string measurement by tensor contraction.
+// Note: the reason we don't rely solely on tensor contraction because
+// for small circuits, where the full state-vector can be stored in the memory,
+// it's faster to just run bit-string simulation on the state vector.    
+const int MAX_NUMBER_QUBITS_FOR_STATE_VEC = 20;
 
 void printTensorData(const std::string& in_tensorName)
 {
@@ -113,14 +120,7 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
     m_measureQubits.clear();
     m_shotCount = nbShots;
     const std::vector<int> qubitTensorDim(m_buffer->size(), 2);
-    const bool rootCreated = exatn::createTensorSync(ROOT_TENSOR_NAME, exatn::TensorElementType::COMPLEX64, qubitTensorDim);
-    assert(rootCreated);
-
-    const bool rootInitialized = exatn::initTensorSync(ROOT_TENSOR_NAME, 0.0); 
-    assert(rootInitialized);
-
-    m_rootTensor = exatn::getTensor(ROOT_TENSOR_NAME);
-
+    m_rootTensor = std::make_shared<exatn::Tensor>(ROOT_TENSOR_NAME, qubitTensorDim);
     // Build MPS tensor network
     if (m_buffer->size() > 2)
     {
@@ -140,7 +140,7 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
         m_tensorNetwork = std::make_shared<exatn::TensorNetwork>("Qubit Register",
                  "Root(i0,i1)+=T1(i0,j0)*T2(j0,i1)",
                  std::map<std::string,std::shared_ptr<exatn::Tensor>>{
-                  {"Root", exatn::getTensor(ROOT_TENSOR_NAME)}, {"T1",t1}, {"T2",t2}});
+                  {"Root", m_rootTensor}, {"T1",t1}, {"T2",t2}});
     }
     else if (m_buffer->size() == 1)
     {
@@ -148,7 +148,7 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
         m_tensorNetwork = std::make_shared<exatn::TensorNetwork>("Qubit Register",
                  "Root(i0)+=T1(i0)",
                  std::map<std::string,std::shared_ptr<exatn::Tensor>>{
-                  {"Root", exatn::getTensor(ROOT_TENSOR_NAME)}, {"T1",t1}});
+                  {"Root", m_rootTensor}, {"T1",t1}});
     }
     
     for (auto iter = m_tensorNetwork->cbegin(); iter != m_tensorNetwork->cend(); ++iter) 
@@ -178,11 +178,15 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
 
 void ExatnMpsVisitor::printStateVec()
 {
+    assert(m_buffer->size() < MAX_NUMBER_QUBITS_FOR_STATE_VEC);
     std::cout << "MPS Tensor Network: \n";
     m_tensorNetwork->printIt();
     std::cout << "State Vector: \n";
-
-    auto talsh_tensor = exatn::getLocalTensor(ROOT_TENSOR_NAME); 
+    exatn::TensorNetwork ket(*m_tensorNetwork);
+    ket.rename("MPSket");
+    const bool evaledOk = exatn::evaluateSync(ket);
+    assert(evaledOk); 
+    auto talsh_tensor = exatn::getLocalTensor(ket.getTensor(0)->getName()); 
     if (talsh_tensor)
     {
         const std::complex<double>* body_ptr;
@@ -215,26 +219,51 @@ void ExatnMpsVisitor::finalize()
         evaluateTensorNetwork(*m_tensorNetwork, m_stateVec);
     }
 
-     
-    // Note: currently, we simulate measurement by full tensor contraction (to get the state vector)
-    // we can also implement repetitive bit count sampling 
-    // (will require many contractions but don't require large memory allocation) 
-    const bool evaledOk = exatn::evaluateSync(*m_tensorNetwork);
-    assert(evaledOk); 
-    // printStateVec();
-
-    if (!m_measureQubits.empty())
+    if (m_buffer->size() < MAX_NUMBER_QUBITS_FOR_STATE_VEC) 
     {
-        addMeasureBitStringProbability(m_measureQubits, getTensorData(ROOT_TENSOR_NAME), m_shotCount);
+        exatn::TensorNetwork ket(*m_tensorNetwork);
+        ket.rename("MPSket");
+        const bool evaledOk = exatn::evaluateSync(ket);
+        assert(evaledOk); 
+        const auto tensorData = getTensorData(ket.getTensor(0)->getName());
+        // Simulate measurement by full tensor contraction (to get the state vector)
+        // we can also implement repetitive bit count sampling 
+        // (will require many contractions but don't require large memory allocation) 
+        // DEBUG:
+        // printStateVec();
+
+        if (!m_measureQubits.empty())
+        {
+            addMeasureBitStringProbability(m_measureQubits, tensorData, m_shotCount);
+        }
     }
+    else
+    {
+        if (!m_measureQubits.empty())
+        {
+            std::cout << "Simulating bit string by MPS tensor contraction\n";
+            for (int i = 0; i < m_shotCount; ++i)
+            {
+                const auto convertToBitString = [](const std::vector<uint8_t>& in_bitVec){
+                    std::string result;
+                    for (const auto& bit : in_bitVec)
+                    {
+                        result.append(std::to_string(bit));
+                    }
+                    return result;
+                };
+
+                m_buffer->appendMeasurement(convertToBitString(getMeasureSample(m_measureQubits)));
+            }
+        }
+    }
+    
 
     for (int i = 0; i < m_buffer->size(); ++i)
     {
         const bool qTensorDestroyed = exatn::destroyTensor("Q" + std::to_string(i));
         assert(qTensorDestroyed);
     }
-    const bool rootDestroyed = exatn::destroyTensor(ROOT_TENSOR_NAME);
-    assert(rootDestroyed);
 }
 
 void ExatnMpsVisitor::visit(Identity& in_IdentityGate) 
@@ -819,15 +848,12 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
     assert(mergedTensorDestroyed);
     
     std::map<std::string, std::shared_ptr<exatn::Tensor>> tensorMap;
-    tensorMap.emplace(ROOT_TENSOR_NAME, exatn::getTensor(ROOT_TENSOR_NAME));
+    tensorMap.emplace(ROOT_TENSOR_NAME, m_rootTensor);
     for (int i = 0; i < m_buffer->size(); ++i)
     {
         const std::string qTensorName = "Q" + std::to_string(i);
         tensorMap.emplace(qTensorName, exatn::getTensor(qTensorName));
     }
-    
-    const bool rootReInitialized = exatn::initTensorSync("Root", 0.0); 
-    assert(rootReInitialized);
     
     const std::string rootVarNameList = [&](){
         std::string result = "(";
@@ -863,9 +889,7 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
     }();
 
     // std::cout << "MPS: " << mpsString << "\n";
-    m_tensorNetwork = std::make_shared<exatn::TensorNetwork>(m_tensorNetwork->getName(), mpsString, tensorMap);  
-    const bool evaledOk = exatn::evaluateSync(*m_tensorNetwork);
-    assert(evaledOk);    
+    m_tensorNetwork = std::make_shared<exatn::TensorNetwork>(m_tensorNetwork->getName(), mpsString, tensorMap);     
 }
 
 void ExatnMpsVisitor::evaluateTensorNetwork(exatn::numerics::TensorNetwork& io_tensorNetwork, std::vector<std::complex<double>>& out_stateVec)
@@ -912,4 +936,149 @@ void ExatnMpsVisitor::addMeasureBitStringProbability(const std::vector<size_t>& 
         m_buffer->appendMeasurement(bitString);
     }
 }
+
+
+std::vector<uint8_t> ExatnMpsVisitor::getMeasureSample(const std::vector<size_t>& in_qubitIdx)
+{
+    std::vector<uint8_t> resultBitString;
+    std::vector<double> resultProbs;
+    for (const auto& qubitIdx : in_qubitIdx) 
+    {
+        std::vector<std::string> tensorsToDestroy;
+        std::vector<std::complex<double>> resultRDM;
+        exatn::TensorNetwork ket(*m_tensorNetwork);
+        ket.rename("MPSket");
+
+        exatn::TensorNetwork bra(ket);
+        bra.conjugate();
+        bra.rename("MPSbra");
+        auto tensorIdCounter = ket.getMaxTensorId();
+        // Adding collapse tensors based on previous measurement results.
+        // i.e. condition/renormalize the tensor network to be consistent with
+        // previous result.
+        for (size_t measIdx = 0; measIdx < resultBitString.size(); ++measIdx) 
+        {
+            const unsigned int qId = in_qubitIdx[measIdx];
+            // If it was a "0":
+            if (resultBitString[measIdx] == 0)
+            {
+                const std::vector<std::complex<double>> COLLAPSE_0{
+                    // Renormalize based on the probability of this outcome
+                    {1.0 / resultProbs[measIdx], 0.0},
+                    {0.0, 0.0},
+                    {0.0, 0.0},
+                    {0.0, 0.0}};
+
+                const std::string tensorName = "COLLAPSE_0@" + std::to_string(measIdx);
+                const bool created = exatn::createTensor(tensorName, exatn::TensorElementType::COMPLEX64, exatn::TensorShape{2, 2});
+                assert(created);
+                tensorsToDestroy.emplace_back(tensorName);
+                const bool registered = exatn::registerTensorIsometry(tensorName, {0}, {1});
+                assert(registered);
+                const bool initialized = exatn::initTensorData(tensorName, COLLAPSE_0);
+                assert(initialized);
+                tensorIdCounter++;
+                const bool appended = ket.appendTensorGate(tensorIdCounter, exatn::getTensor(tensorName), {qId});
+                assert(appended);
+            } 
+            else 
+            {
+                assert(resultBitString[measIdx] == 1);
+                // Renormalize based on the probability of this outcome
+                const std::vector<std::complex<double>> COLLAPSE_1{
+                    {0.0, 0.0},
+                    {0.0, 0.0},
+                    {0.0, 0.0},
+                    {1.0 / resultProbs[measIdx], 0.0}};
+
+                const std::string tensorName = "COLLAPSE_1@" + std::to_string(measIdx);
+                const bool created = exatn::createTensor(tensorName, exatn::TensorElementType::COMPLEX64, exatn::TensorShape{2, 2});
+                assert(created);
+                tensorsToDestroy.emplace_back(tensorName);
+                const bool registered = exatn::registerTensorIsometry(tensorName, {0}, {1});
+                assert(registered);
+                const bool initialized = exatn::initTensorData(tensorName, COLLAPSE_1);
+                assert(initialized);
+                tensorIdCounter++;
+                const bool appended = ket.appendTensorGate(tensorIdCounter, exatn::getTensor(tensorName), {qId});
+                assert(appended);
+            }
+        }
+
+        auto combinedNetwork = ket;
+        combinedNetwork.rename("Combined Tensor Network");
+        {
+            // Append the conjugate network to calculate the RDM of the measure
+            // qubit
+            std::vector<std::pair<unsigned int, unsigned int>> pairings;
+            for (size_t i = 0; i < m_buffer->size(); ++i) 
+            {
+                // Connect the original tensor network with its inverse
+                // but leave the measure qubit line open.
+                if (i != qubitIdx) 
+                {
+                    pairings.emplace_back(std::make_pair(i, i));
+                }
+            }
+
+            combinedNetwork.appendTensorNetwork(std::move(bra), pairings);
+        }
+
+        // Evaluate
+        if (exatn::evaluateSync(combinedNetwork)) 
+        {
+            exatn::sync();
+            auto talsh_tensor = exatn::getLocalTensor(combinedNetwork.getTensor(0)->getName());
+            const auto tensorVolume = talsh_tensor->getVolume();
+            // Single qubit density matrix
+            assert(tensorVolume == 4);
+            const std::complex<double>* body_ptr;
+            if (talsh_tensor->getDataAccessHostConst(&body_ptr)) 
+            {
+                resultRDM.assign(body_ptr, body_ptr + tensorVolume);
+            }
+            // Debug: print out RDM data
+            {
+                std::cout << "RDM @q" << qubitIdx << " = [";
+                for (int i = 0; i < talsh_tensor->getVolume(); ++i) 
+                {
+                    const std::complex<double> element = body_ptr[i];
+                    std::cout << element;
+                }
+                std::cout << "]\n";
+            }
+        }
+
+        {
+            // Perform the measurement
+            assert(resultRDM.size() == 4);
+            const double prob_0 = resultRDM.front().real();
+            const double prob_1 = resultRDM.back().real();
+            assert(prob_0 >= 0.0 && prob_1 >= 0.0);
+            assert(std::fabs(1.0 - prob_0 - prob_1) < 1e-12);
+
+            // Generate a random number
+            const double randProbPick = generateRandomProbability();
+            // If radom number < probability of 0 state -> pick zero, and vice versa.
+            resultBitString.emplace_back(randProbPick <= prob_0 ? 0 : 1);
+            resultProbs.emplace_back(randProbPick <= prob_0 ? prob_0 : prob_1);
+   
+            std::cout << ">> Measure @q" << qubitIdx << " prob(0) = " << prob_0 << "\n";
+            std::cout << ">> Measure @q" << qubitIdx << " prob(1) = " << prob_1 << "\n";
+            std::cout << ">> Measure @q" << qubitIdx << " random number = " << randProbPick << "\n";
+            std::cout << ">> Measure @q" << qubitIdx << " pick " << std::to_string(resultBitString.back()) << "\n";
+        }
+
+        for (const auto& tensorName : tensorsToDestroy)
+        {
+            const bool tensorDestroyed = exatn::destroyTensor(tensorName);
+            assert(tensorDestroyed);
+        }
+
+        exatn::sync();
+    }
+
+    return resultBitString;
+}
+
 }

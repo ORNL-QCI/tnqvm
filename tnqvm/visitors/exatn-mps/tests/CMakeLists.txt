@@ -18,3 +18,9 @@ add_test(NAME MpsGateTester COMMAND MpsGateTester)
 target_compile_features(MpsGateTester PRIVATE cxx_std_14)
 
 
+add_executable(MpsMeasurementTester MpsMeasurementTester.cpp)
+target_link_libraries(MpsMeasurementTester PRIVATE ${XACC_ROOT}/lib/libgtest.so ${XACC_ROOT}/lib/libgtest_main.so tnqvm-exatn)
+add_test(NAME MpsMeasurementTester COMMAND MpsMeasurementTester)
+target_compile_features(MpsMeasurementTester PRIVATE cxx_std_14)
+
+

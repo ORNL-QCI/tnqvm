@@ -65,7 +65,12 @@ private:
     void addMeasureBitStringProbability(const std::vector<size_t>& in_bits, const std::vector<std::complex<double>>& in_stateVec, int in_shotCount);
     void applyGate(xacc::Instruction& in_gateInstruction);
     void applyTwoQubitGate(xacc::Instruction& in_gateInstruction);
-
+    // Get a sample measurement bit string:
+    // In this function, we get RDM by opening one qubit line at a time (same order as the provided list).
+    // Then, we contract the whole tensor network to get the RDM for that qubit.
+    // Randomly select a binary (1/0) result based on the RDM, then close that tensor leg by projecting it onto the selected result.
+    // Continue with the next qubit line (conditioned on the previous measurement result).
+    std::vector<uint8_t> getMeasureSample(const std::vector<size_t>& in_qubitIdx);
     void printStateVec();
 
 private:
