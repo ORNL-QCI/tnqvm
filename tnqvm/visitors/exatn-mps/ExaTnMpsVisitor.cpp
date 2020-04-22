@@ -156,15 +156,8 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
         const auto& tensorName = iter->second.getTensor()->getName();
         if (tensorName != ROOT_TENSOR_NAME)
         {
-            const auto renameTensor = [](const std::string& in_name){
-                const auto idxStr = in_name.substr(1);
-                const int idx = std::stoi(idxStr);
-                return "Q" + std::to_string(idx - 1);
-                return in_name;
-            };
-
             auto tensor = iter->second.getTensor();
-            const auto newTensorName = renameTensor(tensorName);
+            const auto newTensorName = "Q" + std::to_string(iter->first - 1);
             iter->second.getTensor()->rename(newTensorName);
             const bool created = exatn::createTensorSync(tensor, exatn::TensorElementType::COMPLEX64);
             assert(created);
