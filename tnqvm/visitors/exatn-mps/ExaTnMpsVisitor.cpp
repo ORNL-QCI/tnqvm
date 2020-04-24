@@ -840,13 +840,16 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
     const bool mergedTensorDestroyed = exatn::destroyTensor(mergedTensor->getName());
     assert(mergedTensorDestroyed);
     
-    std::map<std::string, std::shared_ptr<exatn::Tensor>> tensorMap;
-    tensorMap.emplace(ROOT_TENSOR_NAME, m_rootTensor);
-    for (int i = 0; i < m_buffer->size(); ++i)
-    {
-        const std::string qTensorName = "Q" + std::to_string(i);
-        tensorMap.emplace(qTensorName, exatn::getTensor(qTensorName));
-    }
+    const auto buildTensorMap = [&](){
+        std::map<std::string, std::shared_ptr<exatn::Tensor>> tensorMap;
+        tensorMap.emplace(ROOT_TENSOR_NAME, m_rootTensor);
+        for (int i = 0; i < m_buffer->size(); ++i)
+        {
+            const std::string qTensorName = "Q" + std::to_string(i);
+            tensorMap.emplace(qTensorName, exatn::getTensor(qTensorName));
+        }
+        return tensorMap;
+    };
     
     const std::string rootVarNameList = [&](){
         std::string result = "(";
@@ -882,8 +885,12 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
     }();
 
     // std::cout << "MPS: " << mpsString << "\n";
-    m_tensorNetwork = std::make_shared<exatn::TensorNetwork>(m_tensorNetwork->getName(), mpsString, tensorMap);     
-    // truncateSvdTensors(q1TensorName, q2TensorName);
+    m_tensorNetwork = std::make_shared<exatn::TensorNetwork>(m_tensorNetwork->getName(), mpsString, buildTensorMap()); 
+    // Truncate SVD tensors:
+    truncateSvdTensors(q1TensorName, q2TensorName);    
+    // Rebuild the tensor network since the qubit tensors have been changed after SVD truncation
+    // e.g. we destroy the original tensors and replace with smaller dimension ones
+    m_tensorNetwork = std::make_shared<exatn::TensorNetwork>(m_tensorNetwork->getName(), mpsString, buildTensorMap());  
 }
 
 void ExatnMpsVisitor::evaluateTensorNetwork(exatn::numerics::TensorNetwork& io_tensorNetwork, std::vector<std::complex<double>>& out_stateVec)
@@ -1128,12 +1135,88 @@ void ExatnMpsVisitor::truncateSvdTensors(const std::string& in_leftTensorName, c
     assert(lhsBondId < lhsTensor->getRank());
     assert(rhsBondId < rhsTensor->getRank());
     assert(lhsTensor->getDimExtent(lhsBondId) == rhsTensor->getDimExtent(rhsBondId));
-
-    // std::cout << "Bond dim (" << in_leftTensorName << ", " << in_rightTensorName << ") = " << lhsTensor->getDimExtent(lhsBondId) << "\n";
+    const auto bondDim = lhsTensor->getDimExtent(lhsBondId);
 
     // Algorithm: 
     // Lnorm(k) = Sum_ab [L(a,b,k)^2] and Rnorm(k) = Sum_c [R(k,c)]
     // Truncate k dimension by to k_opt where Lnorm(k_opt) < eps &&  Rnorm(k_opt) < eps
-    // TODO: wait for Norm calc. API being implemented in ExaTN
+    std::vector<double> leftNorm;
+    const bool leftNormOk = exatn::computePartialNormsSync(in_leftTensorName, lhsBondId, leftNorm);
+    assert(leftNormOk);
+    std::vector<double> rightNorm;
+    const bool rightNormOk = exatn::computePartialNormsSync(in_rightTensorName, rhsBondId, rightNorm);
+    assert(rightNormOk);
+
+    assert(leftNorm.size() == rightNorm.size());
+    assert(leftNorm.size() == bondDim);
+
+    const auto findCutoffDim = [&]() -> int {
+        for (int i = 0; i < bondDim; ++i)
+        {
+            if (leftNorm[i] < in_eps && rightNorm[i] < in_eps)
+            {
+                return i + 1;
+            }
+        }
+        return bondDim;
+    };
+
+    const auto newBondDim = findCutoffDim();
+    assert(newBondDim > 0);
+    if (newBondDim < bondDim)
+    {
+        auto leftShape = lhsTensor->getDimExtents();
+        auto rightShape = rhsTensor->getDimExtents();   
+        leftShape[lhsBondId] = newBondDim;
+        rightShape[rhsBondId] = newBondDim;
+        
+        // Create two new tensors:
+        const std::string newLhsTensorName = in_leftTensorName + "_" + std::to_string(lhsTensor->getTensorHash());
+        const bool newLhsCreated = exatn::createTensorSync(newLhsTensorName, exatn::TensorElementType::COMPLEX64, leftShape);
+        assert(newLhsCreated);
+
+        const std::string newRhsTensorName = in_rightTensorName + "_" + std::to_string(rhsTensor->getTensorHash());
+        const bool newRhsCreated = exatn::createTensorSync(newRhsTensorName, exatn::TensorElementType::COMPLEX64, rightShape);
+        assert(newRhsCreated);
+
+        // Take the slices:
+        const bool lhsSliceOk = exatn::extractTensorSliceSync(in_leftTensorName, newLhsTensorName);
+        assert(lhsSliceOk);
+        const bool rhsSliceOk = exatn::extractTensorSliceSync(in_rightTensorName, newRhsTensorName);
+        assert(rhsSliceOk);
+   
+        // Destroy the two original tensors:
+        const bool lhsDestroyed = exatn::destroyTensorSync(in_leftTensorName);
+        assert(lhsDestroyed);
+        const bool rhsDestroyed = exatn::destroyTensorSync(in_rightTensorName);
+        assert(rhsDestroyed);
+        
+        // Rename new tensors to the old name
+        const auto renameNumericTensor = [](const std::string& oldTensorName, const std::string& newTensorName){
+            auto tensor = exatn::getTensor(oldTensorName);
+            assert(tensor);
+            auto talsh_tensor = exatn::getLocalTensor(oldTensorName); 
+            assert(talsh_tensor);
+            const std::complex<double>* body_ptr;
+            const bool access_granted = talsh_tensor->getDataAccessHostConst(&body_ptr); 
+            assert(access_granted);
+            std::vector<std::complex<double>> newData;
+            newData.assign(body_ptr, body_ptr + talsh_tensor->getVolume());
+            const bool newTensorCreated = exatn::createTensorSync(newTensorName, exatn::TensorElementType::COMPLEX64, tensor->getShape());
+            assert(newTensorCreated);
+            const bool newTensorInitialized = exatn::initTensorDataSync(newTensorName, newData);
+            assert(newTensorInitialized);
+            // Destroy the two original tensor:
+            const bool tensorDestroyed = exatn::destroyTensorSync(oldTensorName);
+            assert(tensorDestroyed);
+        };
+
+        renameNumericTensor(newLhsTensorName, in_leftTensorName);
+        renameNumericTensor(newRhsTensorName, in_rightTensorName);
+        exatn::sync();
+
+        // Debug: 
+        std::cout << "[DEBUG] Bond dim (" << in_leftTensorName << ", " << in_rightTensorName << "): " << bondDim << " -> " << newBondDim << "\n";
+    }
 }
 }
