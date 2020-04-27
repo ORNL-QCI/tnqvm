@@ -3,7 +3,7 @@
 #include "xacc.hpp"
 #include "xacc_service.hpp"
 
-TEST(MpsMeasurementTester, checkSimple) 
+TEST(SvdTruncateTester, checkSimple) 
 {    
     auto xasmCompiler = xacc::getCompiler("xasm");
     auto ir = xasmCompiler->compile(R"(__qpu__ void test1(qbit q) {

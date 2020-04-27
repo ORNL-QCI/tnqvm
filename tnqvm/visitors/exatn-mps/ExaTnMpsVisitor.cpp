@@ -454,8 +454,34 @@ void ExatnMpsVisitor::visit(CPhase& in_CPhaseGate)
 
 const double ExatnMpsVisitor::getExpectationValueZ(std::shared_ptr<CompositeInstruction> in_function) 
 { 
-    // TODO
-    return 0.0;
+    // Walk the circuit and visit all gates
+    InstructionIterator it(in_function);
+    while (it.hasNext()) 
+    {
+        auto nextInst = it.next();
+        if (nextInst->isEnabled()) 
+        {
+            nextInst->accept(this);
+        }
+    }
+    
+    exatn::TensorNetwork ket(*m_tensorNetwork);
+    ket.rename("MPSket");
+    const bool evaledOk = exatn::evaluateSync(ket);
+    assert(evaledOk); 
+    const auto tensorData = getTensorData(ket.getTensor(0)->getName());
+    
+    if (!m_measureQubits.empty())
+    {
+        // Just uses shot count estimation
+        const int nbShotsToEstExpZ = 100000;
+        addMeasureBitStringProbability(m_measureQubits, tensorData, nbShotsToEstExpZ);
+        return m_buffer->getExpectationValueZ();
+    }
+    else
+    {
+        return 0.0;
+    }
 }
 
 void ExatnMpsVisitor::onFlush(const AggreratedGroup& in_group)
