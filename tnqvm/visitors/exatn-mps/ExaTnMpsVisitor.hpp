@@ -5,7 +5,7 @@
 #include "tensor_network.hpp"
 
 namespace tnqvm {
-class ExatnMpsVisitor : public TNQVMVisitor, public IAggreratorListener
+class ExatnMpsVisitor : public TNQVMVisitor, public IAggregatorListener
 {
 public:
     // Constructor
@@ -41,7 +41,7 @@ public:
     virtual void visit(Measure& in_MeasureGate) override;
 
     virtual const double getExpectationValueZ(std::shared_ptr<CompositeInstruction> in_function) override;
-    virtual void onFlush(const AggreratedGroup& in_group) override;
+    virtual void onFlush(const AggregatedGroup& in_group) override;
 
 private:
     class ExaTnTensorFunctor : public talsh::TensorFunctor<exatn::Identifiable>
@@ -76,7 +76,7 @@ private:
     void truncateSvdTensors(const std::string& in_leftTensorName, const std::string& in_rightTensorName, double in_eps = std::numeric_limits<double>::min());
 
 private:
-    TensorAggrerator m_aggrerator;
+    TensorAggregator m_aggregator;
     std::shared_ptr<AcceleratorBuffer> m_buffer; 
     std::vector<std::string> m_qubitTensorNames;
     std::shared_ptr<exatn::numerics::Tensor> m_rootTensor;
@@ -87,6 +87,6 @@ private:
     std::vector<std::complex<double>> m_stateVec;
     std::vector<size_t> m_measureQubits;
     int m_shotCount;
-    bool m_aggrerateEnabled; 
+    bool m_aggregateEnabled; 
 };
 } 

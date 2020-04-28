@@ -99,6 +99,8 @@ void TNQVM::execute(std::shared_ptr<xacc::AcceleratorBuffer> buffer,
   visitor->initialize(buffer, nbShots);
 
   // If this is an Exatn-MPS visitor, transform the kernel to nearest-neighbor
+  // Note: currently, we don't support MPS aggregated blocks (multiple qubit MPS tensors in one block).
+  // Hence, the circuit must always be transformed into *nearest* neighbor only (distance = 1 for two-qubit gates).
   if (visitor->name() ==  "exatn-mps")
   {
     auto opt = xacc::getService<xacc::IRTransformation>("lnn-transform");
