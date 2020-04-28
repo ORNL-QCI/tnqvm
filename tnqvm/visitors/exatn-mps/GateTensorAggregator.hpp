@@ -4,18 +4,18 @@
 #include <cassert>
 
 namespace tnqvm {
-// Describes aggration configurations
-struct AggreratorConfigs
+// Describes aggregation configurations
+struct AggregatorConfigs
 {
-    AggreratorConfigs(int in_width): 
+    AggregatorConfigs(int in_width): 
         maxWidth(in_width)
     {}
     int maxWidth;
 };
 
-struct AggreratedGroup
+struct AggregatedGroup
 {
-    AggreratedGroup():
+    AggregatedGroup():
         flushed(false)
     {}
     std::unordered_set<int> qubitIdx;
@@ -23,21 +23,21 @@ struct AggreratedGroup
     bool flushed;
 };
 
-struct IAggreratorListener
+struct IAggregatorListener
 {
-    virtual void onFlush(const AggreratedGroup& in_group) = 0;
+    virtual void onFlush(const AggregatedGroup& in_group) = 0;
 };
 
-class TensorAggrerator
+class TensorAggregator
 {
 public:
     static constexpr int DEFAULT_WIDTH = 4;
-    TensorAggrerator(IAggreratorListener* io_listener) :
+    TensorAggregator(IAggregatorListener* io_listener) :
         m_configs(DEFAULT_WIDTH),
         m_listener(io_listener)
     {}
 
-    TensorAggrerator(const AggreratorConfigs& in_configs, IAggreratorListener* io_listener) :
+    TensorAggregator(const AggregatorConfigs& in_configs, IAggregatorListener* io_listener) :
         m_configs(in_configs),
         m_listener(io_listener)
 
@@ -45,7 +45,7 @@ public:
 
     void addGate(xacc::Instruction* in_gateInstruction)
     {
-        AggreratedGroup& group = getGroup(in_gateInstruction);
+        AggregatedGroup& group = getGroup(in_gateInstruction);
         group.instructions.emplace_back(in_gateInstruction);
     }
     // Flush all remaining groups (not yet flushed while adding gates)
@@ -66,13 +66,13 @@ public:
     }
 
 private:
-    void flush(AggreratedGroup& io_group) 
+    void flush(AggregatedGroup& io_group) 
     {
         io_group.flushed = true;
         m_listener->onFlush(io_group);
     }   
     
-    AggreratedGroup& getGroup(xacc::Instruction* in_gateInstruction)
+    AggregatedGroup& getGroup(xacc::Instruction* in_gateInstruction)
     {
         // std::cout << "Process " << in_gateInstruction->toString() << "\n";
         if (in_gateInstruction->bits().size() == 1)
@@ -100,7 +100,7 @@ private:
                         m_qubitToGroup.emplace(bit, &m_groups.back());
                     }
                     // Crete a new pending group for 1-q gates
-                    AggreratedGroup newGroup;
+                    AggregatedGroup newGroup;
                     newGroup.qubitIdx.emplace(in_gateInstruction->bits()[0]);
                     m_pendingGroup = newGroup;
                     return m_pendingGroup;
@@ -119,7 +119,7 @@ private:
                     m_qubitToGroup.emplace(bit, &m_groups.back());
                 }
                 // Crete a new pending group 
-                AggreratedGroup newGroup;
+                AggregatedGroup newGroup;
                 m_pendingGroup = newGroup;
             }
 
@@ -133,7 +133,7 @@ private:
             {
                 // Non-exist: by default, we will group both of qubits into the same group on first encounter.
                 // This can be done otherwise, but will need multiple-passes or some forms of look-ahead.
-                AggreratedGroup newGroup;
+                AggregatedGroup newGroup;
                 newGroup.qubitIdx.emplace(in_gateInstruction->bits()[0]);
                 newGroup.qubitIdx.emplace(in_gateInstruction->bits()[1]);
 
@@ -171,8 +171,8 @@ private:
                         // i.e. these lines are avalable for free aggregation
                         m_qubitToGroup.erase(idx);
                     }
-                    // Now, both qubit lines are free, create a new aggreration group
-                    AggreratedGroup newGroup;
+                    // Now, both qubit lines are free, create a new aggregation group
+                    AggregatedGroup newGroup;
                     newGroup.qubitIdx.emplace(in_gateInstruction->bits()[0]);
                     newGroup.qubitIdx.emplace(in_gateInstruction->bits()[1]);
 
@@ -203,8 +203,8 @@ private:
                         // i.e. these lines are avalable for free aggregation
                         m_qubitToGroup.erase(idx);
                     }
-                    // Now, both qubit lines are free, create a new aggreration group
-                    AggreratedGroup newGroup;
+                    // Now, both qubit lines are free, create a new aggregation group
+                    AggregatedGroup newGroup;
                     newGroup.qubitIdx.emplace(in_gateInstruction->bits()[0]);
                     newGroup.qubitIdx.emplace(in_gateInstruction->bits()[1]);
 
@@ -239,8 +239,8 @@ private:
                     m_qubitToGroup.erase(idx);
                 }
                 
-                // Now, both qubit lines are free, create a new aggreration group
-                AggreratedGroup newGroup;
+                // Now, both qubit lines are free, create a new aggregation group
+                AggregatedGroup newGroup;
                 newGroup.qubitIdx.emplace(in_gateInstruction->bits()[0]);
                 newGroup.qubitIdx.emplace(in_gateInstruction->bits()[1]);
 
@@ -259,12 +259,12 @@ private:
     }
 
 private:
-    AggreratorConfigs m_configs;
-    std::unordered_map<int, AggreratedGroup*> m_qubitToGroup;
-    std::deque<AggreratedGroup> m_groups;
+    AggregatorConfigs m_configs;
+    std::unordered_map<int, AggregatedGroup*> m_qubitToGroup;
+    std::deque<AggregatedGroup> m_groups;
     // Pending group of 1-qubit gate:
     // We group 1-qubit gate into 1 group (up to max-width).
-    AggreratedGroup m_pendingGroup;
-    IAggreratorListener* m_listener;
+    AggregatedGroup m_pendingGroup;
+    IAggregatorListener* m_listener;
 };
 }
