@@ -32,6 +32,8 @@
 #include <string>
 #include <array>
 #include <complex>
+#include <cassert>
+
 namespace tnqvm {
     // Enum of common quantum gates. 
     // The enum corresponds to a gate name string.
@@ -87,7 +89,20 @@ namespace tnqvm {
     };
 
     inline std::string GetGateName(CommonGates in_gateEnum) { return CommonGateNames[static_cast<size_t>(in_gateEnum)]; }
-
+    
+    inline CommonGates GetGateType(const std::string& in_gateName)
+    {
+        for (int i = 0; i < static_cast<int>(CommonGates::GateCount); ++i)
+        {
+            if (CommonGateNames[i] == in_gateName)
+            {
+                return static_cast<CommonGates>(i);
+            }
+        }
+        // Invalid
+        return CommonGates::GateCount;
+    }
+    
     inline bool IsControlGate(CommonGates in_gateEnum) {
         switch (in_gateEnum)
         {
@@ -210,6 +225,17 @@ namespace tnqvm {
             { 0.0, 1.0, 0.0 , 0.0 },
             { 0.0, 0.0, 0.0 , 1.0 },
             { 0.0, 0.0, 1.0 , 0.0 }
+        };    
+    }
+
+    template <> 
+    std::vector<std::vector<std::complex<double>>> GetGateMatrix<CommonGates::Swap>() {
+        return 
+        {
+            { 1.0, 0.0, 0.0 , 0.0 },
+            { 0.0, 0.0, 1.0 , 0.0 },
+            { 0.0, 1.0, 0.0 , 0.0 },
+            { 0.0, 0.0, 0.0 , 1.0 }
         };    
     }
 

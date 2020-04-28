@@ -44,6 +44,7 @@ void TNQVM::execute(
     // functions[0]->getInstruction(0)
 
     visitor = xacc::getService<TNQVMVisitor>(getVisitorName())->clone();
+    visitor->setOptions(options);
 
     // Initialize the visitor
     visitor->initialize(buffer, nbShots);
@@ -92,10 +93,19 @@ void TNQVM::execute(std::shared_ptr<xacc::AcceleratorBuffer> buffer,
                     const std::shared_ptr<xacc::CompositeInstruction> kernel) {
   // Get the visitor backend
   visitor = xacc::getService<TNQVMVisitor>(getVisitorName());
+  visitor->setOptions(options);
 
   // Initialize the visitor
   visitor->initialize(buffer, nbShots);
 
+  // If this is an Exatn-MPS visitor, transform the kernel to nearest-neighbor
+  if (visitor->name() ==  "exatn-mps")
+  {
+    auto opt = xacc::getService<xacc::IRTransformation>("lnn-transform");
+    opt->apply(kernel, nullptr,  { std::make_pair("max-distance", 1)});
+    // std::cout << "After LNN transform: \n" << kernel->toString() << "\n"; 
+  }
+  
   // Walk the IR tree, and visit each node
   InstructionIterator it(kernel);
   while (it.hasNext()) {

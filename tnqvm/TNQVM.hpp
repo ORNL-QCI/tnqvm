@@ -99,7 +99,9 @@ public:
       if (nbShots > 1 && backendName == "itensor-mps") {
         xacc::warning("Multi-shot simulation is not available for 'itensor-mps' backend. This option will be ignored. \nPlease use 'exatn' backend if you want to run multi-shot simulation.");
       }
-    }    
+    }
+    // Cache the configuration options.
+    options = config;    
   }
   const std::vector<std::string> configurationKeys() override { return {}; }
 //   const std::string getSignature() override {return name()+":";}
@@ -149,6 +151,8 @@ private:
   // then we don't return the binary measurement result (as a bit string).
   // This is to make sure that on the XACC side, it can interpret the avarage-Z result correctly.
   int nbShots = -1;
+  // Cache of the TNQVM options (to send on to the visitor)
+  HeterogeneousMap options;
 };
 } // namespace tnqvm
 
