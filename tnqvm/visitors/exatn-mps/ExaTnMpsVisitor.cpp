@@ -111,7 +111,15 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
         // If exaTN has not been initialized, do it now.
         exatn::initialize();
     }
-    
+
+    // Default SVD cut-off is the numerical limit, i.e. technically, no cut-off.
+    m_svdCutoff = std::numeric_limits<double>::min();
+    if (options.keyExists<double>("svd-cutoff"))
+    {
+        m_svdCutoff = options.get<double>("svd-cutoff");
+        std::cout << "[DEBUG] SVD Cut-off = " << m_svdCutoff << "\n";
+    }
+
     m_buffer = std::move(buffer);
     m_qubitTensorNames.clear();
     m_tensorIdCounter = 0;
@@ -224,6 +232,16 @@ void ExatnMpsVisitor::finalize()
         // (will require many contractions but don't require large memory allocation) 
         // DEBUG:
         // printStateVec();
+        // Print state vector norm:
+        const double norm = [&](){
+            double sum = 0;
+            for (const auto& val : tensorData)
+            {
+                sum = sum + std::norm(val);
+            }
+            return sum;
+        }();
+        m_buffer->addExtraInfo("norm", norm);
 
         if (!m_measureQubits.empty())
         {
@@ -913,7 +931,7 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
     // std::cout << "MPS: " << mpsString << "\n";
     m_tensorNetwork = std::make_shared<exatn::TensorNetwork>(m_tensorNetwork->getName(), mpsString, buildTensorMap()); 
     // Truncate SVD tensors:
-    truncateSvdTensors(q1TensorName, q2TensorName);    
+    truncateSvdTensors(q1TensorName, q2TensorName, m_svdCutoff);    
     // Rebuild the tensor network since the qubit tensors have been changed after SVD truncation
     // e.g. we destroy the original tensors and replace with smaller dimension ones
     m_tensorNetwork = std::make_shared<exatn::TensorNetwork>(m_tensorNetwork->getName(), mpsString, buildTensorMap());  
