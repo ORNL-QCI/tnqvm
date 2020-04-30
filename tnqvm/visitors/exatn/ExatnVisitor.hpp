@@ -295,9 +295,7 @@ namespace tnqvm {
        // i.e. if we encounter a new gate whose tensor has not been initialized, 
        // then we initialize before append the gate tensor (referencing the tensor by name) to the network.  
        std::unordered_map<std::string, std::vector<std::complex<double>>> m_gateTensorBodies; 
-       // Tensor body data represents a single qubit in the zero state. 
-       static const std::vector<std::complex<double>> Q_ZERO_TENSOR_BODY;
-       static const std::vector<std::complex<double>> Q_ONE_TENSOR_BODY;
+       
        // List of gate tensors (name and leg pairing) that we have appended to the network.
        // We use this list to construct the inverse tensor sequence (e.g. isometric collapse)
        std::vector<std::pair<std::string, std::vector<unsigned int>>> m_appendedGateTensors;

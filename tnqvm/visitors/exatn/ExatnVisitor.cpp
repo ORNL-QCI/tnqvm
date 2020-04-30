@@ -126,11 +126,7 @@ std::string GateInstanceIdentifier::toNameString() const {
     }() + ")";
   }
 }
-// Define the tensor body for a zero-state qubit
-const std::vector<std::complex<double>> ExatnVisitor::Q_ZERO_TENSOR_BODY{
-    {1.0, 0.0}, {0.0, 0.0}};
-const std::vector<std::complex<double>> ExatnVisitor::Q_ONE_TENSOR_BODY{
-    {0.0, 0.0}, {1.0, 0.0}};
+
 
 int TensorComponentPrintFunctor::apply(talsh::Tensor &local_tensor) {
   std::complex<double> *elements;
@@ -357,8 +353,8 @@ void ExatnVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer,
 
   // Initialize the qubit register tensor to zero state
   for (int i = 0; i < m_buffer->size(); ++i) {
-    const bool initialized =
-        exatn::initTensorData(generateQubitTensorName(i), Q_ZERO_TENSOR_BODY);
+    // Define the tensor body for a zero-state qubit
+    const bool initialized = exatn::initTensorData(generateQubitTensorName(i), std::vector<std::complex<double>>{{1.0, 0.0}, {0.0, 0.0}});
     assert(initialized);
   }
 
