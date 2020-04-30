@@ -880,7 +880,41 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
     // SVD decomposition using the same pattern that was used to merge two tensors
     const bool svdOk = exatn::decomposeTensorSVDLRSync(mergeContractionPattern);
     assert(svdOk);
-        
+
+    // Validate SVD tensors
+    // TODO: this should be eventually removed once we are confident with the ExaTN numerical backend.
+    {
+        // Validate SVD tensors
+        // TODO: this should be eventually removed once we are confident with the ExaTN numerical backend.
+        const auto calcMpsTensorNorm = [](const std::string& in_tensorName) {
+            std::vector<double> normVec;
+            const bool normOk = exatn::computePartialNormsSync(in_tensorName, 0, normVec);
+            assert(normOk);
+            const double sumNorm = std::accumulate(normVec.begin(), normVec.end(), 0.0);
+            assert(sumNorm > 0);
+            return sumNorm;
+        };
+
+        const double q1NormAfter = calcMpsTensorNorm(q1TensorName);
+        const double q2NormAfter = calcMpsTensorNorm(q2TensorName);
+        if (std::fabs(q1NormAfter) < 1e-3 || std::fabs(q2NormAfter) < 1e-3)
+        {
+            std::cout << "[ERROR] Tensor norm validation failed!\n";
+            std::cout << in_gateInstruction.toString() << "\n";
+            std::cout << q1TensorName << " norm = " << q1NormAfter << "\n";
+            std::cout << q2TensorName << " norm = " << q2NormAfter << "\n";
+            std::cout << "Tensor SVD Pattern: " <<  mergeContractionPattern << "\n";
+            std::cout << "Merged Tensor: \n";
+            printTensorData(mergedTensor->getName());
+            std::cout << q1TensorName << "\n";
+            printTensorData(q1TensorName);
+            std::cout << q2TensorName << "\n";
+            printTensorData(q2TensorName);
+            // Crash in DEBUG to aid debugging.
+            assert(false);
+        }
+    }
+
     const bool mergedTensorDestroyed = exatn::destroyTensor(mergedTensor->getName());
     assert(mergedTensorDestroyed);
     
