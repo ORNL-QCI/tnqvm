@@ -203,6 +203,19 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
     }
     // DEBUG:
     // printStateVec();
+
+    // ExaTN Logging:
+    if (options.keyExists<int>("exatn-logging-level"))
+    {
+        const int loggingLevel = options.get<int>("exatn-logging-level");
+        // Valid level: 0, 1(short), 2 (long)
+        // Default is 0, hence just update if the requested level is either 1 or 2
+        if (loggingLevel > 0 && loggingLevel < 3)
+        {
+            std::cout << "[DEBUG]: Set ExaTN runtime logging level to " << loggingLevel << "\n";
+            exatn::resetRuntimeLoggingLevel(loggingLevel);
+        }
+    }
 }
 
 void ExatnMpsVisitor::printStateVec()
@@ -242,6 +255,9 @@ void ExatnMpsVisitor::printStateVec()
 
 void ExatnMpsVisitor::finalize() 
 { 
+    // Always reset the logging level back to 0 when finished.
+    exatn::resetRuntimeLoggingLevel(0);
+
     if (m_aggregateEnabled)
     {
         m_aggregator.flushAll();    

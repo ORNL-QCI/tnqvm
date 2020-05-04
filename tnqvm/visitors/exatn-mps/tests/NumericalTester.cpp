@@ -24,7 +24,13 @@ TEST(NumericalTester, checkNorm)
     // No cut-off:
     {
         std::cout << "Testing no SVD cut-off limit!\n";
-        auto accelerator = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps"), std::make_pair("shots", 10000)});
+        auto accelerator = xacc::getAccelerator("tnqvm", {
+            std::make_pair("tnqvm-visitor", "exatn-mps"), 
+            std::make_pair("shots", 10000)
+            // Uncomment to enable detail logging
+            // std::make_pair("exatn-logging-level", 1)
+        });
+
         auto qreg = xacc::qalloc(NB_QUBITS);
         accelerator->execute(qreg, randomCirc);
         const double norm = (*qreg)["norm"].as<double>();
