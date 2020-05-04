@@ -67,6 +67,14 @@ public:
                     addInstruction(cnot);
                 }
             }
+
+            // Add measurement instructions on all qubits:
+            for (size_t j = 0; j < nbQubits; ++j)
+            {
+                auto measGate = gateRegistry->createInstruction("Measure", std::vector<std::size_t>{ j });    
+                addInstruction(measGate);
+            } 
+            
             return true;
         }
         return false;

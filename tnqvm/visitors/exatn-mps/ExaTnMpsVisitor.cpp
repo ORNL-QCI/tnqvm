@@ -65,6 +65,34 @@ std::vector<std::complex<double>> getTensorData(const std::string& in_tensorName
     }
     return result;
 } 
+
+std::unordered_map<std::string, tnqvm::Stat::FunctionCallStat>& getStatRegistry()
+{
+    static std::unordered_map<std::string, tnqvm::Stat::FunctionCallStat> statMap;
+    return statMap;
+}
+
+tnqvm::Stat::FunctionCallStat& getStatInstance(const std::string& in_name)
+{
+    auto& statMap = getStatRegistry();
+    auto iter = statMap.find(in_name);
+    if (iter != statMap.end())
+    {
+        return iter->second;
+    }
+    // Create new stat
+    tnqvm::Stat::FunctionCallStat newStat(in_name);
+    auto result = statMap.emplace(in_name, newStat);
+    return result.first->second;
+}
+
+void printAllStats()
+{
+    for (auto& stat: getStatRegistry())
+    {
+        std::cout << stat.second.toString(true) << "\n";
+    }
+}
 }
 namespace tnqvm {
 ExatnMpsVisitor::ExatnMpsVisitor():
@@ -275,6 +303,8 @@ void ExatnMpsVisitor::finalize()
         const bool qTensorDestroyed = exatn::destroyTensor("Q" + std::to_string(i));
         assert(qTensorDestroyed);
     }
+    // Debug:
+    printAllStats();
 }
 
 void ExatnMpsVisitor::visit(Identity& in_IdentityGate) 
@@ -654,7 +684,15 @@ void ExatnMpsVisitor::applyGate(xacc::Instruction& in_gateInstruction)
         const bool resultTensorDestroyed = exatn::destroyTensor(RESULT_TENSOR_NAME);
         assert(resultTensorDestroyed);
     };
-    contractGateTensor(in_gateInstruction.bits()[0], uniqueGateTensorName);
+
+
+    {
+        auto start = std::chrono::system_clock::now();
+        // Single-qubit gate contraction
+        contractGateTensor(in_gateInstruction.bits()[0], uniqueGateTensorName);
+        auto end = std::chrono::system_clock::now();
+        getStatInstance("Contract Single-Qubit Gate Tensor").addSample(start, end);
+    }
 
     // DEBUG:
     // printStateVec();
@@ -788,8 +826,14 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
     assert(!patternStr.empty());
     // std::cout << "Gate contraction pattern: " << patternStr << "\n";
 
-    const bool gateContractionOk = exatn::contractTensorsSync(patternStr, 1.0);
-    assert(gateContractionOk);
+    {
+        auto start = std::chrono::system_clock::now();
+        const bool gateContractionOk = exatn::contractTensorsSync(patternStr, 1.0);
+        assert(gateContractionOk);
+        auto end = std::chrono::system_clock::now();
+        getStatInstance("Contract Two-Qubit Gate Tensor").addSample(start, end);
+    }
+    
     const std::vector<std::complex<double>> resultTensorData =  getTensorData(RESULT_TENSOR_NAME);
     std::function<int(talsh::Tensor& in_tensor)> updateFunc = [&resultTensorData](talsh::Tensor& in_tensor){
         std::complex<double>* elements;
@@ -877,9 +921,14 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
     const bool q2Initialized = exatn::initTensorSync(q2TensorName, 0.0);
     assert(q2Initialized);
 
-    // SVD decomposition using the same pattern that was used to merge two tensors
-    const bool svdOk = exatn::decomposeTensorSVDLRSync(mergeContractionPattern);
-    assert(svdOk);
+    {
+        auto start = std::chrono::system_clock::now();
+        // SVD decomposition using the same pattern that was used to merge two tensors
+        const bool svdOk = exatn::decomposeTensorSVDLRSync(mergeContractionPattern);
+        assert(svdOk);
+        auto end = std::chrono::system_clock::now();
+        getStatInstance("Decompose Tensor SVD").addSample(start, end);
+    }
 
     // Validate SVD tensors
     // TODO: this should be eventually removed once we are confident with the ExaTN numerical backend.
@@ -961,8 +1010,15 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
 
     // std::cout << "MPS: " << mpsString << "\n";
     m_tensorNetwork = std::make_shared<exatn::TensorNetwork>(m_tensorNetwork->getName(), mpsString, buildTensorMap()); 
-    // Truncate SVD tensors:
-    truncateSvdTensors(q1TensorName, q2TensorName, m_svdCutoff);    
+    
+    {
+        auto start = std::chrono::system_clock::now();
+        // Truncate SVD tensors:
+        truncateSvdTensors(q1TensorName, q2TensorName, m_svdCutoff);  
+        auto end = std::chrono::system_clock::now();
+        getStatInstance("Truncate SVD Tensor").addSample(start, end);
+    }
+    
     // Rebuild the tensor network since the qubit tensors have been changed after SVD truncation
     // e.g. we destroy the original tensors and replace with smaller dimension ones
     m_tensorNetwork = std::make_shared<exatn::TensorNetwork>(m_tensorNetwork->getName(), mpsString, buildTensorMap());  
@@ -1291,7 +1347,7 @@ void ExatnMpsVisitor::truncateSvdTensors(const std::string& in_leftTensorName, c
         exatn::sync();
 
         // Debug: 
-        std::cout << "[DEBUG] Bond dim (" << in_leftTensorName << ", " << in_rightTensorName << "): " << bondDim << " -> " << newBondDim << "\n";
+        // std::cout << "[DEBUG] Bond dim (" << in_leftTensorName << ", " << in_rightTensorName << "): " << bondDim << " -> " << newBondDim << "\n";
     }
 }
 }

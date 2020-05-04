@@ -24,19 +24,30 @@ TEST(NumericalTester, checkNorm)
     // No cut-off:
     {
         std::cout << "Testing no SVD cut-off limit!\n";
-        auto accelerator = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps"), std::make_pair("shots", 1)});
+        auto accelerator = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps"), std::make_pair("shots", 10000)});
         auto qreg = xacc::qalloc(NB_QUBITS);
         accelerator->execute(qreg, randomCirc);
         const double norm = (*qreg)["norm"].as<double>();
         EXPECT_NEAR(norm, 1.0, 1e-6);
+        //qreg->print();
     }
     // With SVD cut-off limit:
     {
         std::cout << "Testing SVD cut-off limit!\n";
-        auto accelerator = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps"), std::make_pair("shots", 1), std::make_pair("svd-cutoff", 1e-6)});
+        auto accelerator = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps"), std::make_pair("shots", 10000), std::make_pair("svd-cutoff", 1e-6)});
         auto qreg = xacc::qalloc(NB_QUBITS);
         accelerator->execute(qreg, randomCirc);
-        qreg->print();
+        const double norm = (*qreg)["norm"].as<double>();
+        EXPECT_NEAR(norm, 1.0, 1e-6);
+        //qreg->print();
+    }
+    // ExaTN: direct tensor contraction (no MPS)
+    {
+        std::cout << "Testing full tensor contraction!\n";
+        auto accelerator = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn"), std::make_pair("shots", 10000)});
+        auto qreg = xacc::qalloc(NB_QUBITS);
+        accelerator->execute(qreg, randomCirc);
+        // qreg->print();
     }
 }
 
