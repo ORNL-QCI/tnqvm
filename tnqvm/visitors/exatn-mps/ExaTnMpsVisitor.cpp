@@ -887,11 +887,8 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
         // Validate SVD tensors
         // TODO: this should be eventually removed once we are confident with the ExaTN numerical backend.
         const auto calcMpsTensorNorm = [](const std::string& in_tensorName) {
-            std::vector<double> normVec;
-            const bool normOk = exatn::computePartialNormsSync(in_tensorName, 0, normVec);
-            assert(normOk);
-            const double sumNorm = std::accumulate(normVec.begin(), normVec.end(), 0.0);
-            assert(sumNorm >= 0.0);
+            double sumNorm = 0.0;
+            const bool normOk = exatn::computeNorm2Sync(in_tensorName, sumNorm);
             return sumNorm;
         };
 
