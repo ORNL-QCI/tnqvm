@@ -35,6 +35,7 @@ TEST(NumericalTester, checkNormCutoff)
     std::cout << "Number of gates = " << randomCirc->nInstructions() << "\n";
     auto accelerator = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps"), std::make_pair("shots", 1), std::make_pair("svd-cutoff", 1e-6)});
     auto qreg = xacc::qalloc(NB_QUBITS);
+    std::cout << "Circuit:\n" << randomCirc->toString() << "\n";
     accelerator->execute(qreg, randomCirc);
     qreg->print();
     // const double norm = (*qreg)["norm"].as<double>();

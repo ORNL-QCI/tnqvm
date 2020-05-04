@@ -891,7 +891,7 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
             const bool normOk = exatn::computePartialNormsSync(in_tensorName, 0, normVec);
             assert(normOk);
             const double sumNorm = std::accumulate(normVec.begin(), normVec.end(), 0.0);
-            assert(sumNorm > 0);
+            assert(sumNorm >= 0.0);
             return sumNorm;
         };
 
