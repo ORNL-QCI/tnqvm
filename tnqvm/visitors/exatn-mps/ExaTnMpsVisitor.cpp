@@ -93,6 +93,12 @@ void printAllStats()
         std::cout << stat.second.toString(true) << "\n";
     }
 }
+
+size_t getNumberOfThreads()
+{
+    static const size_t NB_THREADS = std::thread::hardware_concurrency();
+    return NB_THREADS;
+}
 }
 namespace tnqvm {
 ExatnMpsVisitor::ExatnMpsVisitor():
@@ -1072,19 +1078,61 @@ void ExatnMpsVisitor::evaluateTensorNetwork(exatn::numerics::TensorNetwork& io_t
 
 void ExatnMpsVisitor::addMeasureBitStringProbability(const std::vector<size_t>& in_bits, const std::vector<std::complex<double>>& in_stateVec, int in_shotCount)
 {
-    for (int i = 0; i < in_shotCount; ++i)
+    // Factor to determine if we should spawn threads to simulate bitstring sampling.
+    const int MULT_FACTOR = 100;
+    if (getNumberOfThreads() < 2 || in_shotCount < MULT_FACTOR * getNumberOfThreads())
     {
-        std::string bitString;
-        auto stateVecCopy = in_stateVec;
-        for (const auto& bit : in_bits)    
+        // Sequential execution
+        for (int i = 0; i < in_shotCount; ++i)
         {
-            bitString.append(std::to_string(ApplyMeasureOp(stateVecCopy, bit)));
-        }
+            std::string bitString;
+            auto stateVecCopy = in_stateVec;
+            for (const auto& bit : in_bits)    
+            {
+                bitString.append(std::to_string(ApplyMeasureOp(stateVecCopy, bit)));
+            }
 
-        m_buffer->appendMeasurement(bitString);
+            m_buffer->appendMeasurement(bitString);
+        }
+    }
+    else
+    {
+        // Parallel execution
+        std::vector<std::string> bitStringArray(in_shotCount);
+        assert(bitStringArray.size() == in_shotCount);
+        std::vector<std::thread> threads(getNumberOfThreads());
+        std::mutex critical;
+        for(int t = 0; t < getNumberOfThreads(); ++t)
+        {
+            threads[t] = std::thread(std::bind([&](int beginIdx, int endIdx, int threadIdx) {
+                for(int i = beginIdx; i < endIdx; ++i)
+                {
+                    std::string bitString;
+                    auto stateVecCopy = in_stateVec;
+                    for (const auto& bit : in_bits)    
+                    {
+                        bitString.append(std::to_string(ApplyMeasureOp(stateVecCopy, bit)));
+                    }
+                    bitStringArray[i] = bitString;
+                }
+                {
+                    // Add measurement bitstring to the buffer:
+                    std::lock_guard<std::mutex> lock(critical);
+                    for(int i = beginIdx; i < endIdx; ++i)
+                    {
+                        m_buffer->appendMeasurement(bitStringArray[i]);
+                    }
+                }
+            }, 
+            t * in_shotCount / getNumberOfThreads(), 
+            (t+1) == getNumberOfThreads() ? in_shotCount: (t+1) * in_shotCount/getNumberOfThreads(), 
+            t));
+        }
+        std::for_each(threads.begin(),threads.end(),[](std::thread& x){
+            x.join();
+        });
     }
 }
-
 
 std::vector<uint8_t> ExatnMpsVisitor::getMeasureSample(const std::vector<size_t>& in_qubitIdx)
 {
