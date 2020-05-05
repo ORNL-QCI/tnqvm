@@ -43,6 +43,7 @@
 #include <chrono>
 #include <functional>
 #include <unordered_set>
+#include "utils/GateMatrixAlgebra.hpp"
 
 #ifdef TNQVM_EXATN_USES_MKL_BLAS
 #include <dlfcn.h>
@@ -76,15 +77,6 @@ bool checkStateVectorNorm(
       });
 
   return (std::abs(norm - 1.0) < 1e-12);
-}
-
-inline double generateRandomProbability() {
-  auto randFunc =
-      std::bind(std::uniform_real_distribution<double>(0, 1),
-                std::mt19937(std::chrono::high_resolution_clock::now()
-                                 .time_since_epoch()
-                                 .count()));
-  return randFunc();
 }
 } // namespace
 
@@ -483,27 +475,16 @@ void ExatnVisitor::finalize() {
   if (m_shots > 1) {
     const auto cachedStateVec = retrieveStateVector();
     for (int i = 0; i < m_shots; ++i) {
+      auto stateVecCopy = cachedStateVec;
       for (const auto &idx : m_measureQbIdx) {
-        // Apply the measurement logic
-        auto measurementFunctor =
-            std::make_shared<ApplyQubitMeasureFunctor>(idx);
-        exatn::numericalServer->transformTensorSync(
-            m_tensorNetwork.getTensor(0)->getName(), measurementFunctor);
-        exatn::sync();
         // Append the boolean true/false as bit value
-        m_resultBitString.append(measurementFunctor->getResult() ? "1" : "0");
+        m_resultBitString.append(std::to_string(ApplyMeasureOp(stateVecCopy, idx)));
       }
       // Finish measuring all qubits, append the bit-string measurement result.
       m_buffer->appendMeasurement(m_resultBitString);
       // Clear the result bit string after appending (to be constructed in the
       // next shot)
       m_resultBitString.clear();
-
-      // Restore state vector for the next shot
-      exatn::numericalServer->transformTensorSync(
-          m_tensorNetwork.getTensor(0)->getName(),
-          std::make_shared<ResetTensorDataFunctor>(cachedStateVec));
-      exatn::sync();
     }
   }
 
