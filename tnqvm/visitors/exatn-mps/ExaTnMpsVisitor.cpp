@@ -685,8 +685,12 @@ void ExatnMpsVisitor::applyGate(xacc::Instruction& in_gateInstruction)
         assert(!patternStr.empty());
         // std::cout << "Pattern string: " << patternStr << "\n";
         
+        auto start = std::chrono::system_clock::now();
         const bool contractOk = exatn::contractTensorsSync(patternStr, 1.0);
         assert(contractOk);
+        auto end = std::chrono::system_clock::now();
+        getStatInstance("Contract Single-Qubit Gate Tensor").addSample(start, end);
+        
         std::vector<std::complex<double>> resultTensorData =  getTensorData(RESULT_TENSOR_NAME);
         std::function<int(talsh::Tensor& in_tensor)> updateFunc = [&resultTensorData](talsh::Tensor& in_tensor){
             std::complex<double> *elements;
@@ -709,11 +713,8 @@ void ExatnMpsVisitor::applyGate(xacc::Instruction& in_gateInstruction)
 
 
     {
-        auto start = std::chrono::system_clock::now();
         // Single-qubit gate contraction
         contractGateTensor(in_gateInstruction.bits()[0], uniqueGateTensorName);
-        auto end = std::chrono::system_clock::now();
-        getStatInstance("Contract Single-Qubit Gate Tensor").addSample(start, end);
     }
 
     // DEBUG:
