@@ -633,6 +633,8 @@ void ExatnMpsVisitor::onFlush(const AggregatedGroup& in_group)
 
 void ExatnMpsVisitor::applyGate(xacc::Instruction& in_gateInstruction)
 {
+    const auto gateStart = std::chrono::system_clock::now();
+
     if (in_gateInstruction.bits().size() == 2)
     {
         return applyTwoQubitGate(in_gateInstruction);
@@ -733,10 +735,15 @@ void ExatnMpsVisitor::applyGate(xacc::Instruction& in_gateInstruction)
 
     const bool destroyed = exatn::destroyTensor(uniqueGateTensorName);
     assert(destroyed);
+
+    const auto gateEnd = std::chrono::system_clock::now();
+    getStatInstance("One-qubit Gate Total").addSample(gateStart, gateEnd);
 }
 
 void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
 {
+    const auto gateStart = std::chrono::system_clock::now();
+        
     const int q1 = in_gateInstruction.bits()[0];
     const int q2 = in_gateInstruction.bits()[1];
     // Neighbors only
@@ -893,6 +900,10 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
     const bool destroyed = exatn::destroyTensor(uniqueGateTensorName);
     assert(destroyed);
 
+
+    const auto beforeSvd = std::chrono::system_clock::now();
+    getStatInstance("Two-qubit Gate: Before SVD").addSample(gateStart, beforeSvd);
+    
     // Step 3: SVD the merged tensor back into two MPS qubit tensor
     // Delete the two original qubit tensors
     const auto getBondLegId = [&](int in_qubitIdx, int in_otherQubitIdx){
@@ -1047,6 +1058,9 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
     // std::cout << "MPS: " << mpsString << "\n";
     m_tensorNetwork = std::make_shared<exatn::TensorNetwork>(m_tensorNetwork->getName(), mpsString, buildTensorMap()); 
     
+    const auto afterSvd = std::chrono::system_clock::now();
+    getStatInstance("Two-qubit Gate: After SVD").addSample(gateStart, afterSvd);
+
     {
         auto start = std::chrono::system_clock::now();
         // Truncate SVD tensors:
@@ -1058,6 +1072,9 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
     // Rebuild the tensor network since the qubit tensors have been changed after SVD truncation
     // e.g. we destroy the original tensors and replace with smaller dimension ones
     m_tensorNetwork = std::make_shared<exatn::TensorNetwork>(m_tensorNetwork->getName(), mpsString, buildTensorMap());  
+
+    const auto gateEnd = std::chrono::system_clock::now();
+    getStatInstance("Two-qubit Gate Total").addSample(gateStart, gateEnd);
 }
 
 void ExatnMpsVisitor::evaluateTensorNetwork(exatn::numerics::TensorNetwork& io_tensorNetwork, std::vector<std::complex<double>>& out_stateVec)
