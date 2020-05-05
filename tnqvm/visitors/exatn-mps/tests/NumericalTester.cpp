@@ -32,7 +32,13 @@ TEST(NumericalTester, checkNorm)
         });
 
         auto qreg = xacc::qalloc(NB_QUBITS);
+        const auto start = std::chrono::system_clock::now();
         accelerator->execute(qreg, randomCirc);
+        const auto end = std::chrono::system_clock::now();
+        std::cout << "Elapsed time in milliseconds : " 
+		<< std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
+		<< " ms\n";
+
         const double norm = (*qreg)["norm"].as<double>();
         EXPECT_NEAR(norm, 1.0, 1e-6);
         //qreg->print();
@@ -40,9 +46,15 @@ TEST(NumericalTester, checkNorm)
     // With SVD cut-off limit:
     {
         std::cout << "Testing SVD cut-off limit!\n";
-        auto accelerator = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps"), std::make_pair("shots", 1), std::make_pair("svd-cutoff", 1e-6)});
+        auto accelerator = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps"), std::make_pair("shots", 1), std::make_pair("svd-cutoff", 1e-9)});
         auto qreg = xacc::qalloc(NB_QUBITS);
+        const auto start = std::chrono::system_clock::now();
         accelerator->execute(qreg, randomCirc);
+        const auto end = std::chrono::system_clock::now();
+        std::cout << "Elapsed time in milliseconds : " 
+		<< std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
+		<< " ms\n";
+        
         const double norm = (*qreg)["norm"].as<double>();
         EXPECT_NEAR(norm, 1.0, 1e-6);
         //qreg->print();
@@ -65,7 +77,7 @@ TEST(NumericalTester, checkDistribution)
     auto acceleratorMps = xacc::getAccelerator("tnqvm", {
         std::make_pair("tnqvm-visitor", "exatn-mps"), 
         std::make_pair("shots", NB_SHOTS), 
-        std::make_pair("svd-cutoff", 1e-6)});
+        std::make_pair("svd-cutoff", 1e-9)});
     auto qregMps = xacc::qalloc(NB_QUBITS);
     acceleratorMps->execute(qregMps, randomCirc);
     const double norm = (*qregMps)["norm"].as<double>();

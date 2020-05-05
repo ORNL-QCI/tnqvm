@@ -112,6 +112,8 @@ ExatnMpsVisitor::ExatnMpsVisitor():
 
 void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int nbShots) 
 { 
+    const auto initializeStart = std::chrono::system_clock::now();
+
     // Check if we have any specific config for the gate aggregator
     if (m_aggregateEnabled && options.keyExists<int>("agg-width"))
     {
@@ -222,6 +224,9 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
             exatn::resetRuntimeLoggingLevel(loggingLevel);
         }
     }
+
+    const auto initializeEnd = std::chrono::system_clock::now();
+    getStatInstance("Initialize").addSample(initializeStart, initializeEnd);
 }
 
 void ExatnMpsVisitor::printStateVec()
@@ -261,6 +266,8 @@ void ExatnMpsVisitor::printStateVec()
 
 void ExatnMpsVisitor::finalize() 
 { 
+    const auto finalizeStart = std::chrono::system_clock::now();
+
     // Always reset the logging level back to 0 when finished.
     exatn::resetRuntimeLoggingLevel(0);
 
@@ -325,6 +332,10 @@ void ExatnMpsVisitor::finalize()
         const bool qTensorDestroyed = exatn::destroyTensor("Q" + std::to_string(i));
         assert(qTensorDestroyed);
     }
+
+    const auto finalizeEnd = std::chrono::system_clock::now();
+    getStatInstance("Finalize").addSample(finalizeStart, finalizeEnd);
+
     // Debug:
     printAllStats();
 }
@@ -953,6 +964,7 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
         getStatInstance("Decompose Tensor SVD").addSample(start, end);
     }
 
+#ifdef _DEBUG
     // Validate SVD tensors
     // TODO: this should be eventually removed once we are confident with the ExaTN numerical backend.
     {
@@ -983,6 +995,7 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
             assert(false);
         }
     }
+#endif
 
     const bool mergedTensorDestroyed = exatn::destroyTensor(mergedTensor->getName());
     assert(mergedTensorDestroyed);
