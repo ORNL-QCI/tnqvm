@@ -517,8 +517,8 @@ void ITensorMPSVisitor::permute_to(int iqbit, int iqbit_to) {
 }
 
 void ITensorMPSVisitor::visit(Swap &gate) {
-  auto iqbit_in0_ori = gate.bits()[0];
-  auto iqbit_in1_ori = gate.bits()[1];
+  auto iqbit_in0_ori = (int)gate.bits()[0];
+  auto iqbit_in1_ori = (int)gate.bits()[1];
   // std::cout<<"applying "<<gate.name()<<" @ "<<iqbit_in0_ori<<" ,
   // "<<iqbit_in1_ori<<std::endl;
   int iqbit_in0, iqbit_in1;
