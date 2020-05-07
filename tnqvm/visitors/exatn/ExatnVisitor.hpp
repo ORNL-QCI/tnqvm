@@ -269,6 +269,8 @@ namespace tnqvm {
         std::complex<double> expVal(const std::vector<ObservableTerm>& in_observableExpression); 
         std::complex<double> evaluateTerm(const std::vector<std::shared_ptr<Instruction>>& in_observableTerm); 
         void applyInverse();
+        std::vector<uint8_t> generateMeasureSample(const TensorNetwork& in_tensorNetwork, const std::vector<int>& in_qubitIdx);
+
     private:
        TensorNetwork m_tensorNetwork;
        unsigned int m_tensorIdCounter;

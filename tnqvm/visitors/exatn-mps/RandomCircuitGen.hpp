@@ -16,17 +16,25 @@ public:
         {
             const int nbQubits = runtimeOptions.get<int>("nq");
             const int nbLayers = runtimeOptions.get<int>("nlayers");
+            bool parametricGate = true;
+
+            if (runtimeOptions.keyExists<bool>("parametric-gates"))
+            {
+                parametricGate  = runtimeOptions.get<bool>("parametric-gates");
+            }
 
             if (nbQubits < 2 || nbLayers < 1)
             {
                 return false;
             }
-            
+            // Defines the single-qubit gate set to draw from.
+            // For now, just hard-coded a pre-defined gate set
+            const std::vector<std::string> GATE_SET = parametricGate ? 
+                std::vector<std::string> { "H", "X", "Y", "Z", "T", "Rx", "Ry", "Rz" } :
+                std::vector<std::string> { "H", "X", "Y", "Z", "T" };
+
             auto gateRegistry = xacc::getService<IRProvider>("quantum");
-            const auto randomGateGen = [&gateRegistry](size_t qubitIdx) -> std::shared_ptr<Instruction> {
-                // Defines the single-qubit gate set to draw from.
-                // For now, just hard-coded a pre-defined gate set
-                const std::vector<std::string> GATE_SET { "H", "X", "Y", "Z", "T", "Rx", "Ry", "Rz" };
+            const auto randomGateGen = [&](size_t qubitIdx) -> std::shared_ptr<Instruction> {
                 auto randIt = GATE_SET.begin();
                 std::advance(randIt, std::rand() % GATE_SET.size());
 
