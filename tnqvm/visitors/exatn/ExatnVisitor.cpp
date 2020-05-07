@@ -339,6 +339,13 @@ void ExatnVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer,
     const bool success = exatnParams.setParameter("host_memory_buffer_size", MAX_TALSH_MEMORY_BUFFER_SIZE_BYTES);
     assert(success);
     exatn::initialize(exatnParams);
+
+    if (options.stringExists("exatn-contract-seq-optimizer"))
+    {
+      const std::string optimizerName = options.getString("exatn-contract-seq-optimizer");
+      std::cout << "Using '" << optimizerName << "' optimizer.\n";
+      exatn::resetContrSeqOptimizer(optimizerName);
+    }
   }
 
   m_hasEvaluated = false;
@@ -1231,7 +1238,16 @@ std::vector<uint8_t> ExatnVisitor::generateMeasureSample(const TensorNetwork& in
         const bool isoCollapsed = combinedNetwork.collapseIsometries();        
         {
           // DEBUG:
-          combinedNetwork.getOperationList("metis");
+          {
+            const std::string optimizerName = options.stringExists("exatn-contract-seq-optimizer") ? options.getString("exatn-contract-seq-optimizer") : "metis";
+            const auto startOpt = std::chrono::system_clock::now();
+            combinedNetwork.getOperationList(optimizerName);
+            const auto endOpt = std::chrono::system_clock::now();
+              std::cout << "getOperationList() took: " 
+              << std::chrono::duration_cast<std::chrono::milliseconds>(endOpt - startOpt).count()
+              << " ms\n";
+          }
+          
           const double flops = combinedNetwork.getFMAFlops();
           const double intermediatesVolume = combinedNetwork.getMaxIntermediatePresenceVolume();
           assert(intermediatesVolume >= 0.0);
