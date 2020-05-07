@@ -3,14 +3,17 @@
 #include "xacc.hpp"
 #include "xacc_service.hpp"
 
-TEST(BigCircuitTester, checkMps) 
+TEST(BigCircuitTester, checkBitStringSampling) 
 {    
     auto tmp = xacc::getService<xacc::Instruction>("rcs");
     auto randomCirc = std::dynamic_pointer_cast<xacc::CompositeInstruction>(tmp);
-    const int NB_QUBITS = 25;
+    // Sycamore set-up: 53 qubits
+    const int NB_QUBITS = 53;
     EXPECT_TRUE(randomCirc->expand({
         std::make_pair("nq", NB_QUBITS), 
-        std::make_pair("nlayers", 12), 
+        // TODO: we should increase this to 8-12 layers
+        // once the ExaTN backend is updated to cap intermediate node size.
+        std::make_pair("nlayers", 1), 
         std::make_pair("parametric-gates", false)
     }));
     std::cout << "Number of gates = " << randomCirc->nInstructions() << "\n";
@@ -18,6 +21,7 @@ TEST(BigCircuitTester, checkMps)
 
     auto accelerator = xacc::getAccelerator("tnqvm", {
         std::make_pair("tnqvm-visitor", "exatn"), 
+        // Just produce one shot
         std::make_pair("shots", 1)
     });
 

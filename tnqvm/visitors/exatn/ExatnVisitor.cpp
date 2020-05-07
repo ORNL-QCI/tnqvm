@@ -59,6 +59,9 @@ std::string generateQubitTensorName(int qubitIndex) {
 // e.g. simulating bit-string measurement by tensor contraction.   
 const int MAX_NUMBER_QUBITS_FOR_STATE_VEC = 20;
 
+// Max memory size: 8GB
+const int64_t MAX_TALSH_MEMORY_BUFFER_SIZE_BYTES = 8 * (1ULL << 30);
+
 std::vector<std::complex<double>> flattenGateMatrix(
     const std::vector<std::vector<std::complex<double>>> &in_gateMatrix) {
   std::vector<std::complex<double>> resultVector;
@@ -332,7 +335,10 @@ void ExatnVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer,
 #endif
 
     // If exaTN has not been initialized, do it now.
-    exatn::initialize();
+    exatn::ParamConf exatnParams;
+    const bool success = exatnParams.setParameter("host_memory_buffer_size", MAX_TALSH_MEMORY_BUFFER_SIZE_BYTES);
+    assert(success);
+    exatn::initialize(exatnParams);
   }
 
   m_hasEvaluated = false;
@@ -1222,16 +1228,31 @@ std::vector<uint8_t> ExatnVisitor::generateMeasureSample(const TensorNetwork& in
             combinedNetwork.appendTensorNetwork(std::move(bra), pairings);
         }
 
-        const bool isoCollapsed = combinedNetwork.collapseIsometries();
-        assert(isoCollapsed);
+        const bool isoCollapsed = combinedNetwork.collapseIsometries();        
+        {
+          // DEBUG:
+          combinedNetwork.getOperationList("metis");
+          const double flops = combinedNetwork.getFMAFlops();
+          const double intermediatesVolume = combinedNetwork.getMaxIntermediatePresenceVolume();
+          assert(intermediatesVolume >= 0.0);
+          const int64_t sizeInBytes = static_cast<int64_t>(intermediatesVolume * sizeof(std::complex<double>)); 
+          std::cout << "Combined circuit requires " << flops << " FMA flops and " << sizeInBytes << " bytes\n";
 
+          if (sizeInBytes > MAX_TALSH_MEMORY_BUFFER_SIZE_BYTES)
+          {
+            xacc::error("ExaTN intermediate tensors require more memory than max allowed of " + 
+              std::to_string(MAX_TALSH_MEMORY_BUFFER_SIZE_BYTES) + " bytes.");
+          }
+        }
+      
         // Evaluate
+        const auto startEvaluate = std::chrono::system_clock::now();
         if (exatn::evaluateSync(combinedNetwork)) 
         {
-            // std::string network_printed;
-            // auto printed = combinedNetwork.printTensorNetwork(network_printed); 
-            // assert(printed);
-            // std::cout << "Reconstructed symbolic tensor network: \n" << network_printed << "\n\n";
+            const auto endEvaluate = std::chrono::system_clock::now();
+            std::cout << "exatn::evaluateSync() took: " 
+            << std::chrono::duration_cast<std::chrono::milliseconds>(endEvaluate - startEvaluate).count()
+            << " ms\n";
             
             exatn::sync();
             auto talsh_tensor = exatn::getLocalTensor(combinedNetwork.getTensor(0)->getName());
