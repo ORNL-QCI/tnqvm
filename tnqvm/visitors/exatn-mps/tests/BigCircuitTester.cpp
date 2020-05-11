@@ -22,7 +22,10 @@ TEST(BigCircuitTester, checkBitStringSampling)
     auto accelerator = xacc::getAccelerator("tnqvm", {
         std::make_pair("tnqvm-visitor", "exatn"), 
         // Just produce one shot
-        std::make_pair("shots", 1)
+        std::make_pair("shots", 1),
+        // Use the "greed" contraction seq. optimizer
+        // TODO: switch to the "metis" optimizer once it is fixed.
+        std::make_pair("exatn-contract-seq-optimizer", "greed")
     });
 
     auto qreg = xacc::qalloc(NB_QUBITS);
