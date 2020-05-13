@@ -46,7 +46,7 @@ TEST(NumericalTester, checkNorm)
     // With SVD cut-off limit:
     {
         std::cout << "Testing SVD cut-off limit!\n";
-        auto accelerator = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps"), std::make_pair("shots", 1), std::make_pair("svd-cutoff", 1e-9)});
+        auto accelerator = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps"), std::make_pair("shots", 1), std::make_pair("svd-cutoff", 1e-16)});
         auto qreg = xacc::qalloc(NB_QUBITS);
         const auto start = std::chrono::system_clock::now();
         accelerator->execute(qreg, randomCirc);
@@ -76,8 +76,7 @@ TEST(NumericalTester, checkDistribution)
     // MPS simulation
     auto acceleratorMps = xacc::getAccelerator("tnqvm", {
         std::make_pair("tnqvm-visitor", "exatn-mps"), 
-        std::make_pair("shots", NB_SHOTS), 
-        std::make_pair("svd-cutoff", 1e-9)});
+        std::make_pair("shots", NB_SHOTS) });
     auto qregMps = xacc::qalloc(NB_QUBITS);
     acceleratorMps->execute(qregMps, randomCirc);
     const double norm = (*qregMps)["norm"].as<double>();
