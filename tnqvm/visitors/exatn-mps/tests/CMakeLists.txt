@@ -27,3 +27,13 @@ add_executable(SvdTruncateTester SvdTruncateTester.cpp)
 target_link_libraries(SvdTruncateTester PRIVATE ${XACC_ROOT}/lib/libgtest.so ${XACC_ROOT}/lib/libgtest_main.so tnqvm-exatn)
 add_test(NAME SvdTruncateTester COMMAND SvdTruncateTester)
 target_compile_features(SvdTruncateTester PRIVATE cxx_std_14)
+
+add_executable(NumericalTester NumericalTester.cpp)
+target_link_libraries(NumericalTester PRIVATE ${XACC_ROOT}/lib/libgtest.so ${XACC_ROOT}/lib/libgtest_main.so tnqvm-exatn)
+add_test(NAME NumericalTester COMMAND NumericalTester)
+target_compile_features(NumericalTester PRIVATE cxx_std_14)
+
+add_executable(BigCircuitTester BigCircuitTester.cpp)
+target_link_libraries(BigCircuitTester PRIVATE ${XACC_ROOT}/lib/libgtest.so ${XACC_ROOT}/lib/libgtest_main.so tnqvm-exatn)
+add_test(NAME BigCircuitTester COMMAND BigCircuitTester)
+target_compile_features(BigCircuitTester PRIVATE cxx_std_14)

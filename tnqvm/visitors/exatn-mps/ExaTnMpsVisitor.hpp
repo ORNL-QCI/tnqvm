@@ -88,5 +88,6 @@ private:
     std::vector<size_t> m_measureQubits;
     int m_shotCount;
     bool m_aggregateEnabled; 
+    double m_svdCutoff;
 };
 } 

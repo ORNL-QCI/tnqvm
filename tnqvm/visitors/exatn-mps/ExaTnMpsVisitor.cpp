@@ -65,6 +65,40 @@ std::vector<std::complex<double>> getTensorData(const std::string& in_tensorName
     }
     return result;
 } 
+
+std::unordered_map<std::string, tnqvm::Stat::FunctionCallStat>& getStatRegistry()
+{
+    static std::unordered_map<std::string, tnqvm::Stat::FunctionCallStat> statMap;
+    return statMap;
+}
+
+tnqvm::Stat::FunctionCallStat& getStatInstance(const std::string& in_name)
+{
+    auto& statMap = getStatRegistry();
+    auto iter = statMap.find(in_name);
+    if (iter != statMap.end())
+    {
+        return iter->second;
+    }
+    // Create new stat
+    tnqvm::Stat::FunctionCallStat newStat(in_name);
+    auto result = statMap.emplace(in_name, newStat);
+    return result.first->second;
+}
+
+void printAllStats()
+{
+    for (auto& stat: getStatRegistry())
+    {
+        std::cout << stat.second.toString(true) << "\n";
+    }
+}
+
+size_t getNumberOfThreads()
+{
+    static const size_t NB_THREADS = std::thread::hardware_concurrency();
+    return NB_THREADS;
+}
 }
 namespace tnqvm {
 ExatnMpsVisitor::ExatnMpsVisitor():
@@ -78,6 +112,8 @@ ExatnMpsVisitor::ExatnMpsVisitor():
 
 void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int nbShots) 
 { 
+    const auto initializeStart = std::chrono::system_clock::now();
+
     // Check if we have any specific config for the gate aggregator
     if (m_aggregateEnabled && options.keyExists<int>("agg-width"))
     {
@@ -111,7 +147,15 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
         // If exaTN has not been initialized, do it now.
         exatn::initialize();
     }
-    
+
+    // Default SVD cut-off is the numerical limit, i.e. technically, no cut-off.
+    m_svdCutoff = std::numeric_limits<double>::min();
+    if (options.keyExists<double>("svd-cutoff"))
+    {
+        m_svdCutoff = options.get<double>("svd-cutoff");
+        std::cout << "[DEBUG] SVD Cut-off = " << m_svdCutoff << "\n";
+    }
+
     m_buffer = std::move(buffer);
     m_qubitTensorNames.clear();
     m_tensorIdCounter = 0;
@@ -167,6 +211,22 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
     }
     // DEBUG:
     // printStateVec();
+
+    // ExaTN Logging:
+    if (options.keyExists<int>("exatn-logging-level"))
+    {
+        const int loggingLevel = options.get<int>("exatn-logging-level");
+        // Valid level: 0, 1(short), 2 (long)
+        // Default is 0, hence just update if the requested level is either 1 or 2
+        if (loggingLevel > 0 && loggingLevel < 3)
+        {
+            std::cout << "[DEBUG]: Set ExaTN runtime logging level to " << loggingLevel << "\n";
+            exatn::resetRuntimeLoggingLevel(loggingLevel);
+        }
+    }
+
+    const auto initializeEnd = std::chrono::system_clock::now();
+    getStatInstance("Initialize").addSample(initializeStart, initializeEnd);
 }
 
 void ExatnMpsVisitor::printStateVec()
@@ -206,6 +266,11 @@ void ExatnMpsVisitor::printStateVec()
 
 void ExatnMpsVisitor::finalize() 
 { 
+    const auto finalizeStart = std::chrono::system_clock::now();
+
+    // Always reset the logging level back to 0 when finished.
+    exatn::resetRuntimeLoggingLevel(0);
+
     if (m_aggregateEnabled)
     {
         m_aggregator.flushAll();    
@@ -224,6 +289,16 @@ void ExatnMpsVisitor::finalize()
         // (will require many contractions but don't require large memory allocation) 
         // DEBUG:
         // printStateVec();
+        // Print state vector norm:
+        const double norm = [&](){
+            double sum = 0;
+            for (const auto& val : tensorData)
+            {
+                sum = sum + std::norm(val);
+            }
+            return sum;
+        }();
+        m_buffer->addExtraInfo("norm", norm);
 
         if (!m_measureQubits.empty())
         {
@@ -257,6 +332,12 @@ void ExatnMpsVisitor::finalize()
         const bool qTensorDestroyed = exatn::destroyTensor("Q" + std::to_string(i));
         assert(qTensorDestroyed);
     }
+
+    const auto finalizeEnd = std::chrono::system_clock::now();
+    getStatInstance("Finalize").addSample(finalizeStart, finalizeEnd);
+
+    // Debug:
+    printAllStats();
 }
 
 void ExatnMpsVisitor::visit(Identity& in_IdentityGate) 
@@ -552,6 +633,8 @@ void ExatnMpsVisitor::onFlush(const AggregatedGroup& in_group)
 
 void ExatnMpsVisitor::applyGate(xacc::Instruction& in_gateInstruction)
 {
+    const auto gateStart = std::chrono::system_clock::now();
+
     if (in_gateInstruction.bits().size() == 2)
     {
         return applyTwoQubitGate(in_gateInstruction);
@@ -615,8 +698,12 @@ void ExatnMpsVisitor::applyGate(xacc::Instruction& in_gateInstruction)
         assert(!patternStr.empty());
         // std::cout << "Pattern string: " << patternStr << "\n";
         
+        auto start = std::chrono::system_clock::now();
         const bool contractOk = exatn::contractTensorsSync(patternStr, 1.0);
         assert(contractOk);
+        auto end = std::chrono::system_clock::now();
+        getStatInstance("Contract Single-Qubit Gate Tensor").addSample(start, end);
+        
         std::vector<std::complex<double>> resultTensorData =  getTensorData(RESULT_TENSOR_NAME);
         std::function<int(talsh::Tensor& in_tensor)> updateFunc = [&resultTensorData](talsh::Tensor& in_tensor){
             std::complex<double> *elements;
@@ -636,17 +723,27 @@ void ExatnMpsVisitor::applyGate(xacc::Instruction& in_gateInstruction)
         const bool resultTensorDestroyed = exatn::destroyTensor(RESULT_TENSOR_NAME);
         assert(resultTensorDestroyed);
     };
-    contractGateTensor(in_gateInstruction.bits()[0], uniqueGateTensorName);
+
+
+    {
+        // Single-qubit gate contraction
+        contractGateTensor(in_gateInstruction.bits()[0], uniqueGateTensorName);
+    }
 
     // DEBUG:
     // printStateVec();
 
     const bool destroyed = exatn::destroyTensor(uniqueGateTensorName);
     assert(destroyed);
+
+    const auto gateEnd = std::chrono::system_clock::now();
+    getStatInstance("One-qubit Gate Total").addSample(gateStart, gateEnd);
 }
 
 void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
 {
+    const auto gateStart = std::chrono::system_clock::now();
+        
     const int q1 = in_gateInstruction.bits()[0];
     const int q2 = in_gateInstruction.bits()[1];
     // Neighbors only
@@ -770,8 +867,14 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
     assert(!patternStr.empty());
     // std::cout << "Gate contraction pattern: " << patternStr << "\n";
 
-    const bool gateContractionOk = exatn::contractTensorsSync(patternStr, 1.0);
-    assert(gateContractionOk);
+    {
+        auto start = std::chrono::system_clock::now();
+        const bool gateContractionOk = exatn::contractTensorsSync(patternStr, 1.0);
+        assert(gateContractionOk);
+        auto end = std::chrono::system_clock::now();
+        getStatInstance("Contract Two-Qubit Gate Tensor").addSample(start, end);
+    }
+    
     const std::vector<std::complex<double>> resultTensorData =  getTensorData(RESULT_TENSOR_NAME);
     std::function<int(talsh::Tensor& in_tensor)> updateFunc = [&resultTensorData](talsh::Tensor& in_tensor){
         std::complex<double>* elements;
@@ -797,6 +900,10 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
     const bool destroyed = exatn::destroyTensor(uniqueGateTensorName);
     assert(destroyed);
 
+
+    const auto beforeSvd = std::chrono::system_clock::now();
+    getStatInstance("Two-qubit Gate: Before SVD").addSample(gateStart, beforeSvd);
+    
     // Step 3: SVD the merged tensor back into two MPS qubit tensor
     // Delete the two original qubit tensors
     const auto getBondLegId = [&](int in_qubitIdx, int in_otherQubitIdx){
@@ -859,10 +966,48 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
     const bool q2Initialized = exatn::initTensorSync(q2TensorName, 0.0);
     assert(q2Initialized);
 
-    // SVD decomposition using the same pattern that was used to merge two tensors
-    const bool svdOk = exatn::decomposeTensorSVDLRSync(mergeContractionPattern);
-    assert(svdOk);
-        
+    {
+        auto start = std::chrono::system_clock::now();
+        // SVD decomposition using the same pattern that was used to merge two tensors
+        const bool svdOk = exatn::decomposeTensorSVDLRSync(mergeContractionPattern);
+        assert(svdOk);
+        auto end = std::chrono::system_clock::now();
+        getStatInstance("Decompose Tensor SVD").addSample(start, end);
+    }
+
+#ifdef _DEBUG
+    // Validate SVD tensors
+    // TODO: this should be eventually removed once we are confident with the ExaTN numerical backend.
+    {
+        // Validate SVD tensors
+        // TODO: this should be eventually removed once we are confident with the ExaTN numerical backend.
+        const auto calcMpsTensorNorm = [](const std::string& in_tensorName) {
+            double sumNorm = 0.0;
+            const bool normOk = exatn::computeNorm2Sync(in_tensorName, sumNorm);
+            return sumNorm;
+        };
+
+        const double q1NormAfter = calcMpsTensorNorm(q1TensorName);
+        const double q2NormAfter = calcMpsTensorNorm(q2TensorName);
+        if (std::fabs(q1NormAfter) < 1e-3 || std::fabs(q2NormAfter) < 1e-3)
+        {
+            std::cout << "[ERROR] Tensor norm validation failed!\n";
+            std::cout << in_gateInstruction.toString() << "\n";
+            std::cout << q1TensorName << " norm = " << q1NormAfter << "\n";
+            std::cout << q2TensorName << " norm = " << q2NormAfter << "\n";
+            std::cout << "Tensor SVD Pattern: " <<  mergeContractionPattern << "\n";
+            std::cout << "Merged Tensor: \n";
+            printTensorData(mergedTensor->getName());
+            std::cout << q1TensorName << "\n";
+            printTensorData(q1TensorName);
+            std::cout << q2TensorName << "\n";
+            printTensorData(q2TensorName);
+            // Crash in DEBUG to aid debugging.
+            assert(false);
+        }
+    }
+#endif
+
     const bool mergedTensorDestroyed = exatn::destroyTensor(mergedTensor->getName());
     assert(mergedTensorDestroyed);
     
@@ -912,11 +1057,24 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
 
     // std::cout << "MPS: " << mpsString << "\n";
     m_tensorNetwork = std::make_shared<exatn::TensorNetwork>(m_tensorNetwork->getName(), mpsString, buildTensorMap()); 
-    // Truncate SVD tensors:
-    truncateSvdTensors(q1TensorName, q2TensorName);    
+    
+    const auto afterSvd = std::chrono::system_clock::now();
+    getStatInstance("Two-qubit Gate: After SVD").addSample(gateStart, afterSvd);
+
+    {
+        auto start = std::chrono::system_clock::now();
+        // Truncate SVD tensors:
+        truncateSvdTensors(q1TensorName, q2TensorName, m_svdCutoff);  
+        auto end = std::chrono::system_clock::now();
+        getStatInstance("Truncate SVD Tensor").addSample(start, end);
+    }
+    
     // Rebuild the tensor network since the qubit tensors have been changed after SVD truncation
     // e.g. we destroy the original tensors and replace with smaller dimension ones
     m_tensorNetwork = std::make_shared<exatn::TensorNetwork>(m_tensorNetwork->getName(), mpsString, buildTensorMap());  
+
+    const auto gateEnd = std::chrono::system_clock::now();
+    getStatInstance("Two-qubit Gate Total").addSample(gateStart, gateEnd);
 }
 
 void ExatnMpsVisitor::evaluateTensorNetwork(exatn::numerics::TensorNetwork& io_tensorNetwork, std::vector<std::complex<double>>& out_stateVec)
@@ -951,19 +1109,61 @@ void ExatnMpsVisitor::evaluateTensorNetwork(exatn::numerics::TensorNetwork& io_t
 
 void ExatnMpsVisitor::addMeasureBitStringProbability(const std::vector<size_t>& in_bits, const std::vector<std::complex<double>>& in_stateVec, int in_shotCount)
 {
-    for (int i = 0; i < in_shotCount; ++i)
+    // Factor to determine if we should spawn threads to simulate bitstring sampling.
+    const int MULT_FACTOR = 100;
+    if (getNumberOfThreads() < 2 || in_shotCount < MULT_FACTOR * getNumberOfThreads())
     {
-        std::string bitString;
-        auto stateVecCopy = in_stateVec;
-        for (const auto& bit : in_bits)    
+        // Sequential execution
+        for (int i = 0; i < in_shotCount; ++i)
         {
-            bitString.append(std::to_string(ApplyMeasureOp(stateVecCopy, bit)));
-        }
+            std::string bitString;
+            auto stateVecCopy = in_stateVec;
+            for (const auto& bit : in_bits)    
+            {
+                bitString.append(std::to_string(ApplyMeasureOp(stateVecCopy, bit)));
+            }
 
-        m_buffer->appendMeasurement(bitString);
+            m_buffer->appendMeasurement(bitString);
+        }
+    }
+    else
+    {
+        // Parallel execution
+        std::vector<std::string> bitStringArray(in_shotCount);
+        assert(bitStringArray.size() == in_shotCount);
+        std::vector<std::thread> threads(getNumberOfThreads());
+        std::mutex critical;
+        for(int t = 0; t < getNumberOfThreads(); ++t)
+        {
+            threads[t] = std::thread(std::bind([&](int beginIdx, int endIdx, int threadIdx) {
+                for(int i = beginIdx; i < endIdx; ++i)
+                {
+                    std::string bitString;
+                    auto stateVecCopy = in_stateVec;
+                    for (const auto& bit : in_bits)    
+                    {
+                        bitString.append(std::to_string(ApplyMeasureOp(stateVecCopy, bit)));
+                    }
+                    bitStringArray[i] = bitString;
+                }
+                {
+                    // Add measurement bitstring to the buffer:
+                    std::lock_guard<std::mutex> lock(critical);
+                    for(int i = beginIdx; i < endIdx; ++i)
+                    {
+                        m_buffer->appendMeasurement(bitStringArray[i]);
+                    }
+                }
+            }, 
+            t * in_shotCount / getNumberOfThreads(), 
+            (t+1) == getNumberOfThreads() ? in_shotCount: (t+1) * in_shotCount/getNumberOfThreads(), 
+            t));
+        }
+        std::for_each(threads.begin(),threads.end(),[](std::thread& x){
+            x.join();
+        });
     }
 }
-
 
 std::vector<uint8_t> ExatnMpsVisitor::getMeasureSample(const std::vector<size_t>& in_qubitIdx)
 {
@@ -1242,7 +1442,7 @@ void ExatnMpsVisitor::truncateSvdTensors(const std::string& in_leftTensorName, c
         exatn::sync();
 
         // Debug: 
-        std::cout << "[DEBUG] Bond dim (" << in_leftTensorName << ", " << in_rightTensorName << "): " << bondDim << " -> " << newBondDim << "\n";
+        // std::cout << "[DEBUG] Bond dim (" << in_leftTensorName << ", " << in_rightTensorName << "): " << bondDim << " -> " << newBondDim << "\n";
     }
 }
 }
