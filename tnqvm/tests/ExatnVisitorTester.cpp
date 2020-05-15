@@ -407,6 +407,31 @@ TEST(ExatnVisitorTester, testGrover) {
   }
 }
 
+TEST(ExatnVisitorTester, testGatefSim)
+{
+  auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn"), std::make_pair("shots", 1000)});
+  auto xasmCompiler = xacc::getCompiler("xasm");
+  auto ir = xasmCompiler->compile(R"(__qpu__ void testFsim(qbit q, double x, double y) {
+    X(q[0]);
+    fSim(q[0], q[1], x, y);
+    Measure(q[0]);
+    Measure(q[1]);
+  })", qpu);
+
+  auto program = ir->getComposites()[0]; 
+  const auto angles = xacc::linspace(-xacc::constants::pi, xacc::constants::pi, 10);
+
+  for (const auto& a : angles) {
+    auto buffer = xacc::qalloc(2);
+    auto evaled = program->operator()({ a, 0.0 });
+    qpu->execute(buffer, evaled);
+    const auto expectedProb = std::sin(a) * std::sin(a);
+    // fSim mixes 01 and 10 states w.r.t. the theta angle.
+    EXPECT_NEAR(buffer->computeMeasurementProbability("01"), expectedProb, 0.1);
+    EXPECT_NEAR(buffer->computeMeasurementProbability("10"), 1.0 - expectedProb, 0.1);
+  }
+}
+
 int main(int argc, char **argv) 
 {
   xacc::Initialize();
