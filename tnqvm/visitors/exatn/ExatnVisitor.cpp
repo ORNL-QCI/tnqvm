@@ -611,6 +611,17 @@ void ExatnVisitor::visit(CZ &in_CZGate) {
   appendGateTensor<CommonGates::CZ>(in_CZGate);
 }
 
+void ExatnVisitor::visit(iSwap& in_iSwapGate) {
+  appendGateTensor<CommonGates::iSwap>(in_iSwapGate);
+}
+
+void ExatnVisitor::visit(fSim& in_fsimGate) {
+  assert(in_fsimGate.nParameters() == 2);
+  const double theta = in_fsimGate.getParameter(0).as<double>();
+  const double phi = in_fsimGate.getParameter(1).as<double>();
+  appendGateTensor<CommonGates::fSim>(in_fsimGate, theta, phi);
+}
+
 void ExatnVisitor::visit(Measure &in_MeasureGate) {
   if (m_buffer->size() > MAX_NUMBER_QUBITS_FOR_STATE_VEC)
   {

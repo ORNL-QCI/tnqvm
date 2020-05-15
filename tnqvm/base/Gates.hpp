@@ -60,6 +60,8 @@ namespace tnqvm {
         CY,
         CH,
         CRZ,
+        iSwap,
+        fSim,
         // Count of defined common gates
         GateCount 
     };
@@ -85,7 +87,9 @@ namespace tnqvm {
         "Tdg",
         "CY",
         "CH",
-        "CRZ"  
+        "CRZ",
+        "iSwap",
+        "fSim"  
     };
 
     inline std::string GetGateName(CommonGates in_gateEnum) { return CommonGateNames[static_cast<size_t>(in_gateEnum)]; }
@@ -236,6 +240,28 @@ namespace tnqvm {
             { 0.0, 0.0, 1.0 , 0.0 },
             { 0.0, 1.0, 0.0 , 0.0 },
             { 0.0, 0.0, 0.0 , 1.0 }
+        };    
+    }
+
+    template <> 
+    std::vector<std::vector<std::complex<double>>> GetGateMatrix<CommonGates::iSwap>() {
+        return 
+        {
+            { 1.0, 0.0, 0.0 , 0.0 },
+            { 0.0, 0.0, std::complex<double>(0, 1.0), 0.0 },
+            { 0.0, std::complex<double>(0, 1.0), 0.0 , 0.0 },
+            { 0.0, 0.0, 0.0 , 1.0 }
+        };    
+    }
+
+    template <> 
+    std::vector<std::vector<std::complex<double>>> GetGateMatrix<CommonGates::fSim>(double in_theta, double in_phi) {
+        return 
+        {
+            { 1.0, 0.0, 0.0 , 0.0 },
+            { 0.0, std::cos(in_theta), std::complex<double>(0, -std::sin(in_theta)), 0.0 },
+            { 0.0, std::complex<double>(0, -std::sin(in_theta)), std::cos(in_theta), 0.0 },
+            { 0.0, 0.0, 0.0, std::exp(std::complex<double>(0, -in_phi)) }
         };    
     }
 

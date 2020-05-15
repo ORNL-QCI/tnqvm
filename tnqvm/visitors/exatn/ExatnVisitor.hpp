@@ -217,6 +217,8 @@ namespace tnqvm {
         virtual void visit(CNOT& in_CNOTGate) override;
         virtual void visit(Swap& in_SwapGate) override;
         virtual void visit(CZ& in_CZGate) override;
+        virtual void visit(iSwap& in_iSwapGate) override;
+        virtual void visit(fSim& in_fsimGate) override;
         // others
         virtual void visit(Measure& in_MeasureGate) override;
         
