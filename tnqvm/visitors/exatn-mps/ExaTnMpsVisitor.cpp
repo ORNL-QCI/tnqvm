@@ -533,6 +533,30 @@ void ExatnMpsVisitor::visit(CPhase& in_CPhaseGate)
     }
 }
 
+void ExatnMpsVisitor::visit(iSwap& in_iSwapGate) 
+{
+    if (m_aggregateEnabled)
+    {
+        m_aggregator.addGate(&in_iSwapGate); 
+    }
+    else
+    {
+        applyGate(in_iSwapGate);
+    }
+}
+
+void ExatnMpsVisitor::visit(fSim& in_fsimGate) 
+{
+    if (m_aggregateEnabled)
+    {
+        m_aggregator.addGate(&in_fsimGate); 
+    }
+    else
+    {
+        applyGate(in_fsimGate);
+    }
+}
+
 const double ExatnMpsVisitor::getExpectationValueZ(std::shared_ptr<CompositeInstruction> in_function) 
 { 
     // Walk the circuit and visit all gates
@@ -794,7 +818,8 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
     
     // Step 2: contract the merged tensor with the gate
     const auto gateTensor = GateTensorConstructor::getGateTensor(in_gateInstruction);
-    const std::string& uniqueGateTensorName = gateTensor.uniqueName;
+    const std::string uniqueGateTensorName = in_gateInstruction.name();
+
     // Create the tensor
     const bool created = exatn::createTensorSync(uniqueGateTensorName, exatn::TensorElementType::COMPLEX64, gateTensor.tensorShape);
     assert(created);

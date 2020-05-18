@@ -309,6 +309,53 @@ TEST(MpsGateTester, checkSingleQubit)
     }
 } 
 
+TEST(MpsGateTester, checkGateiSwap) 
+{    
+    auto xasmCompiler = xacc::getCompiler("xasm");
+    auto ir = xasmCompiler->compile(R"(__qpu__ void iswap1(qbit q) {
+        X(q[0]);
+        iSwap(q[0], q[1]);
+        Measure(q[0]);
+        Measure(q[1]);
+        Measure(q[2]);
+    })");
+
+    auto program = ir->getComposite("iswap1");
+    auto accelerator = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps"), std::make_pair("shots", 100)});
+    auto qreg = xacc::qalloc(3);
+    accelerator->execute(qreg, program);
+    qreg->print();
+    // iSwap is the same as Swap (just added the i phase)
+    EXPECT_NEAR(qreg->computeMeasurementProbability("010"), 1.0, 0.01);
+}
+
+TEST(MpsGateTester, checkGatefSim) 
+{    
+    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps"), std::make_pair("shots", 1000)});
+    auto xasmCompiler = xacc::getCompiler("xasm");
+    auto ir = xasmCompiler->compile(R"(__qpu__ void testFsim(qbit q, double x, double y) {
+        X(q[0]);
+        fSim(q[0], q[1], x, y);
+        Measure(q[0]);
+        Measure(q[1]);
+    })", qpu);
+
+    auto program = ir->getComposites()[0]; 
+    const auto angles = xacc::linspace(-xacc::constants::pi, xacc::constants::pi, 10);
+
+    for (const auto& a : angles) 
+    {
+        auto buffer = xacc::qalloc(2);
+        auto evaled = program->operator()({ a, 0.0 });
+        qpu->execute(buffer, evaled);
+        buffer->print();
+        const auto expectedProb = std::sin(a) * std::sin(a);
+        // fSim mixes 01 and 10 states w.r.t. the theta angle.
+        EXPECT_NEAR(buffer->computeMeasurementProbability("01"), expectedProb, 0.1);
+        EXPECT_NEAR(buffer->computeMeasurementProbability("10"), 1.0 - expectedProb, 0.1);
+    }
+}
+
 TEST(MpsGateTester, testDeuteron)
 {
     auto accelerator = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps"), std::make_pair("shots", 10000)});
