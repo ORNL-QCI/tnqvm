@@ -109,6 +109,11 @@ def parseFile(fileName):
     xasmSrcLines.append('}')
     return '\n'.join(xasmSrcLines)
 
-# Parse a file
-xasmSrc = parseFile('sycamore_53_5_0.txt')
-print(xasmSrc)
+# Parse all qFlex files to XASM and save
+for filename in os.listdir('resources'):
+    if filename.endswith('.txt'): 
+        xasmSrc = parseFile(filename)
+        pre, ext = os.path.splitext(filename)
+        xasmFilename = pre + '.xasm'
+        with open('resources/' + xasmFilename, 'w') as xasmFile:
+            xasmFile.write(xasmSrc)
