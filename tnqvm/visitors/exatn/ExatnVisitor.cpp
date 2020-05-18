@@ -336,8 +336,27 @@ void ExatnVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer,
 
     // If exaTN has not been initialized, do it now.
     exatn::ParamConf exatnParams;
-    const bool success = exatnParams.setParameter("host_memory_buffer_size", MAX_TALSH_MEMORY_BUFFER_SIZE_BYTES);
-    assert(success);
+    if (options.keyExists<int>("exatn-buffer-size-gb"))
+    {
+      int bufferSizeGb = options.get<int>("exatn-buffer-size-gb");
+      if (bufferSizeGb < 1)
+      {
+        std::cout << "Minimum buffer size is 1 GB.\n";
+        bufferSizeGb = 1;
+      }
+      // Set the memory buffer size:
+      const int64_t memorySizeBytes = bufferSizeGb * (1ULL << 30);
+      std::cout << "Set ExaTN host memory buffer to " << memorySizeBytes << " bytes.\n";
+      const bool success = exatnParams.setParameter("host_memory_buffer_size", memorySizeBytes);
+      assert(success);
+    }
+    else
+    {
+      // Use default buffer size
+      const bool success = exatnParams.setParameter("host_memory_buffer_size", MAX_TALSH_MEMORY_BUFFER_SIZE_BYTES);
+      assert(success);
+    }
+
     exatn::initialize(exatnParams);
 
     if (options.stringExists("exatn-contract-seq-optimizer"))
