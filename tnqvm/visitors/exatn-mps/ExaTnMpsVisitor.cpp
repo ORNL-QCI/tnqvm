@@ -533,6 +533,30 @@ void ExatnMpsVisitor::visit(CPhase& in_CPhaseGate)
     }
 }
 
+void ExatnMpsVisitor::visit(iSwap& in_iSwapGate) 
+{
+    if (m_aggregateEnabled)
+    {
+        m_aggregator.addGate(&in_iSwapGate); 
+    }
+    else
+    {
+        applyGate(in_iSwapGate);
+    }
+}
+
+void ExatnMpsVisitor::visit(fSim& in_fsimGate) 
+{
+    if (m_aggregateEnabled)
+    {
+        m_aggregator.addGate(&in_fsimGate); 
+    }
+    else
+    {
+        applyGate(in_fsimGate);
+    }
+}
+
 const double ExatnMpsVisitor::getExpectationValueZ(std::shared_ptr<CompositeInstruction> in_function) 
 { 
     // Walk the circuit and visit all gates
@@ -633,6 +657,8 @@ void ExatnMpsVisitor::onFlush(const AggregatedGroup& in_group)
 
 void ExatnMpsVisitor::applyGate(xacc::Instruction& in_gateInstruction)
 {
+    exatn::sync();
+
     const auto gateStart = std::chrono::system_clock::now();
 
     if (in_gateInstruction.bits().size() == 2)
@@ -735,6 +761,7 @@ void ExatnMpsVisitor::applyGate(xacc::Instruction& in_gateInstruction)
 
     const bool destroyed = exatn::destroyTensor(uniqueGateTensorName);
     assert(destroyed);
+    exatn::sync();
 
     const auto gateEnd = std::chrono::system_clock::now();
     getStatInstance("One-qubit Gate Total").addSample(gateStart, gateEnd);
@@ -742,6 +769,8 @@ void ExatnMpsVisitor::applyGate(xacc::Instruction& in_gateInstruction)
 
 void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
 {
+    exatn::sync();
+
     const auto gateStart = std::chrono::system_clock::now();
         
     const int q1 = in_gateInstruction.bits()[0];
@@ -794,7 +823,8 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
     
     // Step 2: contract the merged tensor with the gate
     const auto gateTensor = GateTensorConstructor::getGateTensor(in_gateInstruction);
-    const std::string& uniqueGateTensorName = gateTensor.uniqueName;
+    const std::string uniqueGateTensorName = in_gateInstruction.name();
+
     // Create the tensor
     const bool created = exatn::createTensorSync(uniqueGateTensorName, exatn::TensorElementType::COMPLEX64, gateTensor.tensorShape);
     assert(created);
@@ -954,17 +984,19 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
     const bool q2Destroyed = exatn::destroyTensor(q2TensorName);
     assert(q2Destroyed);
     exatn::sync();
+    exatn::sync(mergedTensor->getName());
 
     // Create two new tensors:
     const bool q1Created = exatn::createTensorSync(q1TensorName, exatn::TensorElementType::COMPLEX64, q1Shape);
     assert(q1Created);
-    const bool q1Initialized = exatn::initTensorSync(q1TensorName, 0.0);
-    assert(q1Initialized);
     
     const bool q2Created = exatn::createTensorSync(q2TensorName, exatn::TensorElementType::COMPLEX64, q2Shape);
     assert(q2Created);
-    const bool q2Initialized = exatn::initTensorSync(q2TensorName, 0.0);
-    assert(q2Initialized);
+    exatn::sync(q1TensorName);
+    exatn::sync(q2TensorName);
+    exatn::sync(mergedTensor->getName());
+    
+    exatn::sync();
 
     {
         auto start = std::chrono::system_clock::now();
@@ -975,7 +1007,9 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
         getStatInstance("Decompose Tensor SVD").addSample(start, end);
     }
 
-#ifdef _DEBUG
+    exatn::sync(q1TensorName);
+    exatn::sync(q2TensorName);
+
     // Validate SVD tensors
     // TODO: this should be eventually removed once we are confident with the ExaTN numerical backend.
     {
@@ -1006,10 +1040,6 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
             assert(false);
         }
     }
-#endif
-
-    const bool mergedTensorDestroyed = exatn::destroyTensor(mergedTensor->getName());
-    assert(mergedTensorDestroyed);
     
     const auto buildTensorMap = [&](){
         std::map<std::string, std::shared_ptr<exatn::Tensor>> tensorMap;
@@ -1073,8 +1103,12 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
     // e.g. we destroy the original tensors and replace with smaller dimension ones
     m_tensorNetwork = std::make_shared<exatn::TensorNetwork>(m_tensorNetwork->getName(), mpsString, buildTensorMap());  
 
+    const bool mergedTensorDestroyed = exatn::destroyTensor(mergedTensor->getName());
+    assert(mergedTensorDestroyed);
+
     const auto gateEnd = std::chrono::system_clock::now();
     getStatInstance("Two-qubit Gate Total").addSample(gateStart, gateEnd);
+    exatn::sync();
 }
 
 void ExatnMpsVisitor::evaluateTensorNetwork(exatn::numerics::TensorNetwork& io_tensorNetwork, std::vector<std::complex<double>>& out_stateVec)
