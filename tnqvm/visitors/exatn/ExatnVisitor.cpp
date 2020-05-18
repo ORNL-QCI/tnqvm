@@ -502,6 +502,43 @@ void ExatnVisitor::resetNetwork() {
 }
 
 void ExatnVisitor::finalize() {
+  // Calculate tensor network contraction FLOPS if requested:
+  if (options.keyExists<bool>("calc-contract-cost-flops") && options.get<bool>("calc-contract-cost-flops"))
+  {
+    auto bra = m_qubitRegTensor;
+    // Conjugate the ket to get the bra (e.g. if it was initialized to a complex
+    // superposition)
+    bra.conjugate();
+    auto combinedTensorNetwork = m_tensorNetwork;
+    // Closing the tensor network with the bra
+    std::vector<std::pair<unsigned int, unsigned int>> pairings;
+    for (unsigned int i = 0; i < m_buffer->size(); ++i) 
+    {
+      pairings.emplace_back(std::make_pair(i, i));
+    }
+    combinedTensorNetwork.appendTensorNetwork(std::move(bra), pairings);
+    combinedTensorNetwork.collapseIsometries();
+    
+    // DEBUG:
+    // combinedTensorNetwork.printIt();
+
+    const std::string optimizerName = options.stringExists("exatn-contract-seq-optimizer") ? options.getString("exatn-contract-seq-optimizer") : "metis";
+    const auto startOpt = std::chrono::system_clock::now();
+    combinedTensorNetwork.getOperationList(optimizerName);
+    const auto endOpt = std::chrono::system_clock::now();
+    const int elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(endOpt - startOpt).count();
+    const double flops = combinedTensorNetwork.getFMAFlops();
+    const double intermediatesVolume = combinedTensorNetwork.getMaxIntermediatePresenceVolume();
+    const double sizeInBytes = intermediatesVolume * sizeof(std::complex<double>); 
+    // Note: we don't actually evaluate the tensor network when user requested this mode.
+    m_hasEvaluated = true;
+    
+    // Add extra information
+    m_buffer->addExtraInfo("contract-flops", flops);
+    m_buffer->addExtraInfo("max-node-bytes", sizeInBytes);
+    m_buffer->addExtraInfo("optimizer-elapsed-time-ms", elapsedMs);
+  }
+
   if (m_buffer->size() > MAX_NUMBER_QUBITS_FOR_STATE_VEC && !m_measureQbIdx.empty() && m_shots > 0 && !m_hasEvaluated)
   {
     std::cout << "Simulating bit string by MPS tensor contraction\n";
