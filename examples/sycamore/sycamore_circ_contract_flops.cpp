@@ -1,7 +1,8 @@
 // Calculate the *expected* flops required to contract the tensor network
 #include "xacc.hpp"
-#include<iostream>
-#include<fstream>
+#include <iostream>
+#include <fstream>
+#include <numeric>
 
 int main(int argc, char **argv) 
 {
@@ -54,15 +55,26 @@ int main(int argc, char **argv)
             auto program = ir->getComposites()[0];
             // Execute: this will calculate the Flops requirement for tensor network contraction.
             qpu->execute(qubitReg, program);
-            
+
+            const std::vector<double> bitStringFlops = (*qubitReg)["bitstring-contract-flops"].as<std::vector<double>>();
+            // For bitstring flops, we sum all the flops.
+            const double bitStringFlopsTotal = std::accumulate(bitStringFlops.begin(), bitStringFlops.end(), 0.0);
+            const std::vector<double> bitStringMemBytes = (*qubitReg)["bitstring-max-node-bytes"].as<std::vector<double>>();
+            // For bitstring memory, we take the max value.
+            const double bitStringMemMax = *std::max_element(bitStringMemBytes.begin(), bitStringMemBytes.end());
+
             // Print out the data:
             std::cout << ">> Depth = " << depth << "\n";
             const double flops = (*qubitReg)["contract-flops"].as<double>();
             const double mem = (*qubitReg)["max-node-bytes"].as<double>();
             const int elapsedMs = (*qubitReg)["optimizer-elapsed-time-ms"].as<int>();
+            std::cout << " ==== Amplitude Calculation === \n";
             std::cout << "     - Flops = " << std::scientific << flops << "\n";
             std::cout << "     - Memory = " << std::scientific << mem << " [bytes] \n";
             std::cout << "     - Elapsed time = " << elapsedMs << " [ms]\n";
+            std::cout << " ==== Bitstring Projection === \n";
+            std::cout << "     - Total Flops = " << std::scientific << bitStringFlopsTotal << "\n";
+            std::cout << "     - Max Memory = " << std::scientific << bitStringMemMax << " [bytes] \n";
         }
     }
 

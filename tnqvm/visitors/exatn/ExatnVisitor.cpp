@@ -533,10 +533,25 @@ void ExatnVisitor::finalize() {
     // Note: we don't actually evaluate the tensor network when user requested this mode.
     m_hasEvaluated = true;
     
-    // Add extra information
+    // Add extra information: full tensor contraction (i.e. amplitude calculation)
     m_buffer->addExtraInfo("contract-flops", flops);
     m_buffer->addExtraInfo("max-node-bytes", sizeInBytes);
     m_buffer->addExtraInfo("optimizer-elapsed-time-ms", elapsedMs);
+
+    // Calculate flops and memory for bit string generation:
+    const auto flopsAndBytes = calcFlopsAndMemoryForSample(m_qubitRegTensor);
+    std::vector<double> flopsVec;
+    std::vector<double> memBytesVec;
+    for (auto it = std::make_move_iterator(flopsAndBytes.begin()), 
+          end = std::make_move_iterator(flopsAndBytes.end()); 
+          it != end; ++it)
+    {
+      flopsVec.push_back(std::move(it->first));
+      memBytesVec.push_back(std::move(it->second));
+    }
+
+    m_buffer->addExtraInfo("bitstring-contract-flops", flopsVec);
+    m_buffer->addExtraInfo("bitstring-max-node-bytes", memBytesVec);
   }
 
   if (m_buffer->size() > MAX_NUMBER_QUBITS_FOR_STATE_VEC && !m_measureQbIdx.empty() && m_shots > 0 && !m_hasEvaluated)
@@ -1389,6 +1404,70 @@ std::vector<uint8_t> ExatnVisitor::generateMeasureSample(const TensorNetwork& in
     }
 
     return resultBitString;
+}
+
+std::vector<std::pair<double, double>> ExatnVisitor::calcFlopsAndMemoryForSample(const TensorNetwork& in_tensorNetwork)
+{
+  std::vector<std::pair<double, double>> resultData;
+  resultData.reserve(m_buffer->size());
+  // Create the collapse tensor:
+  const std::vector<std::complex<double>> COLLAPSE_TEMP { {1.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0} };
+  const std::string tensorName = "COLLAPSE_TENSOR_TEMP";
+  const bool created = exatn::createTensor(tensorName, exatn::TensorElementType::COMPLEX64, exatn::TensorShape{2, 2});
+  assert(created);
+  const bool registered = exatn::registerTensorIsometry(tensorName, {0}, {1});
+  assert(registered);
+  const bool initialized = exatn::initTensorData(tensorName, COLLAPSE_TEMP);
+  assert(initialized);  
+  exatn::sync(tensorName);
+
+  for (int qubitIdx = 0; qubitIdx < m_buffer->size(); ++qubitIdx) 
+  {
+    exatn::TensorNetwork ket(in_tensorNetwork);
+    ket.rename("MPSket");
+    exatn::TensorNetwork bra(ket);
+    bra.conjugate();
+    bra.rename("MPSbra");
+    auto tensorIdCounter = ket.getMaxTensorId();
+    // Adding collapse tensors for previously-measured qubits:
+    for (unsigned int measIdx = 0; measIdx < qubitIdx; ++measIdx) 
+    {
+      tensorIdCounter++;
+      const bool appended = ket.appendTensorGate(tensorIdCounter, exatn::getTensor(tensorName), { measIdx });
+      assert(appended);
+    }    
+
+    auto combinedNetwork = ket;
+    combinedNetwork.rename("Combined Tensor Network");
+    // Append the conjugate network to calculate the RDM of the measure
+    // qubit
+    std::vector<std::pair<unsigned int, unsigned int>> pairings;
+    for (size_t i = 0; i < m_buffer->size(); ++i) 
+    {
+      // Connect the original tensor network with its inverse
+      // but leave the measure qubit line open.
+      if (i != qubitIdx) 
+      {
+        pairings.emplace_back(std::make_pair(i, i));
+      }
+    }
+    combinedNetwork.appendTensorNetwork(std::move(bra), pairings);
+    const bool isoCollapsed = combinedNetwork.collapseIsometries();    
+    const std::string optimizerName = options.stringExists("exatn-contract-seq-optimizer") ? options.getString("exatn-contract-seq-optimizer") : "metis";
+    // Get the tensor operation list, i.e. run the tensor optimizer.
+    combinedNetwork.getOperationList(optimizerName);      
+    const double flops = combinedNetwork.getFMAFlops();
+    const double intermediatesVolume = combinedNetwork.getMaxIntermediatePresenceVolume();
+    const double sizeInBytes = intermediatesVolume * sizeof(std::complex<double>); 
+    // Save the data:
+    resultData.emplace_back(flops, sizeInBytes);
+  }
+  // Destroy the temporary projection tensor
+  const bool tensorDestroyed = exatn::destroyTensor(tensorName);
+  assert(tensorDestroyed);
+  exatn::sync();
+  
+  return resultData;
 }
 } // end namespace tnqvm
 
