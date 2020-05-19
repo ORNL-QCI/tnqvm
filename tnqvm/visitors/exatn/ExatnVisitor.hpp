@@ -272,6 +272,10 @@ namespace tnqvm {
         std::complex<double> evaluateTerm(const std::vector<std::shared_ptr<Instruction>>& in_observableTerm); 
         void applyInverse();
         std::vector<uint8_t> generateMeasureSample(const TensorNetwork& in_tensorNetwork, const std::vector<int>& in_qubitIdx);
+        // Calculate the flops and memory requirements to generate a full sample (all qubits) for the input tensor network.
+        // Note: this doesn't actually contract the tensor network, just getting this data from the ExaTN optimizer.
+        // Output: pairs of flops and memory (in bytes); one pair for each qubit.
+        std::vector<std::pair<double, double>> calcFlopsAndMemoryForSample(const TensorNetwork& in_tensorNetwork);
 
     private:
        TensorNetwork m_tensorNetwork;
