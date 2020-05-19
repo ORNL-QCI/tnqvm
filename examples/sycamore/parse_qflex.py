@@ -84,13 +84,22 @@ def parseFile(fileName):
                 if gateName == 'y_1_2':
                     angle = '1.5708'
                     gateName = 'Ry'
-                # This is not correct
                 if gateName == 'hz_1_2':
-                    gateName = 'H'
+                    # qFlex's hz_1_2 == Cirq's PhasedXPowGate(phase_exponent=0.25, exponent=0.5)
+                    # i.e. hz_1_2 == Z^-0.25─X^0.5─Z^0.25 == Rz(-pi/4) - Rx(pi/2) - Rz(pi/4)
+                    qubit = 'q[' + str(qubitIdxMap[int(components[2])]) + ']'
+                    # Comment block around this transformation
+                    xasmSrcLines.append('// Begin hz_1_2')
+                    xasmSrcLines.append('Rz' + '(' + qubit + ', ' + '-0.785398' + ');')
+                    xasmSrcLines.append('Rx' + '(' + qubit + ', ' + '1.5708' + ');')
+                    xasmSrcLines.append('Rz' + '(' + qubit + ', ' + '0.785398' + ');')
+                    xasmSrcLines.append('// End hz_1_2')
+                    # We don't need to handle this gate anymore.
+                    gateName = ''
                 qubit = 'q[' + str(qubitIdxMap[int(components[2])]) + ']'
                 if gateName ==  'Rx' or gateName ==  'Ry' or gateName ==  'Rz':
                     xasmSrcLines.append(gateName + '(' + qubit + ', ' + angle + ');')
-                else:
+                elif len(gateName) > 0:
                     xasmSrcLines.append(gateName + '(' + qubit +');')
             if len(components) == 5:
                 # 2-q gate
