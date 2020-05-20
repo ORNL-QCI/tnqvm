@@ -539,7 +539,7 @@ void ExatnVisitor::finalize() {
     m_buffer->addExtraInfo("optimizer-elapsed-time-ms", elapsedMs);
 
     // Calculate flops and memory for bit string generation:
-    const auto flopsAndBytes = calcFlopsAndMemoryForSample(m_qubitRegTensor);
+    const auto flopsAndBytes = calcFlopsAndMemoryForSample(m_tensorNetwork);
     std::vector<double> flopsVec;
     std::vector<double> memBytesVec;
     for (auto it = std::make_move_iterator(flopsAndBytes.begin()), 
