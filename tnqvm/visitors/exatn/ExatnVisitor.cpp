@@ -98,15 +98,28 @@ GateInstanceIdentifier::GateInstanceIdentifier(const std::string &in_gateName,
   addParam(in_params...);
 }
 
+
+std::string formatGateParamStr(const std::string& in_paramStr) {
+  std::string result = in_paramStr;
+  // Remove special characters:
+  // ExaTN doesn't allow special characters (only underscore is allowed).
+  // Hence, update format the param string accordingly.
+  std::replace(result.begin(), result.end(), '-', '_');
+  std::replace(result.begin(), result.end(), '.', '_');
+  result.erase(std::remove(result.begin(), result.end(), '+'), result.end());
+
+  return result;
+}
+
 template <typename GateParam>
 void GateInstanceIdentifier::addParam(const GateParam &in_param) {
-  m_gateParams.emplace_back(std::to_string(in_param));
+  m_gateParams.emplace_back(formatGateParamStr(std::to_string(in_param)));
 }
 
 template <typename GateParam, typename... MoreParams>
 void GateInstanceIdentifier::addParam(const GateParam &in_param,
                                       const MoreParams &... in_moreParams) {
-  m_gateParams.emplace_back(std::to_string(in_param));
+  m_gateParams.emplace_back(formatGateParamStr(std::to_string(in_param)));
   addParam(in_moreParams...);
 }
 
@@ -114,15 +127,15 @@ std::string GateInstanceIdentifier::toNameString() const {
   if (m_gateParams.empty()) {
     return m_gateName;
   } else {
-    return m_gateName + "(" + [&]() -> std::string {
+    return m_gateName + "__" + [&]() -> std::string {
       std::string paramList;
       for (size_t i = 0; i < m_gateParams.size() - 1; ++i) {
-        paramList.append(m_gateParams[i] + ",");
+        paramList.append(m_gateParams[i] + "__");
       }
       paramList.append(m_gateParams.back());
 
       return paramList;
-    }() + ")";
+    }() + "__";
   }
 }
 
