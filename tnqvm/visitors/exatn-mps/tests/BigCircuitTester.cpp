@@ -23,9 +23,11 @@ TEST(BigCircuitTester, checkBitStringSampling)
         std::make_pair("tnqvm-visitor", "exatn"), 
         // Just produce one shot
         std::make_pair("shots", 1),
-        // Use the "greed" contraction seq. optimizer
-        // TODO: switch to the "metis" optimizer once it is fixed.
-        std::make_pair("exatn-contract-seq-optimizer", "greed")
+        // Use the default "metis" contraction seq. optimizer
+        std::make_pair("exatn-contract-seq-optimizer", "metis"),
+        // Just perform a dry-run rather than contracting the network.
+        // This will save test time.
+        std::make_pair("calc-contract-cost-flops", true)
     });
 
     auto qreg = xacc::qalloc(NB_QUBITS);
