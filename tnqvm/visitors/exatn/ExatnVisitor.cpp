@@ -1093,7 +1093,7 @@ std::vector<uint8_t> ExatnVisitor::getMeasureSample(
                 {0.0, 0.0}};
 
             const std::string tensorName =
-                "COLLAPSE_0@" + std::to_string(measIdx);
+                "COLLAPSE_0_" + std::to_string(measIdx);
             const bool created = exatn::createTensor(
                 tensorName, exatn::TensorElementType::COMPLEX64,
                 TensorShape{2, 2});
@@ -1117,7 +1117,7 @@ std::vector<uint8_t> ExatnVisitor::getMeasureSample(
                 {1.0 / resultProbs[measIdx], 0.0}};
 
             const std::string tensorName =
-                "COLLAPSE_1@" + std::to_string(measIdx);
+                "COLLAPSE_1_" + std::to_string(measIdx);
             const bool created = exatn::createTensor(
                 tensorName, exatn::TensorElementType::COMPLEX64,
                 TensorShape{2, 2});
@@ -1275,7 +1275,7 @@ std::vector<uint8_t> ExatnVisitor::generateMeasureSample(const TensorNetwork& in
                     {0.0, 0.0},
                     {0.0, 0.0}};
 
-                const std::string tensorName = "COLLAPSE_0@" + std::to_string(measIdx);
+                const std::string tensorName = "COLLAPSE_0_" + std::to_string(measIdx);
                 const bool created = exatn::createTensor(tensorName, exatn::TensorElementType::COMPLEX64, exatn::TensorShape{2, 2});
                 assert(created);
                 tensorsToDestroy.emplace_back(tensorName);
@@ -1297,7 +1297,7 @@ std::vector<uint8_t> ExatnVisitor::generateMeasureSample(const TensorNetwork& in
                     {0.0, 0.0},
                     {1.0 / resultProbs[measIdx], 0.0}};
 
-                const std::string tensorName = "COLLAPSE_1@" + std::to_string(measIdx);
+                const std::string tensorName = "COLLAPSE_1_" + std::to_string(measIdx);
                 const bool created = exatn::createTensor(tensorName, exatn::TensorElementType::COMPLEX64, exatn::TensorShape{2, 2});
                 assert(created);
                 tensorsToDestroy.emplace_back(tensorName);
