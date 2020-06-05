@@ -103,6 +103,11 @@ size_t getNumberOfThreads()
     static const size_t NB_THREADS = std::thread::hardware_concurrency();
     return NB_THREADS;
 }
+
+inline bool indexInRange(size_t in_idx, const std::pair<size_t, size_t>& in_range)
+{
+    return (in_idx >= in_range.first) && (in_idx <= in_range.second);
+}
 }
 namespace tnqvm {
 ExatnMpsVisitor::ExatnMpsVisitor():
@@ -169,7 +174,6 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
     m_shotCount = nbShots;
     
 #ifdef TNQVM_MPI_ENABLED
-    std::cout << "============== MPI Info ============================\n";
     exatn::ProcessGroup process_group(exatn::getDefaultProcessGroup());
     // Get the rank of the process    
     auto process_comm_world = process_group.getMPICommProxy().getRef<MPI_Comm>();
@@ -180,12 +184,33 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
     char processor_name[MPI_MAX_PROCESSOR_NAME];
     int name_len;
     MPI_Get_processor_name(processor_name, &name_len);
+    if (process_rank == 0)
+    {
+        std::cout << "============== MPI Info ============================\n";
+        std::cout << "Processor " << processor_name << ", rank = " << process_rank << "\n";
+        std::cout << "Number of MPI processes = " << process_group.getSize() << "\n";
+        std::cout << "Memory limit per process = " << process_group.getMemoryLimitPerProcess() << "\n";
+        std::cout << "====================================================\n";
+    }
+    m_rank = process_rank;
+    // Split processes into groups:
+    m_processGroup = process_group.split(process_rank);
+    std::cout << "Processor [" << process_rank << "]: Number of MPI processes in sub-group = " << m_processGroup->getSize() << "\n";
+    std::cout << "Processor [" << process_rank << "]: Memory limit per process in sub-group = " << m_processGroup->getMemoryLimitPerProcess() << "\n";
+    
+    if (process_group.getSize() < m_buffer->size())
+    {
+        const size_t lRange = process_rank * (m_buffer->size() / process_group.getSize());
+        const size_t hRange = (process_rank + 1) * (m_buffer->size() / process_group.getSize()) - 1;
+        m_qubitRange = std::make_pair(lRange, hRange);
+    }
+    else
+    {
+        // Each qubit to one process
+        m_qubitRange = std::make_pair(process_rank, process_rank);
+    }
 
-    // Print off a hello world message
-    std::cout << "Processor " << processor_name << ", rank = " << process_rank << "\n";
-    std::cout << "Number of MPI processes = " << process_group.getSize() << "\n";
-    std::cout << "Memory limit per process = " << process_group.getMemoryLimitPerProcess() << "\n";
-    std::cout << "====================================================\n";
+    std::cout << "Processor [" << process_rank << "] handles qubit " << m_qubitRange.first << " to " << m_qubitRange.second << "\n";  
 #endif
     
     const std::vector<int> qubitTensorDim(m_buffer->size(), 2);
@@ -394,7 +419,7 @@ void ExatnMpsVisitor::finalize()
     getStatInstance("Finalize").addSample(finalizeStart, finalizeEnd);
 
     // Debug:
-    printAllStats();
+    // printAllStats();
 }
 
 void ExatnMpsVisitor::visit(Identity& in_IdentityGate) 
@@ -722,7 +747,7 @@ void ExatnMpsVisitor::applyGate(xacc::Instruction& in_gateInstruction)
     {
         return applyTwoQubitGate(in_gateInstruction);
     }
-
+#ifndef TNQVM_MPI_ENABLED
     // Single qubit only in this path
     assert(in_gateInstruction.bits().size() == 1);
     const auto gateTensor = GateTensorConstructor::getGateTensor(in_gateInstruction);
@@ -822,10 +847,19 @@ void ExatnMpsVisitor::applyGate(xacc::Instruction& in_gateInstruction)
 
     const auto gateEnd = std::chrono::system_clock::now();
     getStatInstance("One-qubit Gate Total").addSample(gateStart, gateEnd);
+#else
+    // MPI path:
+    const size_t bitIdx = in_gateInstruction.bits()[0];
+    if (indexInRange(bitIdx, m_qubitRange))
+    {
+        std::cout << "Processor [" << m_rank << "]: Process gate: " << in_gateInstruction.toString() << "\n";
+    }
+#endif
 }
 
 void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
 {
+#ifndef TNQVM_MPI_ENABLED
     exatn::sync();
 
     const auto gateStart = std::chrono::system_clock::now();
@@ -1166,6 +1200,37 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
     const auto gateEnd = std::chrono::system_clock::now();
     getStatInstance("Two-qubit Gate Total").addSample(gateStart, gateEnd);
     exatn::sync();
+#else
+    // MPI
+    const int q1 = in_gateInstruction.bits()[0];
+    const int q2 = in_gateInstruction.bits()[1];
+    if (indexInRange(q1, m_qubitRange) && indexInRange(q2, m_qubitRange))
+    {
+        // Both qubits in range: process the gate
+        std::cout << "Processor [" << m_rank << "]: Process gate: " << in_gateInstruction.toString() << "\n";
+    }
+    else if (indexInRange(q1, m_qubitRange)) 
+    {
+        // q1 in range, q2 is not:
+        // Receive q2 data from next subgroup
+        std::cout << "Processor [" << m_rank << "]: Wait data to process gate: " << in_gateInstruction.toString() << "\n";
+        // MPI sync here: 
+        // Get tensor data:
+        // Apply gate->SVD
+        // Send tensor to the neighbor process
+    }
+    else if (indexInRange(q2, m_qubitRange))
+    {
+        // Send tensor data to the left
+        std::cout << "Processor [" << m_rank << "]: Send tensor data to process gate: " << in_gateInstruction.toString() << "\n";
+        // Wait to receive tensor back (sync)
+    }
+    else 
+    {
+        // Don't care: both tensors are not in range
+        std::cout << "Processor [" << m_rank << "]: Ignore gate: " << in_gateInstruction.toString() << "\n";
+    }
+#endif
 }
 
 void ExatnMpsVisitor::evaluateTensorNetwork(exatn::numerics::TensorNetwork& io_tensorNetwork, std::vector<std::complex<double>>& out_stateVec)

@@ -91,5 +91,12 @@ private:
     int m_shotCount;
     bool m_aggregateEnabled; 
     double m_svdCutoff;
+#ifdef TNQVM_MPI_ENABLED
+    // Min-max qubit range (inclusive) that this process handles 
+    std::pair<size_t, size_t> m_qubitRange;
+    // The process group that the current process belongs to.
+    std::shared_ptr<exatn::ProcessGroup> m_processGroup; 
+    size_t m_rank;
+#endif
 };
 } 
