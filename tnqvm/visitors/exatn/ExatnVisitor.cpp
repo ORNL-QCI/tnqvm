@@ -590,8 +590,8 @@ void ExatnVisitor::finalize() {
       // If we haven't evaluated the network, do it now (end of circuit).
       evaluateNetwork();
     }
-
-    if (m_shots > 1) {
+    // Shots
+    if (m_shots > 0) {
       const auto cachedStateVec = retrieveStateVector();
       for (int i = 0; i < m_shots; ++i) {
         auto stateVecCopy = cachedStateVec;
@@ -606,21 +606,44 @@ void ExatnVisitor::finalize() {
         m_resultBitString.clear();
       }
     }
+    // No-shots, just add expectation value:
+    else
+    {
+      if (!m_measureQbIdx.empty())
+      {
+        const auto calcExpValueZ = [](const std::vector<int>& in_bits, const std::vector<std::complex<double>>& in_stateVec) {
+          const auto hasEvenParity = [](uint64_t x, const std::vector<int>& in_qubitIndices) -> bool {
+              size_t count = 0;
+              for (const auto& bitIdx : in_qubitIndices)
+              {
+                  if (x & (1ULL << bitIdx))
+                  {
+                      count++;
+                  }
+              }
+              return (count % 2) == 0;
+          };
+
+          double result = 0.0;
+          for(uint64_t i = 0; i < in_stateVec.size(); ++i)
+          {
+            result += (hasEvenParity(i, in_bits) ? 1.0 : -1.0) * std::norm(in_stateVec[i]);
+          }
+
+          return result;
+        };
+
+        const auto tensorData =  retrieveStateVector();
+        const double exp_val_z = calcExpValueZ(m_measureQbIdx, tensorData);
+        m_buffer->addExtraInfo("exp-val-z", exp_val_z);
+      }
+    }
 
     // Notify listeners
     {
       for (auto &listener : m_listeners) {
         listener->onEvaluateComplete(this);
       }
-    }
-
-    // Set the bit string from measurement to the buffer
-    // Note: if m_shots is not specified (-1), don't need to set the measurement
-    // bit string.
-    if (!m_resultBitString.empty() && m_shots > 0) {
-      m_buffer->appendMeasurement(m_resultBitString);
-      // Clear the result bit string after appending.
-      m_resultBitString.clear();
     }
   }
   
@@ -738,33 +761,8 @@ void ExatnVisitor::visit(Measure &in_MeasureGate) {
   m_measureQbIdx.emplace_back(measQubit);
 
   // If multi-shot was requested, we skip measurement till the end.
-  if (m_shots > 1) {
+  if (m_shots > 0) {
     return;
-  }
-
-  // Calculate the expected value
-  auto expectationFunctor =
-      std::make_shared<CalculateExpectationValueFunctor>(m_measureQbIdx);
-  exatn::numericalServer->transformTensorSync(
-      m_tensorNetwork.getTensor(0)->getName(), expectationFunctor);
-
-  // Apply the measurement logic
-  auto measurementFunctor =
-      std::make_shared<ApplyQubitMeasureFunctor>(measQubit);
-  exatn::numericalServer->transformTensorSync(
-      m_tensorNetwork.getTensor(0)->getName(), measurementFunctor);
-  exatn::sync();
-
-  m_buffer->addExtraInfo("exp-val-z", expectationFunctor->getResult());
-  // Append the boolean true/false as bit value
-  m_resultBitString.append(measurementFunctor->getResult() ? "1" : "0");
-  // Notify listeners: after measurement
-  {
-    for (auto &listener : m_listeners) {
-      listener->postMeasurement(this, in_MeasureGate,
-                                measurementFunctor->getResult(),
-                                expectationFunctor->getResult());
-    }
   }
 }
 // === END: Gate Visitor Impls ===
