@@ -6,8 +6,19 @@ if (ExaTN_FOUND)
    set (PACKAGE_DESCIPTION "TNQVM ExaTN MPS backend")
    set (LIBRARY_NAME tnqvm-exatn-mps)
 
-   # Checks that EXATN_DIR is a valid ExaTN install directory
-
+  if (TNQVM_MPI_ENABLED) 
+   find_package(MPI REQUIRED)
+   message(STATUS "Found a suitable MPI compiler ${MPI_CXX_COMPILER}.")
+   message(STATUS "Compiler vendor is [${CMAKE_CXX_COMPILER_ID}]")
+   message(STATUS "Include path: ${MPI_CXX_INCLUDE_DIRS}")
+   message(STATUS "Compile flags: ${MPI_CXX_COMPILE_FLAGS}")
+   message(STATUS "Link flags: ${MPI_CXX_LINK_FLAGS}")
+   message(STATUS "Libraries: ${MPI_CXX_LIBRARIES}")
+   include_directories(${MPI_CXX_INCLUDE_DIRS})
+   link_libraries(${MPI_CXX_LIBRARIES})
+   add_definitions(-DTNQVM_MPI_ENABLED)
+  endif()  
+   
    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DTNQVM_HAS_EXATN")
    set(CMAKE_INSTALL_RPATH "${EXATN_ROOT}/lib")
    set(EXATN_VISITOR_CPP_FILE ExaTnMpsVisitor.cpp)

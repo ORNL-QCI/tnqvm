@@ -9,6 +9,10 @@
 #include <dlfcn.h>
 #endif
 
+#ifdef TNQVM_MPI_ENABLED
+#include "mpi.h"
+#endif
+
 namespace {
 const std::vector<std::complex<double>> Q_ZERO_TENSOR_BODY{{1.0, 0.0}, {0.0, 0.0}};
 const std::vector<std::complex<double>> Q_ONE_TENSOR_BODY{{0.0, 0.0}, {1.0, 0.0}};  
@@ -163,6 +167,27 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
     m_registeredGateTensors.clear();
     m_measureQubits.clear();
     m_shotCount = nbShots;
+    
+#ifdef TNQVM_MPI_ENABLED
+    std::cout << "============== MPI Info ============================\n";
+    exatn::ProcessGroup process_group(exatn::getDefaultProcessGroup());
+    // Get the rank of the process    
+    auto process_comm_world = process_group.getMPICommProxy().getRef<MPI_Comm>();
+    int process_rank;
+    MPI_Comm_rank(process_comm_world, &process_rank);
+
+    // Get the name of the processor
+    char processor_name[MPI_MAX_PROCESSOR_NAME];
+    int name_len;
+    MPI_Get_processor_name(processor_name, &name_len);
+
+    // Print off a hello world message
+    std::cout << "Processor " << processor_name << ", rank = " << process_rank << "\n";
+    std::cout << "Number of MPI processes = " << process_group.getSize() << "\n";
+    std::cout << "Memory limit per process = " << process_group.getMemoryLimitPerProcess() << "\n";
+    std::cout << "====================================================\n";
+#endif
+    
     const std::vector<int> qubitTensorDim(m_buffer->size(), 2);
     m_rootTensor = std::make_shared<exatn::Tensor>(ROOT_TENSOR_NAME, qubitTensorDim);
     // Build MPS tensor network
