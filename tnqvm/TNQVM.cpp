@@ -31,6 +31,16 @@
 #include "TNQVM.hpp"
 #include "PauliOperator.hpp"
 
+namespace {
+inline int getShotCountOption(const xacc::HeterogeneousMap& in_options) 
+{
+  int result = -1;
+  if (in_options.keyExists<int>("shots")) {
+    result = in_options.get<int>("shots");
+  }
+  return result;  
+}
+}
 namespace tnqvm {
 
 const std::string TNQVM::DEFAULT_VISITOR_BACKEND = "itensor-mps";
@@ -47,7 +57,7 @@ void TNQVM::execute(
     visitor->setOptions(options);
 
     // Initialize the visitor
-    visitor->initialize(buffer, nbShots);
+    visitor->initialize(buffer, getShotCountOption(options));
 
     // Walk the IR tree, and visit each node
     InstructionIterator it(std::dynamic_pointer_cast<CompositeInstruction>(
@@ -96,7 +106,7 @@ void TNQVM::execute(std::shared_ptr<xacc::AcceleratorBuffer> buffer,
   visitor->setOptions(options);
 
   // Initialize the visitor
-  visitor->initialize(buffer, nbShots);
+  visitor->initialize(buffer, getShotCountOption(options));
 
   // If this is an Exatn-MPS visitor, transform the kernel to nearest-neighbor
   // Note: currently, we don't support MPS aggregated blocks (multiple qubit MPS tensors in one block).
@@ -148,7 +158,7 @@ TNQVM::getAcceleratorState(std::shared_ptr<CompositeInstruction> program) {
   auto buffer = std::make_shared<xacc::AcceleratorBuffer>("q", maxBit + 1);
 
   // Initialize the visitor
-  visitor->initialize(buffer, nbShots);
+  visitor->initialize(buffer, getShotCountOption(options));
 
   // Walk the IR tree, and visit each node
   InstructionIterator it(program);
