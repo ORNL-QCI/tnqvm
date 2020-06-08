@@ -642,53 +642,10 @@ void ExatnMpsVisitor::finalize()
             }
         }
         
+        // Update the tensor network to take into
+        // account the updated tensors.
+        rebuildTensorNetwork();
         
-        const auto buildTensorMap = [&](){
-            std::map<std::string, std::shared_ptr<exatn::Tensor>> tensorMap;
-            tensorMap.emplace(ROOT_TENSOR_NAME, m_rootTensor);
-            for (int i = 0; i < m_buffer->size(); ++i)
-            {
-                const std::string qTensorName = "Q" + std::to_string(i);
-                tensorMap.emplace(qTensorName, exatn::getTensor(qTensorName));
-            }
-            return tensorMap;
-        };
-    
-        const std::string rootVarNameList = [&](){
-            std::string result = "(";
-            for (int i = 0; i < m_buffer->size() - 1; ++i)
-            {
-                result += ("i" + std::to_string(i) + ",");
-            }
-            result += ("i" + std::to_string(m_buffer->size() - 1) + ")");
-            return result;
-        }();
-        
-        const auto qubitTensorVarNameList = [&](int in_qIdx) -> std::string {
-            if (in_qIdx == 0)
-            {
-                return "(i0,j0)";
-            } 
-            if (in_qIdx == m_buffer->size() - 1)
-            {
-                return "(j" + std::to_string(m_buffer->size() - 2) + ",i" + std::to_string(m_buffer->size() - 1) + ")";
-            }
-
-            return "(j" + std::to_string(in_qIdx-1) + ",i" + std::to_string(in_qIdx) + ",j" + std::to_string(in_qIdx)+ ")";
-        };
-    
-        const std::string mpsString = [&](){
-            std::string result = ROOT_TENSOR_NAME + rootVarNameList + "=";
-            for (int i = 0; i < m_buffer->size() - 1; ++i)
-            {
-                result += ("Q" + std::to_string(i) + qubitTensorVarNameList(i) + "*");
-            }
-            result += ("Q" + std::to_string(m_buffer->size() - 1) + qubitTensorVarNameList(m_buffer->size() - 1));
-            return result;
-        }();
-
-        // std::cout << "MPS: " << mpsString << "\n";
-        m_tensorNetwork = std::make_shared<exatn::TensorNetwork>(m_tensorNetwork->getName(), mpsString, buildTensorMap()); 
         // DEBUG:
         printStateVec();
     }
@@ -1951,7 +1908,9 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
         const bool initialized = exatn::initTensorDataSync(qubitTensorName, tensorData.second);
         assert(initialized);
         exatn::sync();
-
+        // Update the tensor network to take into
+        // account the updated tensor.
+        rebuildTensorNetwork();
         // Now, the *remote* tensor has been initialized, process gate as normal:
         // Apply gate
         processTwoQubitGate();
@@ -1985,52 +1944,9 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
         const bool initialized = exatn::initTensorDataSync(qubitTensorName, updatedTensorData.second);
         assert(initialized);
         exatn::sync();
-
-        const auto buildTensorMap = [&](){
-            std::map<std::string, std::shared_ptr<exatn::Tensor>> tensorMap;
-            tensorMap.emplace(ROOT_TENSOR_NAME, m_rootTensor);
-            for (int i = 0; i < m_buffer->size(); ++i)
-            {
-                const std::string qTensorName = "Q" + std::to_string(i);
-                tensorMap.emplace(qTensorName, exatn::getTensor(qTensorName));
-            }
-            return tensorMap;
-        };
-    
-        const std::string rootVarNameList = [&](){
-            std::string result = "(";
-            for (int i = 0; i < m_buffer->size() - 1; ++i)
-            {
-                result += ("i" + std::to_string(i) + ",");
-            }
-            result += ("i" + std::to_string(m_buffer->size() - 1) + ")");
-            return result;
-        }();
-        
-        const auto qubitTensorVarNameList = [&](int in_qIdx) -> std::string {
-            if (in_qIdx == 0)
-            {
-                return "(i0,j0)";
-            } 
-            if (in_qIdx == m_buffer->size() - 1)
-            {
-                return "(j" + std::to_string(m_buffer->size() - 2) + ",i" + std::to_string(m_buffer->size() - 1) + ")";
-            }
-
-            return "(j" + std::to_string(in_qIdx-1) + ",i" + std::to_string(in_qIdx) + ",j" + std::to_string(in_qIdx)+ ")";
-        };
-    
-        const std::string mpsString = [&](){
-            std::string result = ROOT_TENSOR_NAME + rootVarNameList + "=";
-            for (int i = 0; i < m_buffer->size() - 1; ++i)
-            {
-                result += ("Q" + std::to_string(i) + qubitTensorVarNameList(i) + "*");
-            }
-            result += ("Q" + std::to_string(m_buffer->size() - 1) + qubitTensorVarNameList(m_buffer->size() - 1));
-            return result;
-        }();
-
-        m_tensorNetwork = std::make_shared<exatn::TensorNetwork>(m_tensorNetwork->getName(), mpsString, buildTensorMap()); 
+        // Update the tensor network to take into
+        // account the updated tensor.
+        rebuildTensorNetwork();
     }
     else 
     {
@@ -2408,4 +2324,55 @@ void ExatnMpsVisitor::truncateSvdTensors(const std::string& in_leftTensorName, c
         // std::cout << "[DEBUG] Bond dim (" << in_leftTensorName << ", " << in_rightTensorName << "): " << bondDim << " -> " << newBondDim << "\n";
     }
 }
+
+#ifdef TNQVM_MPI_ENABLED
+void ExatnMpsVisitor::rebuildTensorNetwork()
+{
+    const auto buildTensorMap = [&](){
+        std::map<std::string, std::shared_ptr<exatn::Tensor>> tensorMap;
+        tensorMap.emplace(ROOT_TENSOR_NAME, m_rootTensor);
+        for (int i = 0; i < m_buffer->size(); ++i)
+        {
+            const std::string qTensorName = "Q" + std::to_string(i);
+            tensorMap.emplace(qTensorName, exatn::getTensor(qTensorName));
+        }
+        return tensorMap;
+    };
+
+    const std::string rootVarNameList = [&](){
+        std::string result = "(";
+        for (int i = 0; i < m_buffer->size() - 1; ++i)
+        {
+            result += ("i" + std::to_string(i) + ",");
+        }
+        result += ("i" + std::to_string(m_buffer->size() - 1) + ")");
+        return result;
+    }();
+    
+    const auto qubitTensorVarNameList = [&](int in_qIdx) -> std::string {
+        if (in_qIdx == 0)
+        {
+            return "(i0,j0)";
+        } 
+        if (in_qIdx == m_buffer->size() - 1)
+        {
+            return "(j" + std::to_string(m_buffer->size() - 2) + ",i" + std::to_string(m_buffer->size() - 1) + ")";
+        }
+
+        return "(j" + std::to_string(in_qIdx-1) + ",i" + std::to_string(in_qIdx) + ",j" + std::to_string(in_qIdx)+ ")";
+    };
+
+    const std::string mpsString = [&](){
+        std::string result = ROOT_TENSOR_NAME + rootVarNameList + "=";
+        for (int i = 0; i < m_buffer->size() - 1; ++i)
+        {
+            result += ("Q" + std::to_string(i) + qubitTensorVarNameList(i) + "*");
+        }
+        result += ("Q" + std::to_string(m_buffer->size() - 1) + qubitTensorVarNameList(m_buffer->size() - 1));
+        return result;
+    }();
+
+    m_tensorNetwork = std::make_shared<exatn::TensorNetwork>(m_tensorNetwork->getName(), mpsString, buildTensorMap()); 
+}
+#endif
 }

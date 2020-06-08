@@ -6,6 +6,19 @@ include_directories(${XACC_ROOT}/include/gtest)
 #add_test(NAME GateAggregatorTester COMMAND GateAggregatorTester)
 #target_compile_features(GateAggregatorTester PRIVATE cxx_std_14)
 
+# MPI test
+if (TNQVM_MPI_ENABLED)
+    # Macro to add an MPI-enabled gtest: just change the driver command to mpiexec
+    macro(add_mpi_test _TEST_NAME)
+       add_executable(${_TEST_NAME}Tester ${_TEST_NAME}Tester.cpp)
+       target_include_directories(${_TEST_NAME}Tester PRIVATE ${GTEST_INCLUDE_DIRS})
+       add_test(NAME tnqvm_${_TEST_NAME}Tester COMMAND sh -c "mpiexec -np 2 ./${_TEST_NAME}Tester")
+    endmacro()
+   
+   # Add the a simple MPI test
+   add_mpi_test(MpsOverMpi)
+   target_link_libraries(MpsOverMpiTester PRIVATE ${XACC_ROOT}/lib/libgtest.so ${XACC_ROOT}/lib/libgtest_main.so tnqvm-exatn)
+else()
 
 add_executable(NearestNeighborTransformTester NearestNeighborTransformTester.cpp)
 target_link_libraries(NearestNeighborTransformTester PRIVATE ${XACC_ROOT}/lib/libgtest.so ${XACC_ROOT}/lib/libgtest_main.so tnqvm-exatn)
@@ -43,3 +56,5 @@ add_executable(BigCircuitTester BigCircuitTester.cpp)
 target_link_libraries(BigCircuitTester PRIVATE ${XACC_ROOT}/lib/libgtest.so ${XACC_ROOT}/lib/libgtest_main.so tnqvm-exatn)
 add_test(NAME BigCircuitTester COMMAND BigCircuitTester)
 target_compile_features(BigCircuitTester PRIVATE cxx_std_14)
+endif()
+
