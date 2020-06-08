@@ -647,7 +647,64 @@ void ExatnMpsVisitor::finalize()
         rebuildTensorNetwork();
         
         // DEBUG:
-        printStateVec();
+        // printStateVec();
+        exatn::TensorNetwork ket(*m_tensorNetwork);
+        ket.rename("MPSket");
+        const bool evaledOk = exatn::evaluateSync(ket);
+        assert(evaledOk); 
+        const auto tensorData = getTensorData(ket.getTensor(0)->getName());
+        // Simulate measurement by full tensor contraction (to get the state vector)
+        // we can also implement repetitive bit count sampling 
+        // (will require many contractions but don't require large memory allocation) 
+        // DEBUG:
+        // printStateVec();
+        // Print state vector norm:
+        const double norm = [&](){
+            double sum = 0;
+            for (const auto& val : tensorData)
+            {
+                sum = sum + std::norm(val);
+            }
+            return sum;
+        }();
+        m_buffer->addExtraInfo("norm", norm);
+
+        if (!m_measureQubits.empty())
+        {
+            const auto calcExpValueZ = [](const std::vector<size_t>& in_bits, const std::vector<std::complex<double>>& in_stateVec) {
+                const auto hasEvenParity = [](size_t x, const std::vector<size_t>& in_qubitIndices) -> bool {
+                    size_t count = 0;
+                    for (const auto& bitIdx : in_qubitIndices)
+                    {
+                        if (x & (1ULL << bitIdx))
+                        {
+                            count++;
+                        }
+                    }
+                    return (count % 2) == 0;
+                };
+
+
+                double result = 0.0;
+                for(uint64_t i = 0; i < in_stateVec.size(); ++i)
+                {
+                    result += (hasEvenParity(i, in_bits) ? 1.0 : -1.0) * std::norm(in_stateVec[i]);
+                }
+
+                return result;
+            };
+
+            // No shots, just add exp-val-z
+            if (m_shotCount < 1)
+            {
+                const double exp_val_z = calcExpValueZ(m_measureQubits, tensorData);
+                m_buffer->addExtraInfo("exp-val-z", exp_val_z);
+            }
+            else
+            {
+                addMeasureBitStringProbability(m_measureQubits, tensorData, m_shotCount);
+            }
+        }
     }
     else
     {

@@ -5,7 +5,7 @@
 
 TEST(MpsOverMpiTester, checkSimple) 
 {    
-    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps")});
+    auto qpu = xacc::getAccelerator("tnqvm", { std::make_pair("tnqvm-visitor", "exatn-mps"), std::make_pair("shots", 1000) });
     // Test Grover's algorithm
     // Amplify the amplitude of number 6 (110) state 
     const auto generateGroverSrc = [](const std::string& in_name) {
@@ -73,6 +73,14 @@ TEST(MpsOverMpiTester, checkSimple)
     auto program = ir->getComposites()[0];   
     qpu->execute(qubitReg, program);
     qubitReg->print();
+
+    // This unit test will be executed with mpiexec,
+    // only rank 0 process has measurements.
+    if (!qubitReg->getMeasurements().empty())
+    {
+        const auto resultProb = qubitReg->computeMeasurementProbability("110"); 
+        EXPECT_GT(resultProb, 0.5);
+    }
 }
 
 int main(int argc, char **argv) 
