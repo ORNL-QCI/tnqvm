@@ -971,6 +971,10 @@ void ExatnMpsVisitor::applyGate(xacc::Instruction& in_gateInstruction)
             // Single-qubit gate contraction
             contractGateTensor(in_gateInstruction.bits()[0], uniqueGateTensorName, *m_processGroup);
         }
+        
+        const bool destroyed = exatn::destroyTensor(uniqueGateTensorName);
+        assert(destroyed);
+        exatn::sync();
     }
 #endif
 }
