@@ -97,6 +97,8 @@ private:
     // The process group that the current process belongs to.
     std::shared_ptr<exatn::ProcessGroup> m_processGroup; 
     size_t m_rank;
+    // Map from qubit indices to MPI rank which owns the qubit tensor.
+    std::unordered_map<size_t, size_t> m_qubitIdxToRank;
 #endif
 };
 } 

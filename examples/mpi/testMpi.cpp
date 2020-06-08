@@ -6,19 +6,16 @@ int main (int argc, char** argv) {
 	xacc::Initialize(argc, argv);
 	auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn-mps")});
 
-    // Allocate a register of 2 qubits
-	auto qubitReg = xacc::qalloc(2);
+    // Allocate a register of 4 qubits
+	auto qubitReg = xacc::qalloc(4);
 
 	// Create a Program
 	auto xasmCompiler = xacc::getCompiler("xasm");
     auto ir = xasmCompiler->compile(R"(__qpu__ void test(qbit q, double theta) {
       H(q[0]);
       CX(q[0], q[1]);
-	  Rx(q[0], theta);
-	  Ry(q[1], theta);
-	  H(q[1]);
-	  CX(q[1], q[0]);
-      Measure(q[0]);
+      CX(q[1], q[2]);
+      CX(q[2], q[3]);
     })", qpu);
 
 	// Request the quantum kernel representing
