@@ -465,6 +465,7 @@ void ExatnMpsVisitor::printStateVec()
 
 void ExatnMpsVisitor::finalize() 
 { 
+#ifndef TNQVM_MPI_ENABLED
     const auto finalizeStart = std::chrono::system_clock::now();
 
     // Always reset the logging level back to 0 when finished.
@@ -569,6 +570,11 @@ void ExatnMpsVisitor::finalize()
 
     // Debug:
     // printAllStats();
+#else
+    // MPI
+    std::cout << "Process [" << m_rank << "] Finalized! \n";  
+    m_processGroup.reset();
+#endif
 }
 
 void ExatnMpsVisitor::visit(Identity& in_IdentityGate) 
