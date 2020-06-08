@@ -114,37 +114,101 @@ inline bool indexInRange(size_t in_idx, const std::pair<size_t, size_t>& in_rang
 constexpr int TENSOR_PRE_PROCESS_TAG = 1;
 constexpr int TENSOR_POST_PROCESS_TAG = 2;
 
-void sendTensorData(void* data, int count, MPI_Datatype datatype, int dest, int tag, MPI_Comm communicator) 
+void sendTensorShape(const exatn::Tensor& in_tensor, int in_dest, int in_tag, MPI_Comm communicator)
 {
+    const auto& tensorShape = in_tensor.getDimExtents();
+    std::vector<unsigned long long> dims;
     int world_rank;
-    MPI_Comm_rank(communicator, &world_rank);
-    if (tag == TENSOR_PRE_PROCESS_TAG)
+    MPI_Comm_rank(communicator, &world_rank); 
+    std::cout << "Process [" << world_rank << "] Send tensor shape ( ";
+    for (const auto& dimExt: tensorShape)
     {
-        std::cout << "[Process " << world_rank << "] Send pre-tensor data to " << dest << "\n";
+        dims.emplace_back(dimExt);
+        std::cout << dimExt << " ";
     }
-    if (tag == TENSOR_POST_PROCESS_TAG)
-    {
-        std::cout << "[Process " << world_rank << "] Send post-tensor data to " << dest << "\n";
-    }
+    std::cout << ") to " << in_dest << "\n";
 
-    MPI_Send(data, count, datatype, dest, tag, communicator);
+    assert(dims.size() > 1);
+    void* dataPtr = &dims[0];
+    int dataCount = dims.size();
+    
+    MPI_Send(dataPtr, dataCount, MPI::UNSIGNED_LONG_LONG, in_dest, in_tag, communicator);
 }
 
-void receiveTensorData(void* data, int count, MPI_Datatype datatype, int source, int tag, MPI_Comm communicator) 
+void sendTensorBody(const exatn::Tensor& in_tensor, int in_dest, int in_tag, MPI_Comm communicator)
+{
+    std::vector<std::complex<double>> bodyVec;
+    auto talsh_tensor = exatn::getLocalTensor(in_tensor.getName()); 
+    
+    if (talsh_tensor)
+    {
+        std::complex<double>* body_ptr;
+        const bool access_granted = talsh_tensor->getDataAccessHost(&body_ptr); 
+
+        if (access_granted)
+        {
+            bodyVec.assign(body_ptr, body_ptr + talsh_tensor->getVolume());
+        }
+    }
+
+    void* dataPtr = &bodyVec[0];
+    int dataCount = bodyVec.size();
+    
+    MPI_Send(dataPtr, dataCount, MPI::DOUBLE_COMPLEX, in_dest, in_tag, communicator);
+}
+
+exatn::TensorShape receiveTensorShape(int in_dimCount, int in_source, int in_tag, MPI_Comm communicator)
+{
+    std::vector<unsigned long long> dims(in_dimCount);
+    void* dataPtr = &dims[0];    
+    MPI_Recv(dataPtr, in_dimCount, MPI::UNSIGNED_LONG_LONG, in_source, in_tag, communicator, MPI_STATUS_IGNORE);
+
+    return exatn::TensorShape(dims);
+}
+
+std::vector<std::complex<double>> receiveTensorBody(int in_volume, int in_source, int in_tag, MPI_Comm communicator)
+{
+    std::vector<std::complex<double>> result(in_volume);
+    void* dataPtr = &result[0];    
+    MPI_Recv(dataPtr, in_volume, MPI::DOUBLE_COMPLEX, in_source, in_tag, communicator, MPI_STATUS_IGNORE);
+
+    return result;
+}   
+
+void sendTensorData(const exatn::Tensor& in_tensor, int in_dest, int in_tag, MPI_Comm communicator) 
 {
     int world_rank;
     MPI_Comm_rank(communicator, &world_rank);
-    if (tag == TENSOR_PRE_PROCESS_TAG)
+    if (in_tag == TENSOR_PRE_PROCESS_TAG)
     {
-        std::cout << "[Process " << world_rank << "] Receive pre-tensor data from " << source << "\n";
+        std::cout << "Process [" << world_rank << "] Send pre-tensor data to " << in_dest << "\n";
     }
-    if (tag == TENSOR_POST_PROCESS_TAG)
+    if (in_tag == TENSOR_POST_PROCESS_TAG)
     {
-        std::cout << "[Process " << world_rank << "] Receive post-tensor data from " << source << "\n";
+        std::cout << "Process [" << world_rank << "] Send post-tensor data to " << in_dest << "\n";
     }
+    sendTensorShape(in_tensor, in_dest, in_tag, communicator);
+    sendTensorBody(in_tensor, in_dest, in_tag, communicator);    
+}
 
-    MPI_Recv(data, count, datatype, source, tag, communicator, MPI_STATUS_IGNORE);
+std::pair<exatn::TensorShape, std::vector<std::complex<double>>> receiveTensorData(int in_dimCount, int in_source, int in_tag, MPI_Comm communicator)
+{
+    int world_rank;
+    MPI_Comm_rank(communicator, &world_rank);
+    if (in_tag == TENSOR_PRE_PROCESS_TAG)
+    {
+        std::cout << "Process [" << world_rank << "] Receive pre-tensor data from " << in_source << "\n";
+    }
+    if (in_tag == TENSOR_POST_PROCESS_TAG)
+    {
+        std::cout << "Process [" << world_rank << "] Receive post-tensor data from " << in_source << "\n";
+    }
+    auto shape = receiveTensorShape(in_dimCount, in_source, in_tag, communicator);
+    auto body = receiveTensorBody(shape.getVolume(), in_source, in_tag, communicator);
+
+    return std::make_pair(shape, body);
 }    
+
 #endif
 }
 namespace tnqvm {
@@ -210,47 +274,7 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
     m_registeredGateTensors.clear();
     m_measureQubits.clear();
     m_shotCount = nbShots;
-    
-#ifdef TNQVM_MPI_ENABLED
-    exatn::ProcessGroup process_group(exatn::getDefaultProcessGroup());
-    // Get the rank of the process    
-    auto process_comm_world = process_group.getMPICommProxy().getRef<MPI_Comm>();
-    int process_rank;
-    MPI_Comm_rank(process_comm_world, &process_rank);
-
-    // Get the name of the processor
-    char processor_name[MPI_MAX_PROCESSOR_NAME];
-    int name_len;
-    MPI_Get_processor_name(processor_name, &name_len);
-    if (process_rank == 0)
-    {
-        std::cout << "============== MPI Info ============================\n";
-        std::cout << "Processor " << processor_name << ", rank = " << process_rank << "\n";
-        std::cout << "Number of MPI processes = " << process_group.getSize() << "\n";
-        std::cout << "Memory limit per process = " << process_group.getMemoryLimitPerProcess() << "\n";
-        std::cout << "====================================================\n";
-    }
-    m_rank = process_rank;
-    // Split processes into groups:
-    m_processGroup = process_group.split(process_rank);
-    std::cout << "Process [" << process_rank << "]: Number of MPI processes in sub-group = " << m_processGroup->getSize() << "\n";
-    std::cout << "Process [" << process_rank << "]: Memory limit per process in sub-group = " << m_processGroup->getMemoryLimitPerProcess() << "\n";
-    
-    if (process_group.getSize() < m_buffer->size())
-    {
-        const size_t lRange = process_rank * (m_buffer->size() / process_group.getSize());
-        const size_t hRange = (process_rank + 1) * (m_buffer->size() / process_group.getSize()) - 1;
-        m_qubitRange = std::make_pair(lRange, hRange);
-    }
-    else
-    {
-        // Each qubit to one process
-        m_qubitRange = std::make_pair(process_rank, process_rank);
-    }
-
-    std::cout << "Process [" << process_rank << "] handles qubit " << m_qubitRange.first << " to " << m_qubitRange.second << "\n";  
-#endif
-    
+#ifndef TNQVM_MPI_ENABLED    
     const std::vector<int> qubitTensorDim(m_buffer->size(), 2);
     m_rootTensor = std::make_shared<exatn::Tensor>(ROOT_TENSOR_NAME, qubitTensorDim);
     // Build MPS tensor network
@@ -315,6 +339,93 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
 
     const auto initializeEnd = std::chrono::system_clock::now();
     getStatInstance("Initialize").addSample(initializeStart, initializeEnd);
+#else
+    // MPI
+    exatn::ProcessGroup process_group(exatn::getDefaultProcessGroup());
+    // Get the rank of the process    
+    auto process_comm_world = process_group.getMPICommProxy().getRef<MPI_Comm>();
+    int process_rank;
+    MPI_Comm_rank(process_comm_world, &process_rank);
+
+    // Get the name of the processor
+    char processor_name[MPI_MAX_PROCESSOR_NAME];
+    int name_len;
+    MPI_Get_processor_name(processor_name, &name_len);
+    if (process_rank == 0)
+    {
+        std::cout << "============== MPI Info ============================\n";
+        std::cout << "Processor " << processor_name << ", rank = " << process_rank << "\n";
+        std::cout << "Number of MPI processes = " << process_group.getSize() << "\n";
+        std::cout << "Memory limit per process = " << process_group.getMemoryLimitPerProcess() << "\n";
+        std::cout << "====================================================\n";
+    }
+    m_rank = process_rank;
+    // Split processes into groups:
+    m_processGroup = process_group.split(process_rank);
+    std::cout << "Process [" << process_rank << "]: Number of MPI processes in sub-group = " << m_processGroup->getSize() << "\n";
+    std::cout << "Process [" << process_rank << "]: Memory limit per process in sub-group = " << m_processGroup->getMemoryLimitPerProcess() << "\n";
+    
+    if (process_group.getSize() < m_buffer->size())
+    {
+        const size_t lRange = process_rank * (m_buffer->size() / process_group.getSize());
+        const size_t hRange = (process_rank + 1) * (m_buffer->size() / process_group.getSize()) - 1;
+        m_qubitRange = std::make_pair(lRange, hRange);
+    }
+    else
+    {
+        // Each qubit to one process
+        m_qubitRange = std::make_pair(process_rank, process_rank);
+    }
+
+    std::cout << "Process [" << process_rank << "] handles qubit " << m_qubitRange.first << " to " << m_qubitRange.second << "\n";  
+
+    const std::vector<int> qubitTensorDim(m_buffer->size(), 2);
+    m_rootTensor = std::make_shared<exatn::Tensor>(ROOT_TENSOR_NAME, qubitTensorDim);
+    // Build MPS tensor network
+    if (m_buffer->size() > 2)
+    {
+        auto& networkBuildFactory = *(exatn::numerics::NetworkBuildFactory::get());
+        auto builder = networkBuildFactory.createNetworkBuilderShared("MPS");
+        // Initially, all bond dimensions are 1
+        const bool success = builder->setParameter("max_bond_dim", 1); 
+        assert(success);
+        
+        m_tensorNetwork = exatn::makeSharedTensorNetwork("Qubit Register", m_rootTensor, *builder);
+    }
+    else if (m_buffer->size() == 2)
+    {
+        //Declare MPS tensors:
+        auto t1 = std::make_shared<exatn::Tensor>("T1", exatn::TensorShape{2,1});
+        auto t2 = std::make_shared<exatn::Tensor>("T2", exatn::TensorShape{1,2});  
+        m_tensorNetwork = std::make_shared<exatn::TensorNetwork>("Qubit Register",
+                 "Root(i0,i1)+=T1(i0,j0)*T2(j0,i1)",
+                 std::map<std::string,std::shared_ptr<exatn::Tensor>>{
+                  {"Root", m_rootTensor}, {"T1",t1}, {"T2",t2}});
+    }
+    else if (m_buffer->size() == 1)
+    {
+        auto t1 = std::make_shared<exatn::Tensor>("T1", exatn::TensorShape{2});
+        m_tensorNetwork = std::make_shared<exatn::TensorNetwork>("Qubit Register",
+                 "Root(i0)+=T1(i0)",
+                 std::map<std::string,std::shared_ptr<exatn::Tensor>>{
+                  {"Root", m_rootTensor}, {"T1",t1}});
+    }
+    
+    for (auto iter = m_tensorNetwork->cbegin(); iter != m_tensorNetwork->cend(); ++iter) 
+    {
+        const auto& tensorName = iter->second.getTensor()->getName();
+        if (tensorName != ROOT_TENSOR_NAME)
+        {
+            auto tensor = iter->second.getTensor();
+            const auto newTensorName = "Q" + std::to_string(iter->first - 1);
+            iter->second.getTensor()->rename(newTensorName);
+            const bool created = exatn::createTensorSync(*m_processGroup, tensor, exatn::TensorElementType::COMPLEX64);
+            assert(created);
+            const bool initialized = exatn::initTensorDataSync(newTensorName, Q_ZERO_TENSOR_BODY);
+            assert(initialized);
+        }
+    }
+#endif
 }
 
 void ExatnMpsVisitor::printStateVec()
@@ -971,7 +1082,7 @@ void ExatnMpsVisitor::applyGate(xacc::Instruction& in_gateInstruction)
             // Single-qubit gate contraction
             contractGateTensor(in_gateInstruction.bits()[0], uniqueGateTensorName, *m_processGroup);
         }
-        
+
         const bool destroyed = exatn::destroyTensor(uniqueGateTensorName);
         assert(destroyed);
         exatn::sync();
@@ -1324,6 +1435,327 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
     exatn::sync();
 #else
     // MPI
+    // !! The two qubit tensors must exist in this process group !!
+    const auto processTwoQubitGate = [&](){
+        exatn::sync();            
+        const int q1 = in_gateInstruction.bits()[0];
+        const int q2 = in_gateInstruction.bits()[1];
+        // Neighbors only
+        assert(std::abs(q1 - q2) == 1);
+        const std::string q1TensorName = "Q" + std::to_string(q1);
+        const std::string q2TensorName = "Q" + std::to_string(q2);
+
+        // Step 1: merge two tensor together
+        auto q1Tensor = exatn::getTensor(q1TensorName);
+        auto q2Tensor = exatn::getTensor(q2TensorName);
+        // std::cout << "Before merge:\n";
+        // m_tensorNetwork->printIt();
+        const auto getQubitTensorId = [&](const std::string& in_tensorName) {
+            const auto idsVec = m_tensorNetwork->getTensorIdsInNetwork(in_tensorName);
+            assert(idsVec.size() == 1);
+            return idsVec.front();
+        };
+        
+        // Merge Q2 into Q1 
+        const auto mergedTensorId = m_tensorNetwork->getMaxTensorId() + 1;
+        std::string mergeContractionPattern;
+        if (q1 < q2)
+        {
+            m_tensorNetwork->mergeTensors(getQubitTensorId(q1TensorName), getQubitTensorId(q2TensorName), mergedTensorId, &mergeContractionPattern);
+            mergeContractionPattern.replace(mergeContractionPattern.find("L"), 1, q1TensorName);
+            mergeContractionPattern.replace(mergeContractionPattern.find("R"), 1, q2TensorName);
+        }
+        else
+        {
+            m_tensorNetwork->mergeTensors(getQubitTensorId(q2TensorName), getQubitTensorId(q1TensorName), mergedTensorId, &mergeContractionPattern);
+            mergeContractionPattern.replace(mergeContractionPattern.find("L"), 1, q2TensorName);
+            mergeContractionPattern.replace(mergeContractionPattern.find("R"), 1, q1TensorName);
+        }
+
+        // std::cout << "After merge:\n";
+        // m_tensorNetwork->printIt();
+
+        auto mergedTensor =  m_tensorNetwork->getTensor(mergedTensorId);
+        mergedTensor->rename("D");
+        
+        // std::cout << "Contraction Pattern: " << mergeContractionPattern << "\n";
+        const bool mergedTensorCreated = exatn::createTensorSync(*m_processGroup, mergedTensor, exatn::TensorElementType::COMPLEX64);
+        assert(mergedTensorCreated);
+        const bool mergedTensorInitialized = exatn::initTensorSync(mergedTensor->getName(), 0.0);
+        assert(mergedTensorInitialized);
+        const bool mergedContractionOk = exatn::contractTensorsSync(mergeContractionPattern, 1.0);
+        assert(mergedContractionOk);
+        
+        // Step 2: contract the merged tensor with the gate
+        const auto gateTensor = GateTensorConstructor::getGateTensor(in_gateInstruction);
+        const std::string uniqueGateTensorName = in_gateInstruction.name();
+
+        // Create the tensor
+        const bool created = exatn::createTensorSync(*m_processGroup, uniqueGateTensorName, exatn::TensorElementType::COMPLEX64, gateTensor.tensorShape);
+        assert(created);
+        // Init tensor body data
+        const bool initialized = exatn::initTensorDataSync(uniqueGateTensorName, gateTensor.tensorData);
+        assert(initialized);
+        
+        assert(mergedTensor->getRank() >=2 && mergedTensor->getRank() <= 4);
+        const std::string RESULT_TENSOR_NAME = "Result";
+        // Result tensor always has the same shape as the *merged* qubit tensor
+        const bool resultTensorCreated = exatn::createTensorSync(*m_processGroup, RESULT_TENSOR_NAME, 
+                                                                exatn::TensorElementType::COMPLEX64, 
+                                                                mergedTensor->getShape());
+        assert(resultTensorCreated);
+        const bool resultTensorInitialized = exatn::initTensorSync(RESULT_TENSOR_NAME, 0.0);
+        assert(resultTensorInitialized);
+        
+        std::string patternStr;
+        if (mergedTensor->getRank() == 3)
+        {
+            // Pattern: Result(a,b,c) = D(i,j,c)*Gate(i,j,a,b)
+            if (q1 < q2)
+            {
+                if (q1 == 0)
+                {
+                    patternStr = RESULT_TENSOR_NAME + "(a,b,c)=" + mergedTensor->getName() + "(i,j,c)*" + uniqueGateTensorName + "(j,i,b,a)";
+                }
+                else
+                {
+                    patternStr = RESULT_TENSOR_NAME + "(a,b,c)=" + mergedTensor->getName() + "(a,i,j)*" + uniqueGateTensorName + "(j,i,c,b)";
+                }
+            }
+            else
+            {
+                if (q2 == 0)
+                {
+                    patternStr = RESULT_TENSOR_NAME + "(a,b,c)=" + mergedTensor->getName() + "(i,j,c)*" + uniqueGateTensorName + "(i,j,a,b)";
+                }
+                else
+                {
+                    patternStr = RESULT_TENSOR_NAME + "(a,b,c)=" + mergedTensor->getName() + "(a,i,j)*" + uniqueGateTensorName + "(i,j,b,c)";
+                }
+            }
+        }
+        else if (mergedTensor->getRank() == 4)
+        {
+            if (q1 < q2)
+            {
+                patternStr = RESULT_TENSOR_NAME + "(a,b,c,d)=" + mergedTensor->getName() + "(a,i,j,d)*" + uniqueGateTensorName + "(j,i,c,b)";
+            }
+            else
+            {
+                patternStr = RESULT_TENSOR_NAME + "(a,b,c,d)=" + mergedTensor->getName() + "(a,i,j,d)*" + uniqueGateTensorName + "(i,j,b,c)";
+            }
+        }
+        else if (mergedTensor->getRank() == 2)
+        {
+            // Only two-qubit in the qubit register
+            assert(m_buffer->size() == 2);
+            if (q1 < q2)
+            {
+                patternStr = RESULT_TENSOR_NAME + "(a,b)=" + mergedTensor->getName() + "(i,j)*" + uniqueGateTensorName + "(j,i,b,a)";
+            }
+            else
+            {
+                patternStr = RESULT_TENSOR_NAME + "(a,b)=" + mergedTensor->getName() + "(i,j)*" + uniqueGateTensorName + "(i,j,a,b)";
+            }
+        }
+        
+        assert(!patternStr.empty());
+        // std::cout << "Gate contraction pattern: " << patternStr << "\n";
+
+        {
+            const bool gateContractionOk = exatn::contractTensorsSync(patternStr, 1.0);
+            assert(gateContractionOk);
+        }
+        
+        const std::vector<std::complex<double>> resultTensorData =  getTensorData(RESULT_TENSOR_NAME);
+        std::function<int(talsh::Tensor& in_tensor)> updateFunc = [&resultTensorData](talsh::Tensor& in_tensor){
+            std::complex<double>* elements;
+            
+            if (in_tensor.getDataAccessHost(&elements) && (in_tensor.getVolume() == resultTensorData.size())) 
+            {
+                for (int i = 0; i < in_tensor.getVolume(); ++i)
+                {
+                    elements[i] = resultTensorData[i];
+                }            
+            }
+
+            return 0;
+        };
+
+        exatn::numericalServer->transformTensorSync(mergedTensor->getName(), std::make_shared<ExatnMpsVisitor::ExaTnTensorFunctor>(updateFunc));
+        
+        // Destroy the temp. result tensor 
+        const bool resultTensorDestroyed = exatn::destroyTensor(RESULT_TENSOR_NAME);
+        assert(resultTensorDestroyed);
+
+        // Destroy gate tensor
+        const bool destroyed = exatn::destroyTensor(uniqueGateTensorName);
+        assert(destroyed);
+        
+        // Step 3: SVD the merged tensor back into two MPS qubit tensor
+        // Delete the two original qubit tensors
+        const auto getBondLegId = [&](int in_qubitIdx, int in_otherQubitIdx){
+            if (in_qubitIdx == 0)
+            {
+                return 1;
+            }
+            if(in_qubitIdx == (m_buffer->size() - 1))
+            {
+                return 0;
+            }
+
+            return (in_qubitIdx < in_otherQubitIdx) ? 2 : 0;
+        };
+
+        auto q1Shape = q1Tensor->getDimExtents();
+        auto q2Shape = q2Tensor->getDimExtents();
+        
+        const auto q1BondLegId = getBondLegId(q1, q2);
+        const auto q2BondLegId = getBondLegId(q2, q1);
+        assert(q1Shape[q1BondLegId] == q2Shape[q2BondLegId]);
+        int volQ1 = 1;
+        int volQ2 = 1;
+        for (int i = 0; i < q1Shape.size(); ++i)
+        {
+            if (i != q1BondLegId)
+            {
+                volQ1 *= q1Shape[i];
+            }
+        }
+
+        for (int i = 0; i < q2Shape.size(); ++i)
+        {
+            if (i != q2BondLegId)
+            {
+                volQ2 *= q2Shape[i];
+            }
+        }
+
+        const int newBondDim = std::min(volQ1, volQ2);
+        // Update bond dimension
+        q1Shape[q1BondLegId] = newBondDim;
+        q2Shape[q2BondLegId] = newBondDim;
+
+        // Destroy old qubit tensors
+        const bool q1Destroyed = exatn::destroyTensor(q1TensorName);
+        assert(q1Destroyed);
+        const bool q2Destroyed = exatn::destroyTensor(q2TensorName);
+        assert(q2Destroyed);
+        exatn::sync();
+        exatn::sync(mergedTensor->getName());
+
+        // Create two new tensors:
+        const bool q1Created = exatn::createTensorSync(*m_processGroup, q1TensorName, exatn::TensorElementType::COMPLEX64, q1Shape);
+        assert(q1Created);
+        
+        const bool q2Created = exatn::createTensorSync(*m_processGroup, q2TensorName, exatn::TensorElementType::COMPLEX64, q2Shape);
+        assert(q2Created);
+        exatn::sync(q1TensorName);
+        exatn::sync(q2TensorName);
+        exatn::sync(mergedTensor->getName());
+        
+        exatn::sync();
+
+        {
+            // SVD decomposition using the same pattern that was used to merge two tensors
+            const bool svdOk = exatn::decomposeTensorSVDLRSync(mergeContractionPattern);
+            assert(svdOk);
+        }
+
+        exatn::sync(q1TensorName);
+        exatn::sync(q2TensorName);
+
+        // Validate SVD tensors
+        // TODO: this should be eventually removed once we are confident with the ExaTN numerical backend.
+        {
+            // Validate SVD tensors
+            // TODO: this should be eventually removed once we are confident with the ExaTN numerical backend.
+            const auto calcMpsTensorNorm = [](const std::string& in_tensorName) {
+                double sumNorm = 0.0;
+                const bool normOk = exatn::computeNorm2Sync(in_tensorName, sumNorm);
+                return sumNorm;
+            };
+
+            const double q1NormAfter = calcMpsTensorNorm(q1TensorName);
+            const double q2NormAfter = calcMpsTensorNorm(q2TensorName);
+            if (std::fabs(q1NormAfter) < 1e-3 || std::fabs(q2NormAfter) < 1e-3)
+            {
+                std::cout << "[ERROR] Tensor norm validation failed!\n";
+                std::cout << in_gateInstruction.toString() << "\n";
+                std::cout << q1TensorName << " norm = " << q1NormAfter << "\n";
+                std::cout << q2TensorName << " norm = " << q2NormAfter << "\n";
+                std::cout << "Tensor SVD Pattern: " <<  mergeContractionPattern << "\n";
+                std::cout << "Merged Tensor: \n";
+                printTensorData(mergedTensor->getName());
+                std::cout << q1TensorName << "\n";
+                printTensorData(q1TensorName);
+                std::cout << q2TensorName << "\n";
+                printTensorData(q2TensorName);
+                // Crash in DEBUG to aid debugging.
+                assert(false);
+            }
+        }
+        
+        const auto buildTensorMap = [&](){
+            std::map<std::string, std::shared_ptr<exatn::Tensor>> tensorMap;
+            tensorMap.emplace(ROOT_TENSOR_NAME, m_rootTensor);
+            for (int i = 0; i < m_buffer->size(); ++i)
+            {
+                const std::string qTensorName = "Q" + std::to_string(i);
+                tensorMap.emplace(qTensorName, exatn::getTensor(qTensorName));
+            }
+            return tensorMap;
+        };
+        
+        const std::string rootVarNameList = [&](){
+            std::string result = "(";
+            for (int i = 0; i < m_buffer->size() - 1; ++i)
+            {
+                result += ("i" + std::to_string(i) + ",");
+            }
+            result += ("i" + std::to_string(m_buffer->size() - 1) + ")");
+            return result;
+        }();
+        
+        const auto qubitTensorVarNameList = [&](int in_qIdx) -> std::string {
+            if (in_qIdx == 0)
+            {
+                return "(i0,j0)";
+            } 
+            if (in_qIdx == m_buffer->size() - 1)
+            {
+                return "(j" + std::to_string(m_buffer->size() - 2) + ",i" + std::to_string(m_buffer->size() - 1) + ")";
+            }
+
+            return "(j" + std::to_string(in_qIdx-1) + ",i" + std::to_string(in_qIdx) + ",j" + std::to_string(in_qIdx)+ ")";
+        };
+        
+        const std::string mpsString = [&](){
+            std::string result = ROOT_TENSOR_NAME + rootVarNameList + "=";
+            for (int i = 0; i < m_buffer->size() - 1; ++i)
+            {
+                result += ("Q" + std::to_string(i) + qubitTensorVarNameList(i) + "*");
+            }
+            result += ("Q" + std::to_string(m_buffer->size() - 1) + qubitTensorVarNameList(m_buffer->size() - 1));
+            return result;
+        }();
+
+        // std::cout << "MPS: " << mpsString << "\n";
+        m_tensorNetwork = std::make_shared<exatn::TensorNetwork>(m_tensorNetwork->getName(), mpsString, buildTensorMap()); 
+        {
+            // Truncate SVD tensors:
+            truncateSvdTensors(q1TensorName, q2TensorName, m_svdCutoff);  
+        }
+        
+        // Rebuild the tensor network since the qubit tensors have been changed after SVD truncation
+        // e.g. we destroy the original tensors and replace with smaller dimension ones
+        m_tensorNetwork = std::make_shared<exatn::TensorNetwork>(m_tensorNetwork->getName(), mpsString, buildTensorMap());  
+
+        const bool mergedTensorDestroyed = exatn::destroyTensor(mergedTensor->getName());
+        assert(mergedTensorDestroyed);
+        exatn::sync();
+    };
+
     const int q1 = in_gateInstruction.bits()[0];
     const int q2 = in_gateInstruction.bits()[1];
     const int qMin = q1 < q2 ? q1 : q2;
@@ -1333,6 +1765,7 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
     {
         // Both qubits in range: process the gate
         std::cout << "Process [" << m_rank << "]: Process gate: " << in_gateInstruction.toString() << "\n";
+        processTwoQubitGate();
     }
     else if (indexInRange(qMin, m_qubitRange)) 
     {
@@ -1341,34 +1774,70 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
         std::cout << "Process [" << m_rank << "]: Wait data to process gate: " << in_gateInstruction.toString() << "\n";
         // MPI sync here: 
         // Get tensor data:
-        // Apply gate->SVD
-        // Send tensor to the neighbor process
-        // !!! TEMP CODE !!!
-        int num_elements = 10;
-        int* data = (int*)malloc(sizeof(int) * num_elements);
-        receiveTensorData(data, num_elements, MPI_INT, m_rank + 1, TENSOR_PRE_PROCESS_TAG, MPI_COMM_WORLD);
+        // Tensor that needs to be received:
+        const std::string qubitTensorName = "Q" + std::to_string(qMax); 
+        auto qubitTensor =  exatn::getTensor(qubitTensorName);
+        auto tensorData = receiveTensorData(qubitTensor->getDimExtents().size(), m_rank + 1, TENSOR_PRE_PROCESS_TAG, MPI_COMM_WORLD);
+        const auto& tensorShape = tensorData.first;
+        std::cout << "Process [" << m_rank << "]: Receive tensor shape ";
+        tensorShape.printIt();
+        std::cout << "\n";
         
+        const auto& tensorBodyData = tensorData.second;
+        std::cout << "Process [" << m_rank << "]: Receive tensor body: ";
+        for (const auto& elem: tensorBodyData)
+        {
+            std::cout << elem << " ";
+        }
+        std::cout << "\n";
+
+        // Update 'qMax' tensor data based on the data just received:
+        const bool qMaxDestroyed = exatn::destroyTensor(qubitTensorName);
+        assert(qMaxDestroyed);
+        exatn::sync();
+
+        // Create a new tensor
+        const bool qMaxCreated = exatn::createTensorSync(*m_processGroup, qubitTensorName, exatn::TensorElementType::COMPLEX64, tensorData.first);
+        assert(qMaxCreated);
+        exatn::sync(qubitTensorName);
+        // Init tensor body data
+        const bool initialized = exatn::initTensorDataSync(qubitTensorName, tensorData.second);
+        assert(initialized);
+        exatn::sync();
+
+        // Now, the *remote* tensor has been initialized, process gate as normal:
         // Apply gate
+        processTwoQubitGate();
 
+        // Done: Send tensor to the neighbor process
         // Send tensor forward
-        sendTensorData(data, num_elements, MPI_INT, m_rank + 1, TENSOR_POST_PROCESS_TAG, MPI_COMM_WORLD);
-
-        free(data);
+        auto updatedTensor = exatn::getTensor(qubitTensorName);
+        sendTensorData(*updatedTensor, m_rank + 1, TENSOR_POST_PROCESS_TAG, MPI_COMM_WORLD);
     }
     else if (indexInRange(qMax, m_qubitRange))
     {
         // Right qubit in range, delegate the compute:
+        const std::string qubitTensorName = "Q" + std::to_string(qMax); 
+        auto qubitTensor =  exatn::getTensor(qubitTensorName);
         // Send tensor data to the left
         std::cout << "Process [" << m_rank << "]: Send tensor data to process gate: " << in_gateInstruction.toString() << "\n";
-        // Wait to receive tensor back (sync)
-        int num_elements = 10;
-        int* data = (int*)malloc(sizeof(int) * num_elements);
-        // Send tensor data backward
-        sendTensorData(data, num_elements, MPI_INT, m_rank - 1, TENSOR_PRE_PROCESS_TAG, MPI_COMM_WORLD);
+        sendTensorData(*qubitTensor, m_rank - 1, TENSOR_PRE_PROCESS_TAG, MPI_COMM_WORLD);
 
-        // wait here to receive the tensor back
-        receiveTensorData(data, num_elements, MPI_INT, m_rank - 1, TENSOR_POST_PROCESS_TAG, MPI_COMM_WORLD);
+        // Wait to receive tensor back (sync)
+        auto updatedTensorData = receiveTensorData(qubitTensor->getDimExtents().size(), m_rank - 1, TENSOR_POST_PROCESS_TAG, MPI_COMM_WORLD);
+        
         // Update tensor data in this process
+        const bool qMaxDestroyed = exatn::destroyTensor(qubitTensorName);
+        assert(qMaxDestroyed);
+        exatn::sync();
+        // Create a new tensor
+        const bool qMaxCreated = exatn::createTensorSync(*m_processGroup, qubitTensorName, exatn::TensorElementType::COMPLEX64, updatedTensorData.first);
+        assert(qMaxCreated);
+        exatn::sync(qubitTensorName);
+        // Init tensor body data
+        const bool initialized = exatn::initTensorDataSync(qubitTensorName, updatedTensorData.second);
+        assert(initialized);
+        exatn::sync();
     }
     else 
     {
