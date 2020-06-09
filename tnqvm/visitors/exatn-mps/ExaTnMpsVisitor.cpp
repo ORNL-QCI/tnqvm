@@ -119,16 +119,10 @@ void sendTensorShape(const exatn::Tensor& in_tensor, int in_dest, int in_tag, MP
 {
     const auto& tensorShape = in_tensor.getDimExtents();
     std::vector<unsigned long long> dims;
-    int world_rank;
-    MPI_Comm_rank(communicator, &world_rank); 
-    std::cout << "Process [" << world_rank << "] Send tensor shape ( ";
     for (const auto& dimExt: tensorShape)
     {
         dims.emplace_back(dimExt);
-        std::cout << dimExt << " ";
     }
-    std::cout << ") to " << in_dest << "\n";
-
     assert(dims.size() > 1);
     void* dataPtr = &dims[0];
     int dataCount = dims.size();
@@ -178,32 +172,32 @@ std::vector<std::complex<double>> receiveTensorBody(int in_volume, int in_source
 
 void sendTensorData(const exatn::Tensor& in_tensor, int in_dest, int in_tag, MPI_Comm communicator) 
 {
-    int world_rank;
-    MPI_Comm_rank(communicator, &world_rank);
-    if (in_tag == TENSOR_PRE_PROCESS_TAG)
-    {
-        std::cout << "Process [" << world_rank << "] Send pre-tensor data to " << in_dest << "\n";
-    }
-    if (in_tag == TENSOR_POST_PROCESS_TAG)
-    {
-        std::cout << "Process [" << world_rank << "] Send post-tensor data to " << in_dest << "\n";
-    }
+    // int world_rank;
+    // MPI_Comm_rank(communicator, &world_rank);
+    // if (in_tag == TENSOR_PRE_PROCESS_TAG)
+    // {
+    //     std::cout << "Process [" << world_rank << "] Send pre-tensor data to " << in_dest << "\n";
+    // }
+    // if (in_tag == TENSOR_POST_PROCESS_TAG)
+    // {
+    //     std::cout << "Process [" << world_rank << "] Send post-tensor data to " << in_dest << "\n";
+    // }
     sendTensorShape(in_tensor, in_dest, in_tag, communicator);
     sendTensorBody(in_tensor, in_dest, in_tag, communicator);    
 }
 
 std::pair<exatn::TensorShape, std::vector<std::complex<double>>> receiveTensorData(int in_dimCount, int in_source, int in_tag, MPI_Comm communicator)
 {
-    int world_rank;
-    MPI_Comm_rank(communicator, &world_rank);
-    if (in_tag == TENSOR_PRE_PROCESS_TAG)
-    {
-        std::cout << "Process [" << world_rank << "] Receive pre-tensor data from " << in_source << "\n";
-    }
-    if (in_tag == TENSOR_POST_PROCESS_TAG)
-    {
-        std::cout << "Process [" << world_rank << "] Receive post-tensor data from " << in_source << "\n";
-    }
+    // int world_rank;
+    // MPI_Comm_rank(communicator, &world_rank);
+    // if (in_tag == TENSOR_PRE_PROCESS_TAG)
+    // {
+    //     std::cout << "Process [" << world_rank << "] Receive pre-tensor data from " << in_source << "\n";
+    // }
+    // if (in_tag == TENSOR_POST_PROCESS_TAG)
+    // {
+    //     std::cout << "Process [" << world_rank << "] Receive post-tensor data from " << in_source << "\n";
+    // }
     auto shape = receiveTensorShape(in_dimCount, in_source, in_tag, communicator);
     auto body = receiveTensorBody(shape.getVolume(), in_source, in_tag, communicator);
 
@@ -382,7 +376,7 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
         m_qubitRange = std::make_pair(process_rank, process_rank);
     }
 
-    std::cout << "Process [" << process_rank << "] handles qubit " << m_qubitRange.first << " to " << m_qubitRange.second << "\n";  
+    std::cout << "Process [" << process_rank << "]: handles qubit " << m_qubitRange.first << " to " << m_qubitRange.second << "\n";  
 
     if (m_buffer->size() > process_group.getSize())
     {
@@ -608,7 +602,6 @@ void ExatnMpsVisitor::finalize()
     // printAllStats();
 #else
     // MPI
-    // !!! TEMP CODE !!! process 0 to reconstruct the full MPS network
     MPI_Barrier(MPI_COMM_WORLD);
     if (m_rank == 0)
     {
@@ -621,7 +614,6 @@ void ExatnMpsVisitor::finalize()
             assert(qTensorDestroyed);
             exatn::sync();
 
-            std::cout << "Receive final tensor for " << qubitTensorName << "\n";
             // Create a new tensor
             const bool qTensorCreated = exatn::createTensorSync(*m_processGroup, qubitTensorName, exatn::TensorElementType::COMPLEX64, tensorData.first);
             assert(qTensorCreated);
@@ -637,7 +629,6 @@ void ExatnMpsVisitor::finalize()
             if (rank != m_rank)
             {
                 // Receive remote
-                std::cout << "Rank " << rank <<  " receives qubit " << qubitIdx << "\n";
                 updateProcessLocalTensor(qubitIdx, rank);
             }
         }
@@ -645,64 +636,89 @@ void ExatnMpsVisitor::finalize()
         // Update the tensor network to take into
         // account the updated tensors.
         rebuildTensorNetwork();
-        
-        // DEBUG:
-        // printStateVec();
-        exatn::TensorNetwork ket(*m_tensorNetwork);
-        ket.rename("MPSket");
-        const bool evaledOk = exatn::evaluateSync(ket);
-        assert(evaledOk); 
-        const auto tensorData = getTensorData(ket.getTensor(0)->getName());
-        // Simulate measurement by full tensor contraction (to get the state vector)
-        // we can also implement repetitive bit count sampling 
-        // (will require many contractions but don't require large memory allocation) 
-        // DEBUG:
-        // printStateVec();
-        // Print state vector norm:
-        const double norm = [&](){
-            double sum = 0;
-            for (const auto& val : tensorData)
-            {
-                sum = sum + std::norm(val);
-            }
-            return sum;
-        }();
-        m_buffer->addExtraInfo("norm", norm);
-
-        if (!m_measureQubits.empty())
+        // Small-circuit case: just reconstruct the full wavefunction
+        if (m_buffer->size() < MAX_NUMBER_QUBITS_FOR_STATE_VEC) 
         {
-            const auto calcExpValueZ = [](const std::vector<size_t>& in_bits, const std::vector<std::complex<double>>& in_stateVec) {
-                const auto hasEvenParity = [](size_t x, const std::vector<size_t>& in_qubitIndices) -> bool {
-                    size_t count = 0;
-                    for (const auto& bitIdx : in_qubitIndices)
-                    {
-                        if (x & (1ULL << bitIdx))
+            // DEBUG:
+            // printStateVec();
+            exatn::TensorNetwork ket(*m_tensorNetwork);
+            ket.rename("MPSket");
+            const bool evaledOk = exatn::evaluateSync(*m_processGroup, ket);
+            assert(evaledOk); 
+            const auto tensorData = getTensorData(ket.getTensor(0)->getName());
+            // Simulate measurement by full tensor contraction (to get the state vector)
+            // we can also implement repetitive bit count sampling 
+            // (will require many contractions but don't require large memory allocation) 
+            // DEBUG:
+            // printStateVec();
+            // Print state vector norm:
+            const double norm = [&](){
+                double sum = 0;
+                for (const auto& val : tensorData)
+                {
+                    sum = sum + std::norm(val);
+                }
+                return sum;
+            }();
+            m_buffer->addExtraInfo("norm", norm);
+
+            if (!m_measureQubits.empty())
+            {
+                const auto calcExpValueZ = [](const std::vector<size_t>& in_bits, const std::vector<std::complex<double>>& in_stateVec) {
+                    const auto hasEvenParity = [](size_t x, const std::vector<size_t>& in_qubitIndices) -> bool {
+                        size_t count = 0;
+                        for (const auto& bitIdx : in_qubitIndices)
                         {
-                            count++;
+                            if (x & (1ULL << bitIdx))
+                            {
+                                count++;
+                            }
                         }
+                        return (count % 2) == 0;
+                    };
+
+
+                    double result = 0.0;
+                    for(uint64_t i = 0; i < in_stateVec.size(); ++i)
+                    {
+                        result += (hasEvenParity(i, in_bits) ? 1.0 : -1.0) * std::norm(in_stateVec[i]);
                     }
-                    return (count % 2) == 0;
+
+                    return result;
                 };
 
-
-                double result = 0.0;
-                for(uint64_t i = 0; i < in_stateVec.size(); ++i)
+                // No shots, just add exp-val-z
+                if (m_shotCount < 1)
                 {
-                    result += (hasEvenParity(i, in_bits) ? 1.0 : -1.0) * std::norm(in_stateVec[i]);
+                    const double exp_val_z = calcExpValueZ(m_measureQubits, tensorData);
+                    m_buffer->addExtraInfo("exp-val-z", exp_val_z);
                 }
-
-                return result;
-            };
-
-            // No shots, just add exp-val-z
-            if (m_shotCount < 1)
-            {
-                const double exp_val_z = calcExpValueZ(m_measureQubits, tensorData);
-                m_buffer->addExtraInfo("exp-val-z", exp_val_z);
+                else
+                {
+                    addMeasureBitStringProbability(m_measureQubits, tensorData, m_shotCount);
+                }
             }
-            else
+        }
+        else
+        {
+            // Large circuit
+            if (!m_measureQubits.empty())
             {
-                addMeasureBitStringProbability(m_measureQubits, tensorData, m_shotCount);
+                std::cout << "Simulating bit string by MPS tensor contraction\n";
+                m_shotCount = (m_shotCount < 1) ? 1 : m_shotCount;
+                for (int i = 0; i < m_shotCount; ++i)
+                {
+                    const auto convertToBitString = [](const std::vector<uint8_t>& in_bitVec){
+                        std::string result;
+                        for (const auto& bit : in_bitVec)
+                        {
+                            result.append(std::to_string(bit));
+                        }
+                        return result;
+                    };
+
+                    m_buffer->appendMeasurement(convertToBitString(getMeasureSample(m_measureQubits)));
+                }
             }
         }
     }
@@ -721,11 +737,11 @@ void ExatnMpsVisitor::finalize()
             if (rank == m_rank)
             {
                 // Send tensors to root
-                std::cout << "Rank " << rank <<  " sends qubit " << qubitIdx << "\n";
                 sendTensorToRoot(qubitIdx);
             }
         }
     }
+
     MPI_Barrier(MPI_COMM_WORLD);
     // Clean up
     m_processGroup.reset();
@@ -2428,7 +2444,6 @@ void ExatnMpsVisitor::rebuildTensorNetwork()
         result += ("Q" + std::to_string(m_buffer->size() - 1) + qubitTensorVarNameList(m_buffer->size() - 1));
         return result;
     }();
-
     m_tensorNetwork = std::make_shared<exatn::TensorNetwork>(m_tensorNetwork->getName(), mpsString, buildTensorMap()); 
 }
 #endif
