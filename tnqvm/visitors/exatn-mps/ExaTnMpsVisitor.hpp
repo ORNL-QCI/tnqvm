@@ -91,5 +91,17 @@ private:
     int m_shotCount;
     bool m_aggregateEnabled; 
     double m_svdCutoff;
+#ifdef TNQVM_MPI_ENABLED
+    // Rebuild the tensor network (m_tensorNetwork) from individual MPS tensors:
+    // e.g. after bond dimension changes.
+    void rebuildTensorNetwork();
+    // Min-max qubit range (inclusive) that this process handles 
+    std::pair<size_t, size_t> m_qubitRange;
+    // The process group that the current process belongs to.
+    std::shared_ptr<exatn::ProcessGroup> m_processGroup; 
+    size_t m_rank;
+    // Map from qubit indices to MPI rank which owns the qubit tensor.
+    std::unordered_map<size_t, size_t> m_qubitIdxToRank;
+#endif
 };
 } 
