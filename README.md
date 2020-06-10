@@ -30,6 +30,20 @@ or in Python
 qpu = xacc.getAccelerator('tnqvm', {'tnqvm-visitor':'exatn'})
 ```
 
+MPI Execution
+-------------
+TNQVM's `exatn-mps` visitor can support multi-node execution via MPI. 
+
+*Prerequisites*: ExaTN is built with MPI enabled, i.e., setting `MPI_LIB` and `MPI_ROOT_DIR` when configuring the ExaTN build.
+
+To enable MPI in TNQVM, add `-DTNQVM_MPI_ENABLED=TRUE` to CMake along with other configuration variables.
+
+A simulation executable which uses the `exatn-mps` visitor, e.g. via 
+```
+auto qpu = xacc::getAccelerator("tnqvm", { std::make_pair("tnqvm-visitor", "exatn-mps")});
+```
+can be executed with MPI using `mpiexec -np <number of processes> <executable>`.
+
 Documentation
 -------------
 
