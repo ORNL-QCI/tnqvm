@@ -1956,17 +1956,17 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
         auto qubitTensor =  exatn::getTensor(qubitTensorName);
         auto tensorData = receiveTensorData(qubitTensor->getDimExtents().size(), m_rank + 1, TENSOR_PRE_PROCESS_TAG, MPI_COMM_WORLD);
         const auto& tensorShape = tensorData.first;
-        std::cout << "Process [" << m_rank << "]: Receive tensor shape ";
-        tensorShape.printIt();
-        std::cout << "\n";
+        // std::cout << "Process [" << m_rank << "]: Receive tensor shape ";
+        // tensorShape.printIt();
+        // std::cout << "\n";
         
-        const auto& tensorBodyData = tensorData.second;
-        std::cout << "Process [" << m_rank << "]: Receive tensor body: ";
-        for (const auto& elem: tensorBodyData)
-        {
-            std::cout << elem << " ";
-        }
-        std::cout << "\n";
+        // const auto& tensorBodyData = tensorData.second;
+        // std::cout << "Process [" << m_rank << "]: Receive tensor body: ";
+        // for (const auto& elem: tensorBodyData)
+        // {
+        //     std::cout << elem << " ";
+        // }
+        // std::cout << "\n";
 
         // Update 'qMax' tensor data based on the data just received:
         const bool qMaxDestroyed = exatn::destroyTensor(qubitTensorName);
