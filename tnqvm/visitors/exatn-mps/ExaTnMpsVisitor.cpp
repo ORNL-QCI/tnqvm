@@ -252,6 +252,11 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
 
         // If exaTN has not been initialized, do it now.
         exatn::initialize();
+        // ExaTN and XACC logging levels are always in-synced.
+        exatn::resetRuntimeLoggingLevel(xacc::getLoggingLevel());
+        xacc::subscribeLoggingLevel([](int level) {
+            exatn::resetRuntimeLoggingLevel(level);
+        });
     }
 
     // Default SVD cut-off is the numerical limit, i.e. technically, no cut-off.

@@ -378,6 +378,12 @@ void ExatnVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer,
       std::cout << "Using '" << optimizerName << "' optimizer.\n";
       exatn::resetContrSeqOptimizer(optimizerName);
     }
+
+    // ExaTN and XACC logging levels are always in-synced.
+    exatn::resetRuntimeLoggingLevel(xacc::getLoggingLevel());
+    xacc::subscribeLoggingLevel([](int level) {
+      exatn::resetRuntimeLoggingLevel(level);
+    });
   }
 
   m_hasEvaluated = false;
