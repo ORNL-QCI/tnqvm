@@ -1,0 +1,6 @@
+{
+  "bundle.symbolic_name" : "tnqvm_exatn_mpo",
+  "bundle.activator" : true,
+  "bundle.name" : "XACC ExaTN MPO backend",
+  "bundle.description" : "This bundle provides an MPO tensor network Accelerator for Gate Model QC."
+}
