@@ -1,6 +1,6 @@
 #pragma once
 #include "xacc.hpp"
-
+#include "xacc_service.hpp"
 #include "Circuit.hpp"
 #include "IRProvider.hpp"
 
