@@ -376,9 +376,9 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
     
     if (process_group.getSize() < m_buffer->size())
     {
-        const size_t lRange = process_rank * (m_buffer->size() / process_group.getSize());
+        const size_t lRange = (process_rank * m_buffer->size()) / process_group.getSize();
         const size_t hRange = (process_rank != (process_group.getSize() - 1)) ? 
-            (process_rank + 1) * (m_buffer->size() / process_group.getSize()) - 1 :
+            ((process_rank + 1) * m_buffer->size()) / process_group.getSize() - 1 :
             m_buffer->size() - 1;
         
         m_qubitRange = std::make_pair(lRange, hRange);
