@@ -91,6 +91,7 @@ private:
     int m_shotCount;
     bool m_aggregateEnabled; 
     double m_svdCutoff;
+    int m_maxBondDim;
 #ifdef TNQVM_MPI_ENABLED
     // Rebuild the tensor network (m_tensorNetwork) from individual MPS tensors:
     // e.g. after bond dimension changes.
