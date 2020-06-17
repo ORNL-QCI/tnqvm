@@ -253,9 +253,9 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
         // If exaTN has not been initialized, do it now.
         exatn::initialize();
         // ExaTN and XACC logging levels are always in-synced.
-        exatn::resetRuntimeLoggingLevel(xacc::getLoggingLevel());
+        exatn::resetRuntimeLoggingLevel(xacc::verbose ? xacc::getLoggingLevel() : 0);
         xacc::subscribeLoggingLevel([](int level) {
-            exatn::resetRuntimeLoggingLevel(level);
+            exatn::resetRuntimeLoggingLevel(xacc::verbose ? level : 0);
         });
     }
 

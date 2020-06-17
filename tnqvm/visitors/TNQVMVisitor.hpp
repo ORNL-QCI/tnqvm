@@ -49,7 +49,7 @@ std::string concat(Ts&&... args) {
 // Macro to define a Telemetry zone whose execution time is tracked.
 // Using macros so that we can opt out if not need telemetry.
 #define TNQVM_TELEMETRY_ZONE(NAME, FILE, LINE) \
-  xacc::ScopeTimer __telemetry__timer(concat("tnqvm::", NAME, " (", FILE, ":", LINE, ")"));
+  xacc::ScopeTimer __telemetry__timer(concat("tnqvm::", NAME, " (", FILE, ":", LINE, ")"), xacc::verbose);
 
 namespace tnqvm {
 class TNQVMVisitor : public AllGateVisitor, public OptionsProvider,
