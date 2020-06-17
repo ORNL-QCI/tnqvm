@@ -267,6 +267,14 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
         std::cout << "[DEBUG] SVD Cut-off = " << m_svdCutoff << "\n";
     }
 
+    // Max bond dimension: take precedent over svd-cutoff 
+    m_maxBondDim = std::numeric_limits<int>::max() - 1;
+    if (options.keyExists<int>("max-bond-dim"))
+    {
+        m_maxBondDim = options.get<int>("max-bond-dim");
+        std::cout << "[DEBUG] Max bond dimension = " << m_maxBondDim << "\n";
+    }
+   
     m_buffer = std::move(buffer);
     m_qubitTensorNames.clear();
     m_tensorIdCounter = 0;
@@ -368,9 +376,9 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
     
     if (process_group.getSize() < m_buffer->size())
     {
-        const size_t lRange = process_rank * (m_buffer->size() / process_group.getSize());
+        const size_t lRange = (process_rank * m_buffer->size()) / process_group.getSize();
         const size_t hRange = (process_rank != (process_group.getSize() - 1)) ? 
-            (process_rank + 1) * (m_buffer->size() / process_group.getSize()) - 1 :
+            ((process_rank + 1) * m_buffer->size()) / process_group.getSize() - 1 :
             m_buffer->size() - 1;
         
         m_qubitRange = std::make_pair(lRange, hRange);
@@ -1182,7 +1190,7 @@ void ExatnMpsVisitor::applyGate(xacc::Instruction& in_gateInstruction)
     const size_t bitIdx = in_gateInstruction.bits()[0];
     if (indexInRange(bitIdx, m_qubitRange))
     {
-        std::cout << "Process [" << m_rank << "]: Process gate: " << in_gateInstruction.toString() << "\n";
+        xacc::info("Process [" + std::to_string(m_rank) + "]: Process gate: " + in_gateInstruction.toString());
         const auto gateTensor = GateTensorConstructor::getGateTensor(in_gateInstruction);
         const std::string& uniqueGateTensorName = in_gateInstruction.name();
         // Create the tensor
@@ -1946,14 +1954,14 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
     if (indexInRange(q1, m_qubitRange) && indexInRange(q2, m_qubitRange))
     {
         // Both qubits in range: process the gate
-        std::cout << "Process [" << m_rank << "]: Process gate: " << in_gateInstruction.toString() << "\n";
+        xacc::info("Process [" + std::to_string(m_rank) + "]: Process gate: " + in_gateInstruction.toString());
         processTwoQubitGate();
     }
     else if (indexInRange(qMin, m_qubitRange)) 
     {
         // Left qubit in range -> this process will compute the gate
         // Receive q2 data from next subgroup
-        std::cout << "Process [" << m_rank << "]: Wait data to process gate: " << in_gateInstruction.toString() << "\n";
+        xacc::info("Process [" + std::to_string(m_rank) + "]: Wait data to process gate: " + in_gateInstruction.toString());
         // MPI sync here: 
         // Get tensor data:
         // Tensor that needs to be received:
@@ -1961,17 +1969,6 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
         auto qubitTensor =  exatn::getTensor(qubitTensorName);
         auto tensorData = receiveTensorData(qubitTensor->getDimExtents().size(), m_rank + 1, TENSOR_PRE_PROCESS_TAG, MPI_COMM_WORLD);
         const auto& tensorShape = tensorData.first;
-        // std::cout << "Process [" << m_rank << "]: Receive tensor shape ";
-        // tensorShape.printIt();
-        // std::cout << "\n";
-        
-        // const auto& tensorBodyData = tensorData.second;
-        // std::cout << "Process [" << m_rank << "]: Receive tensor body: ";
-        // for (const auto& elem: tensorBodyData)
-        // {
-        //     std::cout << elem << " ";
-        // }
-        // std::cout << "\n";
 
         // Update 'qMax' tensor data based on the data just received:
         const bool qMaxDestroyed = exatn::destroyTensor(qubitTensorName);
@@ -2004,7 +2001,7 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
         const std::string qubitTensorName = "Q" + std::to_string(qMax); 
         auto qubitTensor =  exatn::getTensor(qubitTensorName);
         // Send tensor data to the left
-        std::cout << "Process [" << m_rank << "]: Send tensor data to process gate: " << in_gateInstruction.toString() << "\n";
+        xacc::info("Process [" + std::to_string(m_rank) + "]: Send tensor data to process gate: " + in_gateInstruction.toString());
         sendTensorData(*qubitTensor, m_rank - 1, TENSOR_PRE_PROCESS_TAG, MPI_COMM_WORLD);
 
         // Wait to receive tensor back (sync)
@@ -2029,7 +2026,7 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
     else 
     {
         // Don't care: both tensors are not in range
-        std::cout << "Process [" << m_rank << "]: Ignore gate: " << in_gateInstruction.toString() << "\n";
+        xacc::info("Process [" + std::to_string(m_rank) + "]: Ignore gate: " + in_gateInstruction.toString());
     }
 #endif
 }
@@ -2344,7 +2341,7 @@ void ExatnMpsVisitor::truncateSvdTensors(const std::string& in_leftTensorName, c
         return bondDim;
     };
 
-    const auto newBondDim = findCutoffDim();
+    const auto newBondDim = std::min(findCutoffDim(), m_maxBondDim);
     assert(newBondDim > 0);
     if (newBondDim < bondDim)
     {
