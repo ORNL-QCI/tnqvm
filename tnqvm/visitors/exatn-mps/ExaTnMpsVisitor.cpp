@@ -407,6 +407,10 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
                 m_leftSharedProcessGroup = splitProcessGroup;
             }
         }
+        else
+        {
+            auto splitProcessGroup = process_group.split(-1);
+        }
     }
 
     const auto processGroupToString = [](const std::shared_ptr<const exatn::ProcessGroup>& in_processGroup) -> std::string {
