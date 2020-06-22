@@ -352,9 +352,7 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
     exatn::ProcessGroup process_group(exatn::getDefaultProcessGroup());
     m_qubitIdxToRank.clear();
     // Get the rank of the process    
-    auto process_comm_world = process_group.getMPICommProxy().getRef<MPI_Comm>();
-    int process_rank;
-    MPI_Comm_rank(process_comm_world, &process_rank);
+    int process_rank = exatn::getProcessRank();
 
     // Get the name of the processor
     char processor_name[MPI_MAX_PROCESSOR_NAME];
@@ -817,6 +815,8 @@ void ExatnMpsVisitor::finalize()
     MPI_Barrier(MPI_COMM_WORLD);
     // Clean up
     m_selfProcessGroup.reset();
+    m_leftSharedProcessGroup.reset();
+    m_rightSharedProcessGroup.reset();
 #endif
 }
 
@@ -2025,45 +2025,54 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
         // Get tensor data:
         // Tensor that needs to be received:
         const std::string qubitTensorName = "Q" + std::to_string(qMax); 
-        auto qubitTensor =  exatn::getTensor(qubitTensorName);
-        auto tensorData = receiveTensorData(qubitTensor->getDimExtents().size(), m_rank + 1, TENSOR_PRE_PROCESS_TAG, MPI_COMM_WORLD);
-        const auto& tensorShape = tensorData.first;
 
-        // Update 'qMax' tensor data based on the data just received:
-        const bool qMaxDestroyed = exatn::destroyTensor(qubitTensorName);
-        assert(qMaxDestroyed);
-        exatn::sync();
-
-        // Create a new tensor
-        const bool qMaxCreated = exatn::createTensorSync(*m_selfProcessGroup, qubitTensorName, exatn::TensorElementType::COMPLEX64, tensorData.first);
-        assert(qMaxCreated);
-        exatn::sync(qubitTensorName);
-        // Init tensor body data
-        const bool initialized = exatn::initTensorDataSync(qubitTensorName, tensorData.second);
-        assert(initialized);
-        exatn::sync();
+        // Must have right shared group
+        assert(m_rightSharedProcessGroup);
+        {
+            unsigned int neighborRank;
+            const bool checkRankPre = m_rightSharedProcessGroup->rankIsIn(m_rank + 1, &neighborRank);
+            assert(checkRankPre);
+            const bool preBroadCastOk = exatn::broadcastTensorSync(qubitTensorName, neighborRank, m_rightSharedProcessGroup->getMPICommProxy());
+            assert(preBroadCastOk);
+        }
+        
         // Update the tensor network to take into
         // account the updated tensor.
         rebuildTensorNetwork();
         // Now, the *remote* tensor has been initialized, process gate as normal:
         // Apply gate
         processTwoQubitGate();
-
+        exatn::sync();
         // Done: Send tensor to the neighbor process
         // Send tensor forward
         auto updatedTensor = exatn::getTensor(qubitTensorName);
         sendTensorData(*updatedTensor, m_rank + 1, TENSOR_POST_PROCESS_TAG, MPI_COMM_WORLD);
+        {
+            unsigned int myLocalRank;
+            const bool checkRankPost = m_rightSharedProcessGroup->rankIsIn(m_rank, &myLocalRank);
+            assert(checkRankPost);
+            const bool postBroadCastOk = exatn::broadcastTensorSync(qubitTensorName, 0, m_rightSharedProcessGroup->getMPICommProxy());
+            assert(postBroadCastOk);
+        }
     }
     else if (indexInRange(qMax, m_qubitRange))
     {
         // Right qubit in range, delegate the compute:
         const std::string qubitTensorName = "Q" + std::to_string(qMax); 
-        auto qubitTensor =  exatn::getTensor(qubitTensorName);
         // Send tensor data to the left
         xacc::info("Process [" + std::to_string(m_rank) + "]: Send tensor data to process gate: " + in_gateInstruction.toString());
-        sendTensorData(*qubitTensor, m_rank - 1, TENSOR_PRE_PROCESS_TAG, MPI_COMM_WORLD);
+        // Must have a left shared sub-group
+        assert(m_leftSharedProcessGroup);
+        {
+            unsigned int myLocalRank;
+            const bool checkRankPre = m_leftSharedProcessGroup->rankIsIn(m_rank, &myLocalRank);
+            assert(checkRankPre);
+            xacc::info("Process [" + std::to_string(m_rank) + "]: Local left rank: " + std::to_string(myLocalRank));
+            const bool preBroadCastOk = exatn::broadcastTensorSync(qubitTensorName, myLocalRank, m_leftSharedProcessGroup->getMPICommProxy());
+            assert(preBroadCastOk);
+        }
 
-        // Wait to receive tensor back (sync)
+        auto qubitTensor =  exatn::getTensor(qubitTensorName);
         auto updatedTensorData = receiveTensorData(qubitTensor->getDimExtents().size(), m_rank - 1, TENSOR_POST_PROCESS_TAG, MPI_COMM_WORLD);
         
         // Update tensor data in this process
@@ -2078,8 +2087,19 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
         const bool initialized = exatn::initTensorDataSync(qubitTensorName, updatedTensorData.second);
         assert(initialized);
         exatn::sync();
+
+        // Wait to receive tensor back (sync)
+        {
+            unsigned int neighborLocalRank;
+            const bool checkRankPost = m_leftSharedProcessGroup->rankIsIn(m_rank - 1, &neighborLocalRank);
+            assert(checkRankPost);
+            const bool postBroadCastOk = exatn::broadcastTensorSync(qubitTensorName, 0, m_leftSharedProcessGroup->getMPICommProxy());
+            assert(postBroadCastOk);
+        }
+        
         // Update the tensor network to take into
         // account the updated tensor.
+        exatn::sync();
         rebuildTensorNetwork();
     }
     else 
