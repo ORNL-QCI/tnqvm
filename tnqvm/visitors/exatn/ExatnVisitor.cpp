@@ -184,7 +184,7 @@ int ReconstructStateVectorFunctor::apply(talsh::Tensor &local_tensor) {
     m_stateVec.assign(elements, elements + local_tensor.getVolume());
   }
 
-#ifdef _DEBUG
+#ifdef _DEBUG_LOG_ENABLED
   const bool normOkay = checkStateVectorNorm(m_stateVec);
   assert(normOkay);
 #endif
@@ -440,7 +440,7 @@ void ExatnVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer,
   }
 
 // Add the Debug logging listener
-#ifdef _DEBUG
+#ifdef _DEBUG_LOG_ENABLED
   subscribe(ExatnDebugLogger::GetInstance());
 #endif
 }
@@ -553,7 +553,7 @@ void ExatnVisitor::finalize() {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);                              
 
   // Calculate tensor network contraction FLOPS if requested:
-  if (options.keyExists<bool>("calc-contract-cost-flops") && options.get<bool>("calc-contract-cost-flops"))
+  if (options.keyExists<bool>("calc-contract-cost-flops"))
   {
     auto bra = m_qubitRegTensor;
     // Conjugate the ket to get the bra (e.g. if it was initialized to a complex
@@ -602,6 +602,9 @@ void ExatnVisitor::finalize() {
 
     m_buffer->addExtraInfo("bitstring-contract-flops", flopsVec);
     m_buffer->addExtraInfo("bitstring-max-node-bytes", memBytesVec);
+    m_buffer.reset();
+    resetExaTN();
+    return;
   }
 
   if (m_buffer->size() > MAX_NUMBER_QUBITS_FOR_STATE_VEC && !m_measureQbIdx.empty() && m_shots > 0 && !m_hasEvaluated)
@@ -1231,7 +1234,7 @@ std::vector<uint8_t> ExatnVisitor::getMeasureSample(
           if (talsh_tensor->getDataAccessHostConst(&body_ptr)) {
             resultRDM.assign(body_ptr, body_ptr + tensorVolume);
           }
-  #ifdef _DEBUG
+  #ifdef _DEBUG_LOG_ENABLED
           // Debug: print out RDM data
           {
             std::cout << "RDM @q" << qubitIdx << " = [";
@@ -1259,7 +1262,7 @@ std::vector<uint8_t> ExatnVisitor::getMeasureSample(
       // If radom number < probability of 0 state -> pick zero, and vice versa.
       resultBitString.emplace_back(randProbPick <= prob_0 ? 0 : 1);
       resultProbs.emplace_back(randProbPick <= prob_0 ? prob_0 : prob_1);
-#ifdef _DEBUG
+#ifdef _DEBUG_LOG_ENABLED
       {
         std::cout << ">> Measure @q" << qubitIdx << " prob(0) = " << prob_0
                   << "\n";
