@@ -2032,7 +2032,7 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
             unsigned int neighborRank;
             const bool checkRankPre = m_rightSharedProcessGroup->rankIsIn(m_rank + 1, &neighborRank);
             assert(checkRankPre);
-            const bool preBroadCastOk = exatn::broadcastTensorSync(qubitTensorName, neighborRank, m_rightSharedProcessGroup->getMPICommProxy());
+            const bool preBroadCastOk = exatn::broadcastTensorSync(*m_rightSharedProcessGroup, qubitTensorName, neighborRank);
             assert(preBroadCastOk);
         }
         
@@ -2051,7 +2051,7 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
             unsigned int myLocalRank;
             const bool checkRankPost = m_rightSharedProcessGroup->rankIsIn(m_rank, &myLocalRank);
             assert(checkRankPost);
-            const bool postBroadCastOk = exatn::broadcastTensorSync(qubitTensorName, 0, m_rightSharedProcessGroup->getMPICommProxy());
+            const bool postBroadCastOk = exatn::broadcastTensorSync(*m_rightSharedProcessGroup, qubitTensorName, 0);
             assert(postBroadCastOk);
         }
     }
@@ -2068,7 +2068,7 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
             const bool checkRankPre = m_leftSharedProcessGroup->rankIsIn(m_rank, &myLocalRank);
             assert(checkRankPre);
             xacc::info("Process [" + std::to_string(m_rank) + "]: Local left rank: " + std::to_string(myLocalRank));
-            const bool preBroadCastOk = exatn::broadcastTensorSync(qubitTensorName, myLocalRank, m_leftSharedProcessGroup->getMPICommProxy());
+            const bool preBroadCastOk = exatn::broadcastTensorSync(*m_leftSharedProcessGroup, qubitTensorName, myLocalRank);
             assert(preBroadCastOk);
         }
 
@@ -2093,7 +2093,7 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
             unsigned int neighborLocalRank;
             const bool checkRankPost = m_leftSharedProcessGroup->rankIsIn(m_rank - 1, &neighborLocalRank);
             assert(checkRankPost);
-            const bool postBroadCastOk = exatn::broadcastTensorSync(qubitTensorName, 0, m_leftSharedProcessGroup->getMPICommProxy());
+            const bool postBroadCastOk = exatn::broadcastTensorSync(*m_leftSharedProcessGroup, qubitTensorName, 0);
             assert(postBroadCastOk);
         }
         
