@@ -2026,13 +2026,17 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
         // Tensor that needs to be received:
         const std::string qubitTensorName = "Q" + std::to_string(qMax); 
 
+        const bool qMaxDestroyed = exatn::destroyTensor(qubitTensorName);
+        assert(qMaxDestroyed);
+        exatn::sync();
+
         // Must have right shared group
         assert(m_rightSharedProcessGroup);
         {
             unsigned int neighborRank;
             const bool checkRankPre = m_rightSharedProcessGroup->rankIsIn(m_rank + 1, &neighborRank);
             assert(checkRankPre);
-            const bool preBroadCastOk = exatn::broadcastTensorSync(*m_rightSharedProcessGroup, qubitTensorName, neighborRank);
+            const bool preBroadCastOk = exatn::replicateTensorSync(*m_rightSharedProcessGroup, qubitTensorName, neighborRank);
             assert(preBroadCastOk);
         }
         
@@ -2046,12 +2050,12 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
         // Done: Send tensor to the neighbor process
         // Send tensor forward
         auto updatedTensor = exatn::getTensor(qubitTensorName);
-        sendTensorData(*updatedTensor, m_rank + 1, TENSOR_POST_PROCESS_TAG, MPI_COMM_WORLD);
+        // sendTensorData(*updatedTensor, m_rank + 1, TENSOR_POST_PROCESS_TAG, MPI_COMM_WORLD);
         {
             unsigned int myLocalRank;
             const bool checkRankPost = m_rightSharedProcessGroup->rankIsIn(m_rank, &myLocalRank);
             assert(checkRankPost);
-            const bool postBroadCastOk = exatn::broadcastTensorSync(*m_rightSharedProcessGroup, qubitTensorName, 0);
+            const bool postBroadCastOk = exatn::replicateTensorSync(*m_rightSharedProcessGroup, qubitTensorName, 0);
             assert(postBroadCastOk);
         }
     }
@@ -2068,32 +2072,32 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
             const bool checkRankPre = m_leftSharedProcessGroup->rankIsIn(m_rank, &myLocalRank);
             assert(checkRankPre);
             xacc::info("Process [" + std::to_string(m_rank) + "]: Local left rank: " + std::to_string(myLocalRank));
-            const bool preBroadCastOk = exatn::broadcastTensorSync(*m_leftSharedProcessGroup, qubitTensorName, myLocalRank);
+            const bool preBroadCastOk = exatn::replicateTensorSync(*m_leftSharedProcessGroup, qubitTensorName, myLocalRank);
             assert(preBroadCastOk);
         }
 
-        auto qubitTensor =  exatn::getTensor(qubitTensorName);
-        auto updatedTensorData = receiveTensorData(qubitTensor->getDimExtents().size(), m_rank - 1, TENSOR_POST_PROCESS_TAG, MPI_COMM_WORLD);
+        // auto qubitTensor =  exatn::getTensor(qubitTensorName);
+        // auto updatedTensorData = receiveTensorData(qubitTensor->getDimExtents().size(), m_rank - 1, TENSOR_POST_PROCESS_TAG, MPI_COMM_WORLD);
         
         // Update tensor data in this process
         const bool qMaxDestroyed = exatn::destroyTensor(qubitTensorName);
         assert(qMaxDestroyed);
         exatn::sync();
-        // Create a new tensor
-        const bool qMaxCreated = exatn::createTensorSync(*m_selfProcessGroup, qubitTensorName, exatn::TensorElementType::COMPLEX64, updatedTensorData.first);
-        assert(qMaxCreated);
-        exatn::sync(qubitTensorName);
-        // Init tensor body data
-        const bool initialized = exatn::initTensorDataSync(qubitTensorName, updatedTensorData.second);
-        assert(initialized);
-        exatn::sync();
+        // // Create a new tensor
+        // const bool qMaxCreated = exatn::createTensorSync(*m_selfProcessGroup, qubitTensorName, exatn::TensorElementType::COMPLEX64, updatedTensorData.first);
+        // assert(qMaxCreated);
+        // exatn::sync(qubitTensorName);
+        // // Init tensor body data
+        // const bool initialized = exatn::initTensorDataSync(qubitTensorName, updatedTensorData.second);
+        // assert(initialized);
+        // exatn::sync();
 
         // Wait to receive tensor back (sync)
         {
             unsigned int neighborLocalRank;
             const bool checkRankPost = m_leftSharedProcessGroup->rankIsIn(m_rank - 1, &neighborLocalRank);
             assert(checkRankPost);
-            const bool postBroadCastOk = exatn::broadcastTensorSync(*m_leftSharedProcessGroup, qubitTensorName, 0);
+            const bool postBroadCastOk = exatn::replicateTensorSync(*m_leftSharedProcessGroup, qubitTensorName, 0);
             assert(postBroadCastOk);
         }
         
