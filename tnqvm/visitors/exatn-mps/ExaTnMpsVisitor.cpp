@@ -363,7 +363,7 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
     }
     else
     {
-        for (int i = 0; i <= m_buffer->size(); ++i) 
+        for (int i = 0; i < m_buffer->size(); ++i) 
         {
             m_qubitIdxToRank.emplace(i, i);
         }
