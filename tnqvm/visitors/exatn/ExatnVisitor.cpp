@@ -607,6 +607,86 @@ void ExatnVisitor::finalize() {
     return;
   }
 
+  // Calculates the amplitude of a specific bitstring
+  if (options.keyExists<std::vector<int>>("bitstring"))
+  {
+    std::vector<int> bitString = options.get<std::vector<int>>("bitstring");
+    if (bitString.size() != m_buffer->size())
+    {
+      xacc::error("Bitstring size must match the number of qubits.");
+      return;
+    }
+    
+    const auto constructBraNetwork = [](const std::vector<int>& in_bitString){
+      int tensorIdCounter = 1;
+      TensorNetwork braTensorNet("bra");
+      // Create the qubit register tensor
+      for (int i = 0; i < in_bitString.size(); ++i) {
+        const std::string braQubitName = "QB" + std::to_string(i);
+        const bool created = exatn::createTensor(
+            braQubitName, exatn::TensorElementType::COMPLEX64,
+            TensorShape{2});
+        assert(created);
+        const auto bitVal = in_bitString[i];
+        if (bitVal == 0)
+        {
+          // Bit = 0
+          const bool initialized = exatn::initTensorData(braQubitName, std::vector<std::complex<double>>{{1.0, 0.0}, {0.0, 0.0}});
+          assert(initialized);
+        }
+        else
+        {
+          // Bit = 1
+          const bool initialized = exatn::initTensorData(braQubitName, std::vector<std::complex<double>>{{0.0, 0.0}, {1.0, 0.0}});
+          assert(initialized);
+        }
+
+        braTensorNet.appendTensor(
+          tensorIdCounter, exatn::getTensor(braQubitName),
+          std::vector<std::pair<unsigned int, unsigned int>>{});  
+        tensorIdCounter++;
+      }
+
+      return braTensorNet;
+    };
+    
+    auto braTensors = constructBraNetwork(bitString);
+    braTensors.conjugate();
+    auto combinedTensorNetwork = m_tensorNetwork;
+    // Closing the tensor network with the bra
+    std::vector<std::pair<unsigned int, unsigned int>> pairings;
+    for (unsigned int i = 0; i < m_buffer->size(); ++i) 
+    {
+      pairings.emplace_back(std::make_pair(i, i));
+    }
+    combinedTensorNetwork.appendTensorNetwork(std::move(braTensors), pairings);
+    combinedTensorNetwork.collapseIsometries();
+    combinedTensorNetwork.printIt();
+    
+    std::complex<double> result = 0.0;
+    {
+      TNQVM_TELEMETRY_ZONE("exatn::evaluateSync", __FILE__, __LINE__); 
+      std::cout << "SUBMIT TENSOR NETWORK FOR EVALUATION\n";
+      if (exatn::evaluateSync(combinedTensorNetwork)) {
+        exatn::sync();
+        auto talsh_tensor =
+          exatn::getLocalTensor(combinedTensorNetwork.getTensor(0)->getName());
+        assert(talsh_tensor->getVolume() == 1);
+        const std::complex<double> *body_ptr;
+        if (talsh_tensor->getDataAccessHostConst(&body_ptr)) {
+          result = *body_ptr;
+        }
+     }
+    }
+
+    m_buffer->addExtraInfo("amplitude-real", result.real());
+    m_buffer->addExtraInfo("amplitude-imag", result.imag());
+    m_buffer.reset();
+    m_hasEvaluated = true;
+    resetExaTN();
+    return;
+  }
+
   if (m_buffer->size() > MAX_NUMBER_QUBITS_FOR_STATE_VEC && !m_measureQbIdx.empty() && m_shots > 0 && !m_hasEvaluated)
   {
     std::cout << "Simulating bit string by MPS tensor contraction\n";

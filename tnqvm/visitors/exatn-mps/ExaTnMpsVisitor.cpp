@@ -5,12 +5,9 @@
 #include "ExatnUtils.hpp"
 #include "utils/GateMatrixAlgebra.hpp"
 #include <map>
+#include <unistd.h> 
 #ifdef TNQVM_EXATN_USES_MKL_BLAS
 #include <dlfcn.h>
-#endif
-
-#ifdef TNQVM_MPI_ENABLED
-#include "mpi.h"
 #endif
 
 namespace {
@@ -108,103 +105,6 @@ inline bool indexInRange(size_t in_idx, const std::pair<size_t, size_t>& in_rang
 {
     return (in_idx >= in_range.first) && (in_idx <= in_range.second);
 }
-
-#ifdef TNQVM_MPI_ENABLED
-// MPI tags to denote tensor data
-constexpr int TENSOR_PRE_PROCESS_TAG = 1;
-constexpr int TENSOR_POST_PROCESS_TAG = 2;
-constexpr int TENSOR_FINALIZE_TAG = 4;
-
-void sendTensorShape(const exatn::Tensor& in_tensor, int in_dest, int in_tag, MPI_Comm communicator)
-{
-    const auto& tensorShape = in_tensor.getDimExtents();
-    std::vector<unsigned long long> dims;
-    for (const auto& dimExt: tensorShape)
-    {
-        dims.emplace_back(dimExt);
-    }
-    assert(dims.size() > 1);
-    void* dataPtr = &dims[0];
-    int dataCount = dims.size();
-    
-    MPI_Send(dataPtr, dataCount, MPI::UNSIGNED_LONG_LONG, in_dest, in_tag, communicator);
-}
-
-void sendTensorBody(const exatn::Tensor& in_tensor, int in_dest, int in_tag, MPI_Comm communicator)
-{
-    std::vector<std::complex<double>> bodyVec;
-    auto talsh_tensor = exatn::getLocalTensor(in_tensor.getName()); 
-    
-    if (talsh_tensor)
-    {
-        std::complex<double>* body_ptr;
-        const bool access_granted = talsh_tensor->getDataAccessHost(&body_ptr); 
-
-        if (access_granted)
-        {
-            bodyVec.assign(body_ptr, body_ptr + talsh_tensor->getVolume());
-        }
-    }
-
-    void* dataPtr = &bodyVec[0];
-    int dataCount = bodyVec.size();
-    
-    MPI_Send(dataPtr, dataCount, MPI::DOUBLE_COMPLEX, in_dest, in_tag, communicator);
-}
-
-exatn::TensorShape receiveTensorShape(int in_dimCount, int in_source, int in_tag, MPI_Comm communicator)
-{
-    std::vector<unsigned long long> dims(in_dimCount);
-    void* dataPtr = &dims[0];    
-    MPI_Recv(dataPtr, in_dimCount, MPI::UNSIGNED_LONG_LONG, in_source, in_tag, communicator, MPI_STATUS_IGNORE);
-
-    return exatn::TensorShape(dims);
-}
-
-std::vector<std::complex<double>> receiveTensorBody(int in_volume, int in_source, int in_tag, MPI_Comm communicator)
-{
-    std::vector<std::complex<double>> result(in_volume);
-    void* dataPtr = &result[0];    
-    MPI_Recv(dataPtr, in_volume, MPI::DOUBLE_COMPLEX, in_source, in_tag, communicator, MPI_STATUS_IGNORE);
-
-    return result;
-}   
-
-void sendTensorData(const exatn::Tensor& in_tensor, int in_dest, int in_tag, MPI_Comm communicator) 
-{
-    // int world_rank;
-    // MPI_Comm_rank(communicator, &world_rank);
-    // if (in_tag == TENSOR_PRE_PROCESS_TAG)
-    // {
-    //     std::cout << "Process [" << world_rank << "] Send pre-tensor data to " << in_dest << "\n";
-    // }
-    // if (in_tag == TENSOR_POST_PROCESS_TAG)
-    // {
-    //     std::cout << "Process [" << world_rank << "] Send post-tensor data to " << in_dest << "\n";
-    // }
-    sendTensorShape(in_tensor, in_dest, in_tag, communicator);
-    sendTensorBody(in_tensor, in_dest, in_tag, communicator);    
-}
-
-std::pair<exatn::TensorShape, std::vector<std::complex<double>>> receiveTensorData(int in_dimCount, int in_source, int in_tag, MPI_Comm communicator)
-{
-    // int world_rank;
-    // MPI_Comm_rank(communicator, &world_rank);
-    // if (in_tag == TENSOR_PRE_PROCESS_TAG)
-    // {
-    //     std::cout << "Process [" << world_rank << "] Receive pre-tensor data from " << in_source << "\n";
-    // }
-    // if (in_tag == TENSOR_POST_PROCESS_TAG)
-    // {
-    //     std::cout << "Process [" << world_rank << "] Receive post-tensor data from " << in_source << "\n";
-    // }
-    auto shape = receiveTensorShape(in_dimCount, in_source, in_tag, communicator);
-    auto body = receiveTensorBody(shape.getVolume(), in_source, in_tag, communicator);
-
-    return std::make_pair(shape, body);
-}    
-
-#endif
 }
 namespace tnqvm {
 ExatnMpsVisitor::ExatnMpsVisitor():
@@ -352,28 +252,81 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
     exatn::ProcessGroup process_group(exatn::getDefaultProcessGroup());
     m_qubitIdxToRank.clear();
     // Get the rank of the process    
-    auto process_comm_world = process_group.getMPICommProxy().getRef<MPI_Comm>();
-    int process_rank;
-    MPI_Comm_rank(process_comm_world, &process_rank);
+    int process_rank = exatn::getProcessRank();
 
-    // Get the name of the processor
-    char processor_name[MPI_MAX_PROCESSOR_NAME];
-    int name_len;
-    MPI_Get_processor_name(processor_name, &name_len);
     if (process_rank == 0)
     {
         std::cout << "============== MPI Info ============================\n";
-        std::cout << "Processor " << processor_name << ", rank = " << process_rank << "\n";
+        std::cout << "Process " << ::getpid() << ": rank = " << process_rank << "\n";
         std::cout << "Number of MPI processes = " << process_group.getSize() << "\n";
         std::cout << "Memory limit per process = " << process_group.getMemoryLimitPerProcess() << "\n";
         std::cout << "====================================================\n";
     }
     m_rank = process_rank;
     // Split processes into groups:
-    m_processGroup = process_group.split(process_rank);
-    std::cout << "Process [" << process_rank << "]: Number of MPI processes in sub-group = " << m_processGroup->getSize() << "\n";
-    std::cout << "Process [" << process_rank << "]: Memory limit per process in sub-group = " << m_processGroup->getMemoryLimitPerProcess() << "\n";
-    
+    m_selfProcessGroup = process_group.split(process_rank);
+    std::cout << "Process [" << process_rank << "]: Number of MPI processes in sub-group = " << m_selfProcessGroup->getSize() << "\n";
+    std::cout << "Process [" << process_rank << "]: Memory limit per process in sub-group = " << m_selfProcessGroup->getMemoryLimitPerProcess() << "\n";
+
+    // Establish shared process groups:
+    // Pairwise split
+    m_rightSharedProcessGroup.reset();
+    m_leftSharedProcessGroup.reset();
+    {
+        const int color = process_rank / 2;
+        auto splitProcessGroup = process_group.split(color);
+        const int splitDir = process_rank % 2;
+        if (splitDir == 0 && (process_rank != (process_group.getSize() - 1)))
+        {
+            m_rightSharedProcessGroup = splitProcessGroup;
+        }
+        else
+        {
+            m_leftSharedProcessGroup = splitProcessGroup;
+        }
+    }
+    {
+        if (process_rank != 0)
+        {
+            const int rankShift = process_rank - 1; 
+            const int color = rankShift / 2;
+            auto splitProcessGroup = process_group.split(color);
+            const int splitDir = rankShift % 2;
+            if (splitDir == 0)
+            {
+                m_rightSharedProcessGroup = splitProcessGroup;
+            }
+            else
+            {
+                m_leftSharedProcessGroup = splitProcessGroup;
+            }
+        }
+        else
+        {
+            auto splitProcessGroup = process_group.split(-1);
+        }
+    }
+
+    const auto processGroupToString = [](const std::shared_ptr<const exatn::ProcessGroup>& in_processGroup) -> std::string {
+        if (in_processGroup) {
+            std::string result = "[ ";
+            for (const auto& rank : in_processGroup->getProcessRanks())
+            {
+                result.append(std::to_string(rank) + " ");
+            }
+            result.append("]");
+            return result;
+        }
+        else 
+        {
+            return "NULL";
+        }
+    };
+
+    std::cout << "Process [" << process_rank << "]: Left group = " 
+        << processGroupToString(m_leftSharedProcessGroup) 
+        << "; Right group = " << processGroupToString(m_rightSharedProcessGroup) << "\n";
+
     if (process_group.getSize() < m_buffer->size())
     {
         const size_t lRange = (process_rank * m_buffer->size()) / process_group.getSize();
@@ -410,7 +363,7 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
     }
     else
     {
-        for (int i = 0; i <= m_buffer->size(); ++i) 
+        for (int i = 0; i < m_buffer->size(); ++i) 
         {
             m_qubitIdxToRank.emplace(i, i);
         }
@@ -456,7 +409,7 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
             auto tensor = iter->second.getTensor();
             const auto newTensorName = "Q" + std::to_string(iter->first - 1);
             iter->second.getTensor()->rename(newTensorName);
-            const bool created = exatn::createTensorSync(*m_processGroup, tensor, exatn::TensorElementType::COMPLEX64);
+            const bool created = exatn::createTensorSync(*m_selfProcessGroup, tensor, exatn::TensorElementType::COMPLEX64);
             assert(created);
             const bool initialized = exatn::initTensorDataSync(newTensorName, Q_ZERO_TENSOR_BODY);
             assert(initialized);
@@ -477,7 +430,7 @@ void ExatnMpsVisitor::printStateVec()
     const bool evaledOk = exatn::evaluateSync(ket);
     assert(evaledOk); 
 #else
-    const bool evaledOk = exatn::evaluateSync(*m_processGroup, ket);
+    const bool evaledOk = exatn::evaluateSync(*m_selfProcessGroup, ket);
     assert(evaledOk); 
 #endif
 
@@ -614,38 +567,22 @@ void ExatnMpsVisitor::finalize()
     // Debug:
     // printAllStats();
 #else
-    // MPI
-    MPI_Barrier(MPI_COMM_WORLD);
-    if (m_rank == 0)
+    for (const auto& [qubitIdx, rank] : m_qubitIdxToRank)
     {
-        const auto updateProcessLocalTensor = [&](size_t qubitIdx, size_t sourceRank){
-            const std::string qubitTensorName = "Q" + std::to_string(qubitIdx); 
-            auto qubitTensor =  exatn::getTensor(qubitTensorName);
-            auto tensorData = receiveTensorData(qubitTensor->getDimExtents().size(), sourceRank, TENSOR_FINALIZE_TAG, MPI_COMM_WORLD);
-            const auto& tensorShape = tensorData.first;
+        const std::string qubitTensorName = "Q" + std::to_string(qubitIdx); 
+        if (rank != m_rank)
+        {
             const bool qTensorDestroyed = exatn::destroyTensor(qubitTensorName);
             assert(qTensorDestroyed);
-            exatn::sync();
-
-            // Create a new tensor
-            const bool qTensorCreated = exatn::createTensorSync(*m_processGroup, qubitTensorName, exatn::TensorElementType::COMPLEX64, tensorData.first);
-            assert(qTensorCreated);
-            exatn::sync(qubitTensorName);
-            // Init tensor body data
-            const bool initialized = exatn::initTensorDataSync(qubitTensorName, tensorData.second);
-            assert(initialized);
-            exatn::sync();
-        };
-
-        for (const auto& [qubitIdx, rank] : m_qubitIdxToRank)
-        {
-            if (rank != m_rank)
-            {
-                // Receive remote
-                updateProcessLocalTensor(qubitIdx, rank);
-            }
         }
-        
+
+        const bool broadcastOk = exatn::replicateTensorSync(exatn::getDefaultProcessGroup(), qubitTensorName, rank);
+        assert(broadcastOk);
+    }
+
+    // Only run bitstring sampling on root
+    if (m_rank == 0)
+    {
         // Update the tensor network to take into
         // account the updated tensors.
         rebuildTensorNetwork();
@@ -656,7 +593,7 @@ void ExatnMpsVisitor::finalize()
             // printStateVec();
             exatn::TensorNetwork ket(*m_tensorNetwork);
             ket.rename("MPSket");
-            const bool evaledOk = exatn::evaluateSync(*m_processGroup, ket);
+            const bool evaledOk = exatn::evaluateSync(*m_selfProcessGroup, ket);
             assert(evaledOk); 
             const auto tensorData = getTensorData(ket.getTensor(0)->getName());
             // Simulate measurement by full tensor contraction (to get the state vector)
@@ -735,29 +672,11 @@ void ExatnMpsVisitor::finalize()
             }
         }
     }
-    else
-    {
-        // Non-root:
-        // Send tensors to root
-        for (const auto& [qubitIdx, rank] : m_qubitIdxToRank)
-        {
-            const auto sendTensorToRoot = [&](size_t qubitIdx){
-                const std::string qubitTensorName = "Q" + std::to_string(qubitIdx); 
-                auto qubitTensor =  exatn::getTensor(qubitTensorName);
-                sendTensorData(*qubitTensor, 0, TENSOR_FINALIZE_TAG, MPI_COMM_WORLD);
-            };
-            
-            if (rank == m_rank)
-            {
-                // Send tensors to root
-                sendTensorToRoot(qubitIdx);
-            }
-        }
-    }
-
-    MPI_Barrier(MPI_COMM_WORLD);
+    
     // Clean up
-    m_processGroup.reset();
+    m_selfProcessGroup.reset();
+    m_leftSharedProcessGroup.reset();
+    m_rightSharedProcessGroup.reset();
 #endif
 }
 
@@ -1194,7 +1113,7 @@ void ExatnMpsVisitor::applyGate(xacc::Instruction& in_gateInstruction)
         const auto gateTensor = GateTensorConstructor::getGateTensor(in_gateInstruction);
         const std::string& uniqueGateTensorName = in_gateInstruction.name();
         // Create the tensor
-        const bool created = exatn::createTensorSync(*m_processGroup, uniqueGateTensorName, exatn::TensorElementType::COMPLEX64, gateTensor.tensorShape);
+        const bool created = exatn::createTensorSync(*m_selfProcessGroup, uniqueGateTensorName, exatn::TensorElementType::COMPLEX64, gateTensor.tensorShape);
         assert(created);
         // Init tensor body data
         const bool initialized = exatn::initTensorDataSync(uniqueGateTensorName, gateTensor.tensorData);
@@ -1270,7 +1189,7 @@ void ExatnMpsVisitor::applyGate(xacc::Instruction& in_gateInstruction)
 
         {
             // Single-qubit gate contraction
-            contractGateTensor(in_gateInstruction.bits()[0], uniqueGateTensorName, *m_processGroup);
+            contractGateTensor(in_gateInstruction.bits()[0], uniqueGateTensorName, *m_selfProcessGroup);
         }
 
         const bool destroyed = exatn::destroyTensor(uniqueGateTensorName);
@@ -1669,7 +1588,7 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
         mergedTensor->rename("D");
         
         // std::cout << "Contraction Pattern: " << mergeContractionPattern << "\n";
-        const bool mergedTensorCreated = exatn::createTensorSync(*m_processGroup, mergedTensor, exatn::TensorElementType::COMPLEX64);
+        const bool mergedTensorCreated = exatn::createTensorSync(*m_selfProcessGroup, mergedTensor, exatn::TensorElementType::COMPLEX64);
         assert(mergedTensorCreated);
         const bool mergedTensorInitialized = exatn::initTensorSync(mergedTensor->getName(), 0.0);
         assert(mergedTensorInitialized);
@@ -1681,7 +1600,7 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
         const std::string uniqueGateTensorName = in_gateInstruction.name();
 
         // Create the tensor
-        const bool created = exatn::createTensorSync(*m_processGroup, uniqueGateTensorName, exatn::TensorElementType::COMPLEX64, gateTensor.tensorShape);
+        const bool created = exatn::createTensorSync(*m_selfProcessGroup, uniqueGateTensorName, exatn::TensorElementType::COMPLEX64, gateTensor.tensorShape);
         assert(created);
         // Init tensor body data
         const bool initialized = exatn::initTensorDataSync(uniqueGateTensorName, gateTensor.tensorData);
@@ -1690,7 +1609,7 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
         assert(mergedTensor->getRank() >=2 && mergedTensor->getRank() <= 4);
         const std::string RESULT_TENSOR_NAME = "Result";
         // Result tensor always has the same shape as the *merged* qubit tensor
-        const bool resultTensorCreated = exatn::createTensorSync(*m_processGroup, RESULT_TENSOR_NAME, 
+        const bool resultTensorCreated = exatn::createTensorSync(*m_selfProcessGroup, RESULT_TENSOR_NAME, 
                                                                 exatn::TensorElementType::COMPLEX64, 
                                                                 mergedTensor->getShape());
         assert(resultTensorCreated);
@@ -1835,10 +1754,10 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
         exatn::sync(mergedTensor->getName());
 
         // Create two new tensors:
-        const bool q1Created = exatn::createTensorSync(*m_processGroup, q1TensorName, exatn::TensorElementType::COMPLEX64, q1Shape);
+        const bool q1Created = exatn::createTensorSync(*m_selfProcessGroup, q1TensorName, exatn::TensorElementType::COMPLEX64, q1Shape);
         assert(q1Created);
         
-        const bool q2Created = exatn::createTensorSync(*m_processGroup, q2TensorName, exatn::TensorElementType::COMPLEX64, q2Shape);
+        const bool q2Created = exatn::createTensorSync(*m_selfProcessGroup, q2TensorName, exatn::TensorElementType::COMPLEX64, q2Shape);
         assert(q2Created);
         exatn::sync(q1TensorName);
         exatn::sync(q2TensorName);
@@ -1966,61 +1885,72 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
         // Get tensor data:
         // Tensor that needs to be received:
         const std::string qubitTensorName = "Q" + std::to_string(qMax); 
-        auto qubitTensor =  exatn::getTensor(qubitTensorName);
-        auto tensorData = receiveTensorData(qubitTensor->getDimExtents().size(), m_rank + 1, TENSOR_PRE_PROCESS_TAG, MPI_COMM_WORLD);
-        const auto& tensorShape = tensorData.first;
 
-        // Update 'qMax' tensor data based on the data just received:
         const bool qMaxDestroyed = exatn::destroyTensor(qubitTensorName);
         assert(qMaxDestroyed);
         exatn::sync();
 
-        // Create a new tensor
-        const bool qMaxCreated = exatn::createTensorSync(*m_processGroup, qubitTensorName, exatn::TensorElementType::COMPLEX64, tensorData.first);
-        assert(qMaxCreated);
-        exatn::sync(qubitTensorName);
-        // Init tensor body data
-        const bool initialized = exatn::initTensorDataSync(qubitTensorName, tensorData.second);
-        assert(initialized);
-        exatn::sync();
+        // Must have right shared group
+        assert(m_rightSharedProcessGroup);
+        {
+            unsigned int neighborRank;
+            const bool checkRankPre = m_rightSharedProcessGroup->rankIsIn(m_rank + 1, &neighborRank);
+            assert(checkRankPre);
+            const bool preBroadCastOk = exatn::replicateTensorSync(*m_rightSharedProcessGroup, qubitTensorName, neighborRank);
+            assert(preBroadCastOk);
+        }
+        
         // Update the tensor network to take into
         // account the updated tensor.
         rebuildTensorNetwork();
         // Now, the *remote* tensor has been initialized, process gate as normal:
         // Apply gate
         processTwoQubitGate();
-
+        exatn::sync();
         // Done: Send tensor to the neighbor process
         // Send tensor forward
         auto updatedTensor = exatn::getTensor(qubitTensorName);
-        sendTensorData(*updatedTensor, m_rank + 1, TENSOR_POST_PROCESS_TAG, MPI_COMM_WORLD);
+        {
+            unsigned int myLocalRank;
+            const bool checkRankPost = m_rightSharedProcessGroup->rankIsIn(m_rank, &myLocalRank);
+            assert(checkRankPost);
+            const bool postBroadCastOk = exatn::replicateTensorSync(*m_rightSharedProcessGroup, qubitTensorName, 0);
+            assert(postBroadCastOk);
+        }
     }
     else if (indexInRange(qMax, m_qubitRange))
     {
         // Right qubit in range, delegate the compute:
         const std::string qubitTensorName = "Q" + std::to_string(qMax); 
-        auto qubitTensor =  exatn::getTensor(qubitTensorName);
         // Send tensor data to the left
         xacc::info("Process [" + std::to_string(m_rank) + "]: Send tensor data to process gate: " + in_gateInstruction.toString());
-        sendTensorData(*qubitTensor, m_rank - 1, TENSOR_PRE_PROCESS_TAG, MPI_COMM_WORLD);
+        // Must have a left shared sub-group
+        assert(m_leftSharedProcessGroup);
+        {
+            unsigned int myLocalRank;
+            const bool checkRankPre = m_leftSharedProcessGroup->rankIsIn(m_rank, &myLocalRank);
+            assert(checkRankPre);
+            const bool preBroadCastOk = exatn::replicateTensorSync(*m_leftSharedProcessGroup, qubitTensorName, myLocalRank);
+            assert(preBroadCastOk);
+        }
 
-        // Wait to receive tensor back (sync)
-        auto updatedTensorData = receiveTensorData(qubitTensor->getDimExtents().size(), m_rank - 1, TENSOR_POST_PROCESS_TAG, MPI_COMM_WORLD);
-        
         // Update tensor data in this process
         const bool qMaxDestroyed = exatn::destroyTensor(qubitTensorName);
         assert(qMaxDestroyed);
         exatn::sync();
-        // Create a new tensor
-        const bool qMaxCreated = exatn::createTensorSync(*m_processGroup, qubitTensorName, exatn::TensorElementType::COMPLEX64, updatedTensorData.first);
-        assert(qMaxCreated);
-        exatn::sync(qubitTensorName);
-        // Init tensor body data
-        const bool initialized = exatn::initTensorDataSync(qubitTensorName, updatedTensorData.second);
-        assert(initialized);
-        exatn::sync();
+
+        // Wait to receive tensor back (sync)
+        {
+            unsigned int neighborLocalRank;
+            const bool checkRankPost = m_leftSharedProcessGroup->rankIsIn(m_rank - 1, &neighborLocalRank);
+            assert(checkRankPost);
+            const bool postBroadCastOk = exatn::replicateTensorSync(*m_leftSharedProcessGroup, qubitTensorName, 0);
+            assert(postBroadCastOk);
+        }
+        
         // Update the tensor network to take into
         // account the updated tensor.
+        exatn::sync();
         rebuildTensorNetwork();
     }
     else 

@@ -4,6 +4,7 @@ int main (int argc, char** argv) {
 
     // Initialize the XACC Framework
     xacc::Initialize(argc, argv);
+    xacc::set_verbose(true);
     auto qpu = xacc::getAccelerator("tnqvm", {
         std::make_pair("tnqvm-visitor", "exatn-mps"),
         std::make_pair("shots", 10),
