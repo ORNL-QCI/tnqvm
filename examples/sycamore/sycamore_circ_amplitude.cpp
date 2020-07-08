@@ -4,6 +4,18 @@
 #include <fstream>
 #include <numeric>
 
+// Initial state:
+const std::vector<int> INITIAL_STATE_BIT_STRING(53, 0);
+std::string bitStringVecToString(const std::vector<int>& in_vec)
+{
+    std::stringstream s;
+    for (const auto& bit: in_vec)
+    {
+        s << bit;
+    }
+    return s.str();
+}
+
 int main(int argc, char **argv) 
 {
     xacc::Initialize();
@@ -41,7 +53,18 @@ int main(int argc, char **argv)
     auto ir = xasmCompiler->compile(xasmSrcStr, qpu);
     auto program = ir->getComposites()[0];
     qpu->execute(qubitReg, program);
-    qubitReg->print();
+    // qubitReg->print();
+    const double realAmpl = (*qubitReg)["amplitude-real"].as<double>();
+    const double imagAmpl = (*qubitReg)["amplitude-imag"].as<double>();
+
+    // qflex style output:
+    std::cout << "================= RESULT =================\n";
+    std::cout << bitStringVecToString(INITIAL_STATE_BIT_STRING);
+    std::cout << " --> ";
+    std::cout << bitStringVecToString(BIT_STRING);
+    std::cout << ": " << realAmpl << " " << imagAmpl << "\n";
+    std::cout << "Bit-string probability: " << sqrt(realAmpl*realAmpl + imagAmpl*imagAmpl) << "\n";
+
     xacc::Finalize();
     return 0;
 } 

@@ -76,23 +76,24 @@ def parseFile(fileName):
                 # 1-q gate
                 gateName = components[1]
                 if gateName.startswith('Rz') is True:
-                    angle = gateName[3:-1]
+                    # qflex Rz gate param is the exponent (not radiant)
+                    angle = str(float(gateName[3:-1]) * (3.14159265359))
                     gateName = 'Rz'
                 if gateName == 'x_1_2':
-                    angle = '1.5708'
+                    angle = '1.57079632679'
                     gateName = 'Rx'
                 if gateName == 'y_1_2':
-                    angle = '1.5708'
+                    angle = '1.57079632679'
                     gateName = 'Ry'
                 if gateName == 'hz_1_2':
                     # qFlex's hz_1_2 == Cirq's PhasedXPowGate(phase_exponent=0.25, exponent=0.5)
-                    # i.e. hz_1_2 == Z^-0.25─X^0.5─Z^0.25 == Rz(-pi/4) - Rx(pi/2) - Rz(pi/4)
+                    # i.e. hz_1_2 == Z^-0.25─X^0.5─Z^0.25 == Rz(pi/4) - Rx(-pi/2) - Rz(-pi/4)
                     qubit = 'q[' + str(qubitIdxMap[int(components[2])]) + ']'
                     # Comment block around this transformation
                     xasmSrcLines.append('// Begin hz_1_2')
-                    xasmSrcLines.append('Rz' + '(' + qubit + ', ' + '-0.785398' + ');')
-                    xasmSrcLines.append('Rx' + '(' + qubit + ', ' + '1.5708' + ');')
-                    xasmSrcLines.append('Rz' + '(' + qubit + ', ' + '0.785398' + ');')
+                    xasmSrcLines.append('Rz' + '(' + qubit + ', ' + '-0.78539816339' + ');')
+                    xasmSrcLines.append('Rx' + '(' + qubit + ', ' + '1.57079632679' + ');')
+                    xasmSrcLines.append('Rz' + '(' + qubit + ', ' + '0.78539816339' + ');')
                     xasmSrcLines.append('// End hz_1_2')
                     # We don't need to handle this gate anymore.
                     gateName = ''
@@ -106,8 +107,9 @@ def parseFile(fileName):
                 gateName = components[1]
                 if gateName.startswith('fsim') is True:
                     angles = gateName[5:-1].split(',')
-                    theta = float(angles[0])
-                    phi = float(angles[1])
+                    # qFlex uses fractions of pi instead of radians
+                    theta = float(angles[0]) * 3.14159265359
+                    phi = float(angles[1]) * 3.14159265359
                     gateName = 'fSim'
                     qubit1 = 'q[' + str(qubitIdxMap[int(components[2])]) + ']'
                     qubit2 = 'q[' + str(qubitIdxMap[int(components[3])]) + ']'
