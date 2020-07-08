@@ -389,6 +389,7 @@ void ExatnVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer,
     {
       TNQVM_TELEMETRY_ZONE("exatn::initialize", __FILE__, __LINE__);                              
       exatn::initialize(exatnParams);
+      exatn::activateContrSeqCaching();
     }
 
     if (options.stringExists("exatn-contract-seq-optimizer"))
