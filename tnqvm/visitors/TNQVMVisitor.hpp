@@ -64,6 +64,7 @@ public:
   }
   virtual void finalize() = 0;
   void setOptions(const HeterogeneousMap& in_options) { options = in_options; }
+  virtual void setKernelName(const std::string& in_kernelName) {}
 protected:
   std::shared_ptr<AcceleratorBuffer> buffer;
   HeterogeneousMap options;

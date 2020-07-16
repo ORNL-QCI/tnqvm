@@ -410,7 +410,8 @@ void ExatnVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer,
   m_hasEvaluated = false;
   m_buffer = std::move(buffer);
   m_shots = nbShots;
-
+  // Generic kernel name:
+  m_kernelName = "Quantum Circuit";
   // Create the qubit register tensor
   for (int i = 0; i < m_buffer->size(); ++i) {
     const bool created = exatn::createTensor(
@@ -473,6 +474,7 @@ void ExatnVisitor::evaluateNetwork() {
   // been visited.
   if (m_buffer->size() <= MAX_NUMBER_QUBITS_FOR_STATE_VEC){
     TNQVM_TELEMETRY_ZONE("exatn::evaluateSync", __FILE__, __LINE__);                              
+    m_tensorNetwork.rename(m_kernelName);
     const bool evaluated = exatn::evaluateSync(m_tensorNetwork);
     assert(evaluated);
     // Synchronize:
