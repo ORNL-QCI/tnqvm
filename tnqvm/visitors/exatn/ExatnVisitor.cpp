@@ -396,7 +396,7 @@ void ExatnVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer,
     {
       // Multiple MPI processes:
       // if verbose is set, we must redirect log to files
-      // which custom names for each process.
+      // with custom names for each process.
       if (xacc::verbose)
       {
         // Get the rank of this process.
