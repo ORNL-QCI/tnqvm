@@ -344,7 +344,6 @@ ExatnVisitor::ExatnVisitor()
 
 void ExatnVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer,
                               int nbShots) {
-  TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);                              
   if (!exatn::isInitialized()) {
 #ifdef TNQVM_EXATN_USES_MKL_BLAS
     // Fix for TNQVM bug #30
@@ -389,13 +388,24 @@ void ExatnVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer,
     }
 
     {
-      TNQVM_TELEMETRY_ZONE("exatn::initialize", __FILE__, __LINE__);                              
       exatn::initialize(exatnParams);
       exatn::activateContrSeqCaching();
     }
 
-    // If we are running MPI, don't log timing.
-    tnqvm_timing_log_enabled = exatn::getDefaultProcessGroup().getSize() == 1;
+    if (exatn::getDefaultProcessGroup().getSize() > 1)
+    {
+      // Multiple MPI processes:
+      // if verbose is set, we must redirect log to files
+      // which custom names for each process.
+      if (xacc::verbose)
+      {
+        // Get the rank of this process.
+        const int processRank = exatn::getProcessRank();
+        const std::string fileNamePrefix = "process" + std::to_string(processRank);
+        // Redirect log to files (one for each MPI process)
+        xacc::logToFile(true, fileNamePrefix);
+      }
+    }
 
     if (options.stringExists("exatn-contract-seq-optimizer"))
     {
