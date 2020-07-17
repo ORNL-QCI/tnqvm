@@ -49,6 +49,8 @@
 #include <dlfcn.h>
 #endif
 
+bool tnqvm_timing_log_enabled = true;
+
 namespace {
 // Helper to construct qubit tensor name:
 std::string generateQubitTensorName(int qubitIndex) {
@@ -392,6 +394,9 @@ void ExatnVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer,
       exatn::activateContrSeqCaching();
     }
 
+    // If we are running MPI, don't log timing.
+    tnqvm_timing_log_enabled = exatn::getDefaultProcessGroup().getSize() == 1;
+
     if (options.stringExists("exatn-contract-seq-optimizer"))
     {
       const std::string optimizerName = options.getString("exatn-contract-seq-optimizer");
@@ -664,12 +669,12 @@ void ExatnVisitor::finalize() {
     }
     combinedTensorNetwork.appendTensorNetwork(std::move(braTensors), pairings);
     combinedTensorNetwork.collapseIsometries();
-    combinedTensorNetwork.printIt();
+    // combinedTensorNetwork.printIt();
     
     std::complex<double> result = 0.0;
     {
       TNQVM_TELEMETRY_ZONE("exatn::evaluateSync", __FILE__, __LINE__); 
-      std::cout << "SUBMIT TENSOR NETWORK FOR EVALUATION\n";
+      // std::cout << "SUBMIT TENSOR NETWORK FOR EVALUATION\n";
       if (exatn::evaluateSync(combinedTensorNetwork)) {
         exatn::sync();
         auto talsh_tensor =

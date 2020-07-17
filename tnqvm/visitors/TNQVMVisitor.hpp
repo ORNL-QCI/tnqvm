@@ -46,10 +46,13 @@ std::string concat(Ts&&... args) {
   return oss.str();
 }
 
+// Extra predicate to control timing log.
+// i.e. conditionally disable timing log if neccessary (MPI execution)
+extern bool tnqvm_timing_log_enabled;
 // Macro to define a Telemetry zone whose execution time is tracked.
 // Using macros so that we can opt out if not need telemetry.
 #define TNQVM_TELEMETRY_ZONE(NAME, FILE, LINE) \
-  xacc::ScopeTimer __telemetry__timer(concat("tnqvm::", NAME, " (", FILE, ":", LINE, ")"), xacc::verbose);
+  xacc::ScopeTimer __telemetry__timer(concat("tnqvm::", NAME, " (", FILE, ":", LINE, ")"), xacc::verbose && tnqvm_timing_log_enabled);
 
 namespace tnqvm {
 class TNQVMVisitor : public AllGateVisitor, public OptionsProvider,
