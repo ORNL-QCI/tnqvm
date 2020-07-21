@@ -705,6 +705,18 @@ void ExatnVisitor::finalize() {
     return;
   }
 
+  // Validates ExaTN numerical backend: contract tensor network and its conjugate
+  if (options.keyExists<bool>("contract-with-conjugate"))
+  {
+    const bool validateOk = validateTensorNetworkContraction(m_tensorNetwork);
+    assert(validateOk);
+    m_buffer->addExtraInfo("contract-with-conjugate-result", validateOk);
+    m_buffer.reset();
+    m_hasEvaluated = true;
+    resetExaTN();
+    return;
+  }
+  
   if (m_buffer->size() > MAX_NUMBER_QUBITS_FOR_STATE_VEC && !m_measureQbIdx.empty() && m_shots > 0 && !m_hasEvaluated)
   {
     std::cout << "Simulating bit string by MPS tensor contraction\n";
@@ -1647,6 +1659,49 @@ std::vector<std::pair<double, double>> ExatnVisitor::calcFlopsAndMemoryForSample
   exatn::sync();
   
   return resultData;
+}
+
+bool ExatnVisitor::validateTensorNetworkContraction(TensorNetwork in_network) const
+{
+  TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__); 
+  auto inverseTensorNetwork = in_network;
+  inverseTensorNetwork.rename("Inverse Tensor Network");
+  inverseTensorNetwork.conjugate();
+
+  // Connect the original tensor network with its inverse
+  {
+    TNQVM_TELEMETRY_ZONE("exatn::evaluateSync", __FILE__, __LINE__); 
+    auto combinedNetwork = in_network;
+    combinedNetwork.rename("Combined Tensor Network");
+    std::vector<std::pair<unsigned int, unsigned int>> pairings;
+    for (size_t i = 0; i < m_buffer->size(); ++i) 
+    {
+      pairings.emplace_back(std::make_pair(i, i));
+    }
+
+    combinedNetwork.appendTensorNetwork(std::move(inverseTensorNetwork), pairings);
+    // combinedNetwork.printIt();
+    const bool collapsed = combinedNetwork.collapseIsometries();
+
+    if (exatn::evaluateSync(combinedNetwork)) 
+    {
+      exatn::sync();
+      auto talsh_tensor = exatn::getLocalTensor(combinedNetwork.getTensor(0)->getName());
+      const auto tensorVolume = talsh_tensor->getVolume();
+      // Double check the size of the RDM
+      assert(tensorVolume == 1);
+      const std::complex<double> *body_ptr;
+      if (talsh_tensor->getDataAccessHostConst(&body_ptr)) 
+      {
+        const std::complex<double> normVal = *body_ptr;
+        constexpr double TOLERANCE = 1e-9;
+        xacc::info("Contract <Tensor Network + Conjugate> = " + std::to_string(normVal.real()) + " + i " + std::to_string(normVal.imag()));
+        return std::abs(normVal.real() - 1) < TOLERANCE && std::abs(normVal.imag()) < TOLERANCE;
+      }
+    }
+  }
+
+  return false;
 }
 } // end namespace tnqvm
 
