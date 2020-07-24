@@ -16,8 +16,8 @@ public:
     virtual void finalize() override;
 
     // Service name as defined in manifest.json
-    virtual const std::string name() const override { return "exatn-mpo"; }
-    virtual const std::string description() const override { return "ExaTN MPO Visitor"; }
+    virtual const std::string name() const override { return "exatn-pmps"; }
+    virtual const std::string description() const override { return "ExaTN Purified MPS Visitor"; }
     virtual std::shared_ptr<TNQVMVisitor> clone() override { return std::make_shared<ExaTnPmpsVisitor>(); }
 
     // one-qubit gates

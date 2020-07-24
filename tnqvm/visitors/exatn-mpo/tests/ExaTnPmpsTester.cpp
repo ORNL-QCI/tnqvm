@@ -5,7 +5,18 @@
 
 TEST(ExaTnPmpsTester, checkSimple)
 {
-    // TODO
+  auto xasmCompiler = xacc::getCompiler("xasm");
+  auto ir = xasmCompiler->compile(R"(__qpu__ void test1(qbit q) {
+    H(q[0]);
+    CNOT(q[0], q[1]);
+    Measure(q[0]);
+    Measure(q[1]);
+  })");
+
+  auto program = ir->getComposite("test1");
+  auto accelerator = xacc::getAccelerator("tnqvm", { std::make_pair("tnqvm-visitor", "exatn-pmps") });
+  auto qreg = xacc::qalloc(2);
+  accelerator->execute(qreg, program);
 } 
 
 int main(int argc, char **argv) 
