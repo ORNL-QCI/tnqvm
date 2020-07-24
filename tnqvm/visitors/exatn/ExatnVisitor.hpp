@@ -199,7 +199,9 @@ namespace tnqvm {
         virtual std::shared_ptr<TNQVMVisitor> clone() override { return std::make_shared<ExatnVisitor>(); }
         
         virtual OptionPairs getOptions() override { /*TODO: define options */ return OptionPairs{}; }
-    
+        
+        virtual void setKernelName(const std::string& in_kernelName) override { m_kernelName = in_kernelName; }
+
         // one-qubit gates
         virtual void visit(Identity& in_IdentityGate) override;
         virtual void visit(Hadamard& in_HadamardGate) override;
@@ -276,7 +278,9 @@ namespace tnqvm {
         // Note: this doesn't actually contract the tensor network, just getting this data from the ExaTN optimizer.
         // Output: pairs of flops and memory (in bytes); one pair for each qubit.
         std::vector<std::pair<double, double>> calcFlopsAndMemoryForSample(const TensorNetwork& in_tensorNetwork);
-
+        // Validates tensor network contraction: tensor network + its conjugate.
+        // Returns true if the result is 1.
+        bool validateTensorNetworkContraction(TensorNetwork in_network) const; 
     private:
        TensorNetwork m_tensorNetwork;
        unsigned int m_tensorIdCounter;
@@ -310,6 +314,7 @@ namespace tnqvm {
        bool m_isAppendingCircuitGates;
        // Tensor network of the qubit register (to close the tensor network for expectation calculation)
        TensorNetwork m_qubitRegTensor;
+       std::string m_kernelName;
        // Make the debug logger friend, e.g. retrieve internal states for logging purposes.
        friend class ExatnDebugLogger;
     };

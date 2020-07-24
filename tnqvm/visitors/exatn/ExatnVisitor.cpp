@@ -49,6 +49,8 @@
 #include <dlfcn.h>
 #endif
 
+bool tnqvm_timing_log_enabled = true;
+
 namespace {
 // Helper to construct qubit tensor name:
 std::string generateQubitTensorName(int qubitIndex) {
@@ -184,7 +186,7 @@ int ReconstructStateVectorFunctor::apply(talsh::Tensor &local_tensor) {
     m_stateVec.assign(elements, elements + local_tensor.getVolume());
   }
 
-#ifdef _DEBUG
+#ifdef _DEBUG_LOG_ENABLED
   const bool normOkay = checkStateVectorNorm(m_stateVec);
   assert(normOkay);
 #endif
@@ -342,7 +344,6 @@ ExatnVisitor::ExatnVisitor()
 
 void ExatnVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer,
                               int nbShots) {
-  TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);                              
   if (!exatn::isInitialized()) {
 #ifdef TNQVM_EXATN_USES_MKL_BLAS
     // Fix for TNQVM bug #30
@@ -387,8 +388,23 @@ void ExatnVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer,
     }
 
     {
-      TNQVM_TELEMETRY_ZONE("exatn::initialize", __FILE__, __LINE__);                              
       exatn::initialize(exatnParams);
+      exatn::activateContrSeqCaching();
+    }
+
+    if (exatn::getDefaultProcessGroup().getSize() > 1)
+    {
+      // Multiple MPI processes:
+      // if verbose is set, we must redirect log to files
+      // with custom names for each process.
+      if (xacc::verbose)
+      {
+        // Get the rank of this process.
+        const int processRank = exatn::getProcessRank();
+        const std::string fileNamePrefix = "process" + std::to_string(processRank);
+        // Redirect log to files (one for each MPI process)
+        xacc::logToFile(true, fileNamePrefix);
+      }
     }
 
     if (options.stringExists("exatn-contract-seq-optimizer"))
@@ -409,7 +425,8 @@ void ExatnVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer,
   m_hasEvaluated = false;
   m_buffer = std::move(buffer);
   m_shots = nbShots;
-
+  // Generic kernel name:
+  m_kernelName = "Quantum Circuit";
   // Create the qubit register tensor
   for (int i = 0; i < m_buffer->size(); ++i) {
     const bool created = exatn::createTensor(
@@ -440,7 +457,7 @@ void ExatnVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer,
   }
 
 // Add the Debug logging listener
-#ifdef _DEBUG
+#ifdef _DEBUG_LOG_ENABLED
   subscribe(ExatnDebugLogger::GetInstance());
 #endif
 }
@@ -472,6 +489,7 @@ void ExatnVisitor::evaluateNetwork() {
   // been visited.
   if (m_buffer->size() <= MAX_NUMBER_QUBITS_FOR_STATE_VEC){
     TNQVM_TELEMETRY_ZONE("exatn::evaluateSync", __FILE__, __LINE__);                              
+    m_tensorNetwork.rename(m_kernelName);
     const bool evaluated = exatn::evaluateSync(m_tensorNetwork);
     assert(evaluated);
     // Synchronize:
@@ -553,7 +571,7 @@ void ExatnVisitor::finalize() {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);                              
 
   // Calculate tensor network contraction FLOPS if requested:
-  if (options.keyExists<bool>("calc-contract-cost-flops") && options.get<bool>("calc-contract-cost-flops"))
+  if (options.keyExists<bool>("calc-contract-cost-flops"))
   {
     auto bra = m_qubitRegTensor;
     // Conjugate the ket to get the bra (e.g. if it was initialized to a complex
@@ -602,8 +620,103 @@ void ExatnVisitor::finalize() {
 
     m_buffer->addExtraInfo("bitstring-contract-flops", flopsVec);
     m_buffer->addExtraInfo("bitstring-max-node-bytes", memBytesVec);
+    m_buffer.reset();
+    resetExaTN();
+    return;
   }
 
+  // Calculates the amplitude of a specific bitstring
+  if (options.keyExists<std::vector<int>>("bitstring"))
+  {
+    std::vector<int> bitString = options.get<std::vector<int>>("bitstring");
+    if (bitString.size() != m_buffer->size())
+    {
+      xacc::error("Bitstring size must match the number of qubits.");
+      return;
+    }
+    
+    const auto constructBraNetwork = [](const std::vector<int>& in_bitString){
+      int tensorIdCounter = 1;
+      TensorNetwork braTensorNet("bra");
+      // Create the qubit register tensor
+      for (int i = 0; i < in_bitString.size(); ++i) {
+        const std::string braQubitName = "QB" + std::to_string(i);
+        const bool created = exatn::createTensor(
+            braQubitName, exatn::TensorElementType::COMPLEX64,
+            TensorShape{2});
+        assert(created);
+        const auto bitVal = in_bitString[i];
+        if (bitVal == 0)
+        {
+          // Bit = 0
+          const bool initialized = exatn::initTensorData(braQubitName, std::vector<std::complex<double>>{{1.0, 0.0}, {0.0, 0.0}});
+          assert(initialized);
+        }
+        else
+        {
+          // Bit = 1
+          const bool initialized = exatn::initTensorData(braQubitName, std::vector<std::complex<double>>{{0.0, 0.0}, {1.0, 0.0}});
+          assert(initialized);
+        }
+
+        braTensorNet.appendTensor(
+          tensorIdCounter, exatn::getTensor(braQubitName),
+          std::vector<std::pair<unsigned int, unsigned int>>{});  
+        tensorIdCounter++;
+      }
+
+      return braTensorNet;
+    };
+    
+    auto braTensors = constructBraNetwork(bitString);
+    braTensors.conjugate();
+    auto combinedTensorNetwork = m_tensorNetwork;
+    // Closing the tensor network with the bra
+    std::vector<std::pair<unsigned int, unsigned int>> pairings;
+    for (unsigned int i = 0; i < m_buffer->size(); ++i) 
+    {
+      pairings.emplace_back(std::make_pair(i, i));
+    }
+    combinedTensorNetwork.appendTensorNetwork(std::move(braTensors), pairings);
+    combinedTensorNetwork.collapseIsometries();
+    // combinedTensorNetwork.printIt();
+    
+    std::complex<double> result = 0.0;
+    {
+      TNQVM_TELEMETRY_ZONE("exatn::evaluateSync", __FILE__, __LINE__); 
+      // std::cout << "SUBMIT TENSOR NETWORK FOR EVALUATION\n";
+      if (exatn::evaluateSync(combinedTensorNetwork)) {
+        exatn::sync();
+        auto talsh_tensor =
+          exatn::getLocalTensor(combinedTensorNetwork.getTensor(0)->getName());
+        assert(talsh_tensor->getVolume() == 1);
+        const std::complex<double> *body_ptr;
+        if (talsh_tensor->getDataAccessHostConst(&body_ptr)) {
+          result = *body_ptr;
+        }
+     }
+    }
+
+    m_buffer->addExtraInfo("amplitude-real", result.real());
+    m_buffer->addExtraInfo("amplitude-imag", result.imag());
+    m_buffer.reset();
+    m_hasEvaluated = true;
+    resetExaTN();
+    return;
+  }
+
+  // Validates ExaTN numerical backend: contract tensor network and its conjugate
+  if (options.keyExists<bool>("contract-with-conjugate"))
+  {
+    const bool validateOk = validateTensorNetworkContraction(m_tensorNetwork);
+    assert(validateOk);
+    m_buffer->addExtraInfo("contract-with-conjugate-result", validateOk);
+    m_buffer.reset();
+    m_hasEvaluated = true;
+    resetExaTN();
+    return;
+  }
+  
   if (m_buffer->size() > MAX_NUMBER_QUBITS_FOR_STATE_VEC && !m_measureQbIdx.empty() && m_shots > 0 && !m_hasEvaluated)
   {
     std::cout << "Simulating bit string by MPS tensor contraction\n";
@@ -1231,7 +1344,7 @@ std::vector<uint8_t> ExatnVisitor::getMeasureSample(
           if (talsh_tensor->getDataAccessHostConst(&body_ptr)) {
             resultRDM.assign(body_ptr, body_ptr + tensorVolume);
           }
-  #ifdef _DEBUG
+  #ifdef _DEBUG_LOG_ENABLED
           // Debug: print out RDM data
           {
             std::cout << "RDM @q" << qubitIdx << " = [";
@@ -1259,7 +1372,7 @@ std::vector<uint8_t> ExatnVisitor::getMeasureSample(
       // If radom number < probability of 0 state -> pick zero, and vice versa.
       resultBitString.emplace_back(randProbPick <= prob_0 ? 0 : 1);
       resultProbs.emplace_back(randProbPick <= prob_0 ? prob_0 : prob_1);
-#ifdef _DEBUG
+#ifdef _DEBUG_LOG_ENABLED
       {
         std::cout << ">> Measure @q" << qubitIdx << " prob(0) = " << prob_0
                   << "\n";
@@ -1546,6 +1659,49 @@ std::vector<std::pair<double, double>> ExatnVisitor::calcFlopsAndMemoryForSample
   exatn::sync();
   
   return resultData;
+}
+
+bool ExatnVisitor::validateTensorNetworkContraction(TensorNetwork in_network) const
+{
+  TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__); 
+  auto inverseTensorNetwork = in_network;
+  inverseTensorNetwork.rename("Inverse Tensor Network");
+  inverseTensorNetwork.conjugate();
+
+  // Connect the original tensor network with its inverse
+  {
+    TNQVM_TELEMETRY_ZONE("exatn::evaluateSync", __FILE__, __LINE__); 
+    auto combinedNetwork = in_network;
+    combinedNetwork.rename("Combined Tensor Network");
+    std::vector<std::pair<unsigned int, unsigned int>> pairings;
+    for (size_t i = 0; i < m_buffer->size(); ++i) 
+    {
+      pairings.emplace_back(std::make_pair(i, i));
+    }
+
+    combinedNetwork.appendTensorNetwork(std::move(inverseTensorNetwork), pairings);
+    // combinedNetwork.printIt();
+    const bool collapsed = combinedNetwork.collapseIsometries();
+
+    if (exatn::evaluateSync(combinedNetwork)) 
+    {
+      exatn::sync();
+      auto talsh_tensor = exatn::getLocalTensor(combinedNetwork.getTensor(0)->getName());
+      const auto tensorVolume = talsh_tensor->getVolume();
+      // Double check the size of the RDM
+      assert(tensorVolume == 1);
+      const std::complex<double> *body_ptr;
+      if (talsh_tensor->getDataAccessHostConst(&body_ptr)) 
+      {
+        const std::complex<double> normVal = *body_ptr;
+        constexpr double TOLERANCE = 1e-9;
+        xacc::info("Contract <Tensor Network + Conjugate> = " + std::to_string(normVal.real()) + " + i " + std::to_string(normVal.imag()));
+        return std::abs(normVal.real() - 1) < TOLERANCE && std::abs(normVal.imag()) < TOLERANCE;
+      }
+    }
+  }
+
+  return false;
 }
 } // end namespace tnqvm
 
