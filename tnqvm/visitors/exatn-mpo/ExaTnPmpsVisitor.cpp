@@ -20,6 +20,45 @@ std::vector<std::complex<double>> Q_ZERO_TENSOR_BODY(size_t in_volume)
 } 
 
 const std::string ROOT_TENSOR_NAME = "Root";
+
+// Prints the density matrix represented by a locally-purified MPS tensor network. 
+void printDensityMatrix(const exatn::TensorNetwork& in_pmpsNet, size_t in_nbQubit) 
+{
+    exatn::TensorNetwork tempNetwork(in_pmpsNet);
+    tempNetwork.rename("__TEMP__" + in_pmpsNet.getName());
+    const bool evaledOk = exatn::evaluateSync(tempNetwork);
+    assert(evaledOk); 
+    auto talsh_tensor = exatn::getLocalTensor(tempNetwork.getTensor(0)->getName()); 
+    const auto expectedDensityMatrixVolume = (1ULL << in_nbQubit) * (1ULL << in_nbQubit);
+    const auto nbRows = 1ULL << in_nbQubit;
+    if (talsh_tensor)
+    {
+        const std::complex<double>* body_ptr;
+        const bool access_granted = talsh_tensor->getDataAccessHostConst(&body_ptr); 
+        if (!access_granted)
+        {
+            std::cout << "Failed to retrieve tensor data!!!\n";
+        }
+        else
+        {
+            assert(expectedDensityMatrixVolume == talsh_tensor->getVolume());
+            for (int i = 0; i < talsh_tensor->getVolume(); ++i)
+            {
+                if (i % nbRows == 0)
+                {
+                    std::cout << "\n";
+                }
+                const auto& elem = body_ptr[i];
+                std::cout << elem << " ";
+            }
+            std::cout << "\n";
+        }
+    }
+    else
+    {
+        std::cout << "Failed to retrieve tensor data!!!\n";
+    } 
+}
 }
 namespace tnqvm {
 ExaTnPmpsVisitor::ExaTnPmpsVisitor()
@@ -61,6 +100,8 @@ void ExaTnPmpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int
 
     m_buffer = buffer;
     m_pmpsTensorNetwork = buildInitialNetwork(buffer->size());
+    // DEBUG
+    printDensityMatrix(m_pmpsTensorNetwork, m_buffer->size());
 }
 
 exatn::TensorNetwork ExaTnPmpsVisitor::buildInitialNetwork(size_t in_nbQubits) const
@@ -98,7 +139,7 @@ exatn::TensorNetwork ExaTnPmpsVisitor::buildInitialNetwork(size_t in_nbQubits) c
         std::vector<int> rootTensorDim;
         rootTensorDim.insert(rootTensorDim.end(), qubitTensorDim.begin(), qubitTensorDim.end());
         rootTensorDim.insert(rootTensorDim.end(), ancTensorDim.begin(), ancTensorDim.end());
-        auto rootTensor = std::make_shared<exatn::Tensor>(ROOT_TENSOR_NAME, qubitTensorDim);
+        auto rootTensor = std::make_shared<exatn::Tensor>(ROOT_TENSOR_NAME, rootTensorDim);
         std::map<std::string, std::shared_ptr<exatn::Tensor>> tensorMap;
         tensorMap.emplace(ROOT_TENSOR_NAME, rootTensor);
         for (int i = 0; i < in_nbQubits; ++i)
@@ -150,9 +191,26 @@ exatn::TensorNetwork ExaTnPmpsVisitor::buildInitialNetwork(size_t in_nbQubits) c
         return result;
     }();
 
-    std::cout << "Purified MPS: \n" << pmpsString << "\n";
+    // std::cout << "Purified MPS: \n" << pmpsString << "\n";
     exatn::TensorNetwork purifiedMps("PMPS_Network", pmpsString, buildTensorMap(in_nbQubits));
+    // purifiedMps.printIt();
+
+    // Conjugate of the network:
+    exatn::TensorNetwork conjugate(purifiedMps);
+    conjugate.rename("Conjugate");
+    conjugate.conjugate();
+    // conjugate.printIt();
+    // Pair all ancilla legs
+    std::vector<std::pair<unsigned int, unsigned int>> pairings;
+    for (size_t i = 0; i < in_nbQubits; ++i) 
+    {
+        pairings.emplace_back(std::make_pair(i + in_nbQubits, i + in_nbQubits));
+    }
+
+    purifiedMps.appendTensorNetwork(std::move(conjugate), pairings);
+    std::cout << "Purified MPS:\n";
     purifiedMps.printIt();
+
     return purifiedMps;
 }
 
