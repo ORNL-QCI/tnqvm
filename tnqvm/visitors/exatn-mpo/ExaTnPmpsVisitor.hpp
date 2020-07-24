@@ -2,13 +2,14 @@
 
 #include "TNQVMVisitor.hpp"
 #include "tensor_network.hpp"
+#include "exatn.hpp"
 
 namespace tnqvm {
-class ExatnMpoVisitor : public TNQVMVisitor
+class ExaTnPmpsVisitor : public TNQVMVisitor
 {
 public:
     // Constructor
-    ExatnMpoVisitor();
+    ExaTnPmpsVisitor();
 
     // Virtual function impls:        
     virtual void initialize(std::shared_ptr<AcceleratorBuffer> buffer, int nbShots) override;
@@ -17,7 +18,7 @@ public:
     // Service name as defined in manifest.json
     virtual const std::string name() const override { return "exatn-mpo"; }
     virtual const std::string description() const override { return "ExaTN MPO Visitor"; }
-    virtual std::shared_ptr<TNQVMVisitor> clone() override { return std::make_shared<ExatnMpoVisitor>(); }
+    virtual std::shared_ptr<TNQVMVisitor> clone() override { return std::make_shared<ExaTnPmpsVisitor>(); }
 
     // one-qubit gates
     virtual void visit(Identity& in_IdentityGate) override;
@@ -58,5 +59,10 @@ private:
     private:
         std::function<int(talsh::Tensor& in_tensor)> m_func;
     }; 
+
+    exatn::TensorNetwork buildInitialNetwork(size_t in_nbQubits) const;
+private:
+    exatn::TensorNetwork m_pmpsTensorNetwork;
+    std::shared_ptr<AcceleratorBuffer> m_buffer;
 };
 } 

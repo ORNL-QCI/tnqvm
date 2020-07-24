@@ -2,8 +2,8 @@ find_package(ExaTN QUIET)
 
 if (ExaTN_FOUND)
    message(STATUS "Found ExaTN at ${EXATN_ROOT}")
-   set (PACKAGE_NAME "TNQVM ExaTN MPO Visitor")
-   set (PACKAGE_DESCIPTION "TNQVM ExaTN MPO backend")
+   set (PACKAGE_NAME "TNQVM ExaTN P-MPS Visitor")
+   set (PACKAGE_DESCIPTION "TNQVM ExaTN Purified MPS backend")
    set (LIBRARY_NAME tnqvm-exatn-mpo)
 
   if (TNQVM_MPI_ENABLED) 
@@ -21,19 +21,19 @@ if (ExaTN_FOUND)
    
    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DTNQVM_HAS_EXATN")
    set(CMAKE_INSTALL_RPATH "${EXATN_ROOT}/lib")
-   set(EXATN_VISITOR_CPP_FILE ExaTnMpoVisitor.cpp)
+   set(EXATN_VISITOR_CPP_FILE ExaTnPmpsVisitor.cpp)
 
    if (EXATN_BLAS_LIB MATCHES MKL)
       # Fix for bug #30
       message(STATUS "Exatn built with MKL, updating our build: ${EXATN_MKL_PATH}")
       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DTNQVM_EXATN_USES_MKL_BLAS")
-      configure_file("${CMAKE_CURRENT_SOURCE_DIR}/ExaTnMpoVisitor.cpp"
-               "${CMAKE_BINARY_DIR}/tnqvm/visitors/exatn-mpo/ExaTnMpoVisitor.cpp" @ONLY)
-      set(EXATN_VISITOR_CPP_FILE ${CMAKE_BINARY_DIR}/tnqvm/visitors/exatn-mpo/ExaTnMpoVisitor.cpp)
+      configure_file("${CMAKE_CURRENT_SOURCE_DIR}/ExaTnPmpsVisitor.cpp"
+               "${CMAKE_BINARY_DIR}/tnqvm/visitors/exatn-mpo/ExaTnPmpsVisitor.cpp" @ONLY)
+      set(EXATN_VISITOR_CPP_FILE ${CMAKE_BINARY_DIR}/tnqvm/visitors/exatn-mpo/ExaTnPmpsVisitor.cpp)
    endif()
 
    file (GLOB HEADERS *.hpp)
-   file (GLOB SRC ${EXATN_VISITOR_CPP_FILE} ExaTnMpoActivator.cpp ExatnUtils.cpp)
+   file (GLOB SRC ${EXATN_VISITOR_CPP_FILE} ExaTnPmpsActivator.cpp ExatnUtils.cpp)
 
    usFunctionGetResourceSource(TARGET ${LIBRARY_NAME} OUT SRC)
    usFunctionGenerateBundleInit(TARGET ${LIBRARY_NAME} OUT SRC)
@@ -72,7 +72,7 @@ if (ExaTN_FOUND)
    install(TARGETS ${LIBRARY_NAME} DESTINATION ${CMAKE_INSTALL_PREFIX}/plugins)
 
    if(TNQVM_BUILD_TESTS)
-	   #add_subdirectory(tests)
+	   add_subdirectory(tests)
    endif()
 else()
    message(STATUS "ExaTN not found, skipping ExaTNVisitor build")
