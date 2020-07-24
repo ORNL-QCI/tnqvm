@@ -42,16 +42,26 @@ void printDensityMatrix(const exatn::TensorNetwork& in_pmpsNet, size_t in_nbQubi
         else
         {
             assert(expectedDensityMatrixVolume == talsh_tensor->getVolume());
+            std::complex<double> traceVal { 0.0, 0.0 };
+            int rowId = -1;
             for (int i = 0; i < talsh_tensor->getVolume(); ++i)
             {
                 if (i % nbRows == 0)
                 {
                     std::cout << "\n";
+                    rowId++;
+                }
+                if (i == (rowId + rowId * nbRows))
+                {
+                    traceVal += body_ptr[i];
                 }
                 const auto& elem = body_ptr[i];
                 std::cout << elem << " ";
             }
             std::cout << "\n";
+            // Verify trace(density matrix) == 1.0
+            assert(std::abs(traceVal.real() - 1.0) < 1e-12);
+            assert(std::abs(traceVal.imag()) < 1e-12);
         }
     }
     else
@@ -282,6 +292,11 @@ exatn::TensorNetwork ExaTnPmpsVisitor::buildInitialNetwork(size_t in_nbQubits) c
     }(in_nbQubits);
     
     const auto qubitTensorVarNameList = [](int in_qIdx, int in_nbQubits) -> std::string {
+        if (in_nbQubits == 1)
+        {
+            assert(in_qIdx == 0);
+            return "(i0,k0)";
+        }
         if (in_qIdx == 0)
         {
             return "(i0,j0,k0)";
@@ -367,7 +382,10 @@ void ExaTnPmpsVisitor::visit(Hadamard& in_HadamardGate)
 
 void ExaTnPmpsVisitor::visit(X& in_XGate) 
 { 
-   
+   applySingleQubitGate(in_XGate);
+   // DEBUG:
+   std::cout << "Apply: " << in_XGate.toString() << "\n";
+   printDensityMatrix(m_pmpsTensorNetwork, m_buffer->size());
 }
 
 void ExaTnPmpsVisitor::visit(Y& in_YGate) 
