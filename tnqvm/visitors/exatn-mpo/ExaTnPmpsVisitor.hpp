@@ -43,7 +43,6 @@ public:
     virtual void visit(Measure& in_MeasureGate) override;
 
     virtual const double getExpectationValueZ(std::shared_ptr<CompositeInstruction> in_function) override;
-private:
     class ExaTnTensorFunctor : public talsh::TensorFunctor<exatn::Identifiable>
     {
     public:
@@ -61,6 +60,7 @@ private:
     }; 
 
     exatn::TensorNetwork buildInitialNetwork(size_t in_nbQubits) const;
+    void applySingleQubitGate(xacc::Instruction& in_gateInstruction);
 private:
     exatn::TensorNetwork m_pmpsTensorNetwork;
     std::shared_ptr<AcceleratorBuffer> m_buffer;

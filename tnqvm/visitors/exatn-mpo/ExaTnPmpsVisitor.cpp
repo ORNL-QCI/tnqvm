@@ -2,7 +2,7 @@
 #include "tensor_basic.hpp"
 #include "talshxx.hpp"
 #include "utils/GateMatrixAlgebra.hpp"
-#include <map>
+#include "base/Gates.hpp"
 #ifdef TNQVM_EXATN_USES_MKL_BLAS
 #include <dlfcn.h>
 #endif
@@ -58,6 +58,122 @@ void printDensityMatrix(const exatn::TensorNetwork& in_pmpsNet, size_t in_nbQubi
     {
         std::cout << "Failed to retrieve tensor data!!!\n";
     } 
+}
+
+std::vector<std::complex<double>> getTensorData(const std::string& in_tensorName)
+{
+    std::vector<std::complex<double>> result;
+    auto talsh_tensor = exatn::getLocalTensor(in_tensorName); 
+    
+    if (talsh_tensor)
+    {
+        std::complex<double>* body_ptr;
+        const bool access_granted = talsh_tensor->getDataAccessHost(&body_ptr); 
+
+        if (access_granted)
+        {
+            result.assign(body_ptr, body_ptr + talsh_tensor->getVolume());
+        }
+    }
+    return result;
+} 
+
+std::vector<std::complex<double>> getGateMatrix(const xacc::Instruction& in_gate)
+{
+    using namespace tnqvm;
+    const auto gateEnum = GetGateType(in_gate.name());
+    const auto getMatrix = [&](){
+        switch (gateEnum)
+        {
+            case CommonGates::Rx: return GetGateMatrix<CommonGates::Rx>(in_gate.getParameter(0).as<double>());
+            case CommonGates::Ry: return GetGateMatrix<CommonGates::Ry>(in_gate.getParameter(0).as<double>());
+            case CommonGates::Rz: return GetGateMatrix<CommonGates::Rz>(in_gate.getParameter(0).as<double>());
+            case CommonGates::I: return GetGateMatrix<CommonGates::I>();
+            case CommonGates::H: return GetGateMatrix<CommonGates::H>();
+            case CommonGates::X: return GetGateMatrix<CommonGates::X>();
+            case CommonGates::Y: return GetGateMatrix<CommonGates::Y>();
+            case CommonGates::Z: return GetGateMatrix<CommonGates::Z>();
+            case CommonGates::T: return GetGateMatrix<CommonGates::T>();
+            case CommonGates::Tdg: return GetGateMatrix<CommonGates::Tdg>();
+            case CommonGates::CNOT: return GetGateMatrix<CommonGates::CNOT>();
+            case CommonGates::Swap: return GetGateMatrix<CommonGates::Swap>();
+            case CommonGates::iSwap: return GetGateMatrix<CommonGates::iSwap>();
+            case CommonGates::fSim: return GetGateMatrix<CommonGates::fSim>(in_gate.getParameter(0).as<double>(), in_gate.getParameter(1).as<double>());
+            default: return GetGateMatrix<CommonGates::I>();
+        }
+    };
+
+    const auto flattenGateMatrix = [](const std::vector<std::vector<std::complex<double>>>& in_gateMatrix){
+        std::vector<std::complex<double>> resultVector;
+        resultVector.reserve(in_gateMatrix.size() * in_gateMatrix.size());
+        for (const auto &row : in_gateMatrix) 
+        {
+            for (const auto &entry : row) 
+            {
+                resultVector.emplace_back(entry);
+            }
+        }
+
+        return resultVector;
+    };
+
+    return flattenGateMatrix(getMatrix());
+}
+
+void contractSingleQubitGateTensor(const std::string& qubitTensorName, const std::string& in_gateTensorName)
+{
+    auto qubitTensor =  exatn::getTensor(qubitTensorName);
+    assert(qubitTensor->getRank() == 2 || qubitTensor->getRank() == 3 || qubitTensor->getRank() == 4);
+    auto gateTensor =  exatn::getTensor(in_gateTensorName);
+    assert(gateTensor->getRank() == 2);
+
+    const std::string RESULT_TENSOR_NAME = "Result";
+    // Result tensor always has the same shape as the qubit tensor
+    const bool resultTensorCreated = exatn::createTensorSync(RESULT_TENSOR_NAME, 
+                                                            exatn::TensorElementType::COMPLEX64, 
+                                                            qubitTensor->getShape());
+    assert(resultTensorCreated);
+    const bool resultTensorInitialized = exatn::initTensorSync(RESULT_TENSOR_NAME, 0.0);
+    assert(resultTensorInitialized);
+    
+    std::string patternStr;
+    if (qubitTensor->getRank() == 2)
+    {
+        patternStr = RESULT_TENSOR_NAME + "(a,b)=" + qubitTensorName + "(i,b)*" + in_gateTensorName + "(i,a)";
+    }
+    else if (qubitTensor->getRank() == 3)
+    {
+        patternStr = RESULT_TENSOR_NAME + "(a,b,c)=" + qubitTensorName + "(i,b,c)*" + in_gateTensorName + "(i,a)";
+    }
+    else if (qubitTensor->getRank() == 4)
+    {
+        patternStr = RESULT_TENSOR_NAME + "(a,b,c,d)=" + qubitTensorName + "(i,b,c,d)*" + in_gateTensorName + "(i,a)";
+    }
+
+    assert(!patternStr.empty());
+    std::cout << "Pattern string: " << patternStr << "\n";
+    
+    const bool contractOk = exatn::contractTensorsSync(patternStr, 1.0);
+    assert(contractOk);
+    
+    std::vector<std::complex<double>> resultTensorData =  getTensorData(RESULT_TENSOR_NAME);
+    std::function<int(talsh::Tensor& in_tensor)> updateFunc = [&resultTensorData](talsh::Tensor& in_tensor){
+        std::complex<double> *elements;
+        
+        if (in_tensor.getDataAccessHost(&elements) && (in_tensor.getVolume() == resultTensorData.size())) 
+        {
+            for (int i = 0; i < in_tensor.getVolume(); ++i)
+            {
+                elements[i] = resultTensorData[i];
+            }            
+        }
+
+        return 0;
+    };
+
+    exatn::numericalServer->transformTensorSync(qubitTensorName, std::make_shared<tnqvm::ExaTnPmpsVisitor::ExaTnTensorFunctor>(updateFunc));
+    const bool resultTensorDestroyed = exatn::destroyTensor(RESULT_TENSOR_NAME);
+    assert(resultTensorDestroyed);
 }
 }
 namespace tnqvm {
@@ -115,15 +231,12 @@ exatn::TensorNetwork ExaTnPmpsVisitor::buildInitialNetwork(size_t in_nbQubits) c
                 assert(tensorName == "Q0");
                 return std::make_shared<exatn::Tensor>(tensorName, exatn::TensorShape{QUBIT_DIM, INITIAL_BOND_DIM}); 
             } 
-            if (i == 0) 
+            if ((i == 0) || (i == (in_nbQubits - 1))) 
             {
                 return std::make_shared<exatn::Tensor>(tensorName, exatn::TensorShape{QUBIT_DIM, INITIAL_BOND_DIM, INITIAL_KRAUS_DIM}); 
             }
-            if (i == (in_nbQubits - 1))
-            {
-                return std::make_shared<exatn::Tensor>(tensorName, exatn::TensorShape{INITIAL_BOND_DIM, QUBIT_DIM, INITIAL_KRAUS_DIM}); 
-            }
-            return std::make_shared<exatn::Tensor>(tensorName, exatn::TensorShape{INITIAL_BOND_DIM, QUBIT_DIM, INITIAL_BOND_DIM, INITIAL_KRAUS_DIM});
+           
+            return std::make_shared<exatn::Tensor>(tensorName, exatn::TensorShape{QUBIT_DIM, INITIAL_BOND_DIM, INITIAL_KRAUS_DIM, INITIAL_BOND_DIM });
         }();
 
         const bool created = exatn::createTensorSync(tensor, exatn::TensorElementType::COMPLEX64);
@@ -175,10 +288,10 @@ exatn::TensorNetwork ExaTnPmpsVisitor::buildInitialNetwork(size_t in_nbQubits) c
         } 
         if (in_qIdx == in_nbQubits - 1)
         {
-            return "(j" + std::to_string(in_nbQubits - 2) + ",i" + std::to_string(in_nbQubits - 1) + ",k" + std::to_string(in_nbQubits - 1) + ")";
+            return "(i" + std::to_string(in_nbQubits - 1) + ",j" + std::to_string(in_nbQubits - 2) + ",k" + std::to_string(in_nbQubits - 1) + ")";
         }
 
-        return "(j" + std::to_string(in_qIdx-1) + ",i" + std::to_string(in_qIdx) + ",j" + std::to_string(in_qIdx) + ",k" + std::to_string(in_qIdx) + ")";
+        return "(i" + std::to_string(in_qIdx) + ",j" + std::to_string(in_qIdx-1) + ",k" + std::to_string(in_qIdx) + ",j" + std::to_string(in_qIdx) + ")";
     };
 
     const std::string pmpsString = [&]() {
@@ -191,7 +304,7 @@ exatn::TensorNetwork ExaTnPmpsVisitor::buildInitialNetwork(size_t in_nbQubits) c
         return result;
     }();
 
-    // std::cout << "Purified MPS: \n" << pmpsString << "\n";
+    std::cout << "Purified MPS: \n" << pmpsString << "\n";
     exatn::TensorNetwork purifiedMps("PMPS_Network", pmpsString, buildTensorMap(in_nbQubits));
     // purifiedMps.printIt();
 
@@ -219,6 +332,26 @@ void ExaTnPmpsVisitor::finalize()
     // TODO
 }
 
+void ExaTnPmpsVisitor::applySingleQubitGate(xacc::Instruction& in_gateInstruction)
+{
+    assert(in_gateInstruction.bits().size() == 1);
+    const auto gateMatrix = getGateMatrix(in_gateInstruction);
+    assert(gateMatrix.size() == 4);
+    const std::string& gateTensorName = in_gateInstruction.name();
+    // Create the tensor
+    const bool created = exatn::createTensorSync(gateTensorName, exatn::TensorElementType::COMPLEX64, exatn::TensorShape{ 2, 2 });
+    assert(created);
+    // Init tensor body data
+    const bool initialized = exatn::initTensorDataSync(gateTensorName, gateMatrix);
+    assert(initialized);
+
+    const size_t bitIdx = in_gateInstruction.bits()[0];
+    const std::string qubitTensorName = "Q" + std::to_string(bitIdx);
+    contractSingleQubitGateTensor(qubitTensorName, gateTensorName);
+    const bool destroyed = exatn::destroyTensorSync(gateTensorName);
+    assert(destroyed);
+}
+
 void ExaTnPmpsVisitor::visit(Identity& in_IdentityGate) 
 { 
     
@@ -226,7 +359,10 @@ void ExaTnPmpsVisitor::visit(Identity& in_IdentityGate)
 
 void ExaTnPmpsVisitor::visit(Hadamard& in_HadamardGate) 
 { 
-   
+   applySingleQubitGate(in_HadamardGate);
+   // DEBUG:
+   std::cout << "Apply: " << in_HadamardGate.toString() << "\n";
+   printDensityMatrix(m_pmpsTensorNetwork, m_buffer->size());
 }
 
 void ExaTnPmpsVisitor::visit(X& in_XGate) 
