@@ -61,6 +61,7 @@ public:
 
     exatn::TensorNetwork buildInitialNetwork(size_t in_nbQubits) const;
     void applySingleQubitGate(xacc::Instruction& in_gateInstruction);
+    void applyTwoQubitGate(xacc::Instruction& in_gateInstruction);
 private:
     exatn::TensorNetwork m_pmpsTensorNetwork;
     std::shared_ptr<AcceleratorBuffer> m_buffer;
