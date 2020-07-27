@@ -8,7 +8,7 @@ TEST(ExaTnPmpsTester, checkSimple)
   auto xasmCompiler = xacc::getCompiler("xasm");
   auto ir = xasmCompiler->compile(R"(__qpu__ void test1(qbit q) {
     H(q[0]);
-    CNOT(q[0], q[1]);
+    CNOT(q[1], q[0]);
     Measure(q[0]);
     Measure(q[1]);
   })");

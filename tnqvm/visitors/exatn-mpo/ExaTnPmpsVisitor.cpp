@@ -248,8 +248,9 @@ void contractTwoQubitGateTensor(const exatn::TensorNetwork& in_tensorNetwork, co
         assert(ids.size() == 1);
         return ids[0];
     };
+    const bool shouldFlipOrder = in_bits[0] > in_bits[1];
     // Merge qubit tensors
-    if (in_bits[0] < in_bits[1])
+    if (!shouldFlipOrder)
     {
         tempNetwork.mergeTensors(getTensorId(q1TensorName), getTensorId(q2TensorName), mergedTensorId, &mergeContractionPattern);
         mergeContractionPattern.replace(mergeContractionPattern.find("L"), 1, q1TensorName);
@@ -281,8 +282,17 @@ void contractTwoQubitGateTensor(const exatn::TensorNetwork& in_tensorNetwork, co
     std::string patternStr;
     if (qubitsMergedTensor->getRank() == 4)
     {
-        patternStr = "Result(u0,u1,u2,u3)=" + qubitsMergedTensor->getName() + "(c0,u1,c1,u3)*" + in_gateTensorName + "(c1,c0,u0,u2)";
+        if (!shouldFlipOrder)
+        {
+            patternStr = "Result(u0,u1,u2,u3)=" + qubitsMergedTensor->getName() + "(c0,u1,c1,u3)*" + in_gateTensorName + "(c1,c0,u0,u2)";
+        }
+        else
+        {
+            patternStr = "Result(u0,u1,u2,u3)=" + qubitsMergedTensor->getName() + "(c0,u1,c1,u3)*" + in_gateTensorName + "(c0,c1,u0,u2)";
+        }   
     }
+    // TODO: handle other cases:
+    
     contractMergePattern(gateMergeTensor, patternStr);
 
     // SVD:
@@ -357,34 +367,37 @@ void ExaTnPmpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int
     }
 
     m_buffer = buffer;
-    m_pmpsTensorNetwork = buildInitialNetwork(buffer->size());
+    m_pmpsTensorNetwork = buildInitialNetwork(buffer->size(), true);
     // DEBUG
     printDensityMatrix(m_pmpsTensorNetwork, m_buffer->size());
 }
 
-exatn::TensorNetwork ExaTnPmpsVisitor::buildInitialNetwork(size_t in_nbQubits) const
+exatn::TensorNetwork ExaTnPmpsVisitor::buildInitialNetwork(size_t in_nbQubits, bool in_createQubitTensors) const
 {   
-    for (int i = 0; i < in_nbQubits; ++i)
+    if (in_createQubitTensors)
     {
-        const std::string tensorName = "Q" + std::to_string(i);
-        auto tensor = [&](){ 
-            if (in_nbQubits == 1)
-            {
-                assert(tensorName == "Q0");
-                return std::make_shared<exatn::Tensor>(tensorName, exatn::TensorShape{QUBIT_DIM, INITIAL_BOND_DIM}); 
-            } 
-            if ((i == 0) || (i == (in_nbQubits - 1))) 
-            {
-                return std::make_shared<exatn::Tensor>(tensorName, exatn::TensorShape{QUBIT_DIM, INITIAL_BOND_DIM, INITIAL_KRAUS_DIM}); 
-            }
-           
-            return std::make_shared<exatn::Tensor>(tensorName, exatn::TensorShape{QUBIT_DIM, INITIAL_BOND_DIM, INITIAL_KRAUS_DIM, INITIAL_BOND_DIM });
-        }();
+        for (int i = 0; i < in_nbQubits; ++i)
+        {
+            const std::string tensorName = "Q" + std::to_string(i);
+            auto tensor = [&](){ 
+                if (in_nbQubits == 1)
+                {
+                    assert(tensorName == "Q0");
+                    return std::make_shared<exatn::Tensor>(tensorName, exatn::TensorShape{QUBIT_DIM, INITIAL_BOND_DIM}); 
+                } 
+                if ((i == 0) || (i == (in_nbQubits - 1))) 
+                {
+                    return std::make_shared<exatn::Tensor>(tensorName, exatn::TensorShape{QUBIT_DIM, INITIAL_BOND_DIM, INITIAL_KRAUS_DIM}); 
+                }
+            
+                return std::make_shared<exatn::Tensor>(tensorName, exatn::TensorShape{QUBIT_DIM, INITIAL_BOND_DIM, INITIAL_KRAUS_DIM, INITIAL_BOND_DIM });
+            }();
 
-        const bool created = exatn::createTensorSync(tensor, exatn::TensorElementType::COMPLEX64);
-        assert(created);
-        const bool initialized = exatn::initTensorDataSync(tensorName, Q_ZERO_TENSOR_BODY(tensor->getVolume()));
-        assert(initialized);
+            const bool created = exatn::createTensorSync(tensor, exatn::TensorElementType::COMPLEX64);
+            assert(created);
+            const bool initialized = exatn::initTensorDataSync(tensorName, Q_ZERO_TENSOR_BODY(tensor->getVolume()));
+            assert(initialized);
+        }
     }
     
     const auto buildTensorMap = [](size_t in_nbQubits) {
@@ -517,6 +530,7 @@ void ExaTnPmpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
     contractTwoQubitGateTensor(m_pmpsTensorNetwork, in_gateInstruction.bits(), gateTensorName);
     const bool destroyed = exatn::destroyTensorSync(gateTensorName);
     assert(destroyed);
+    m_pmpsTensorNetwork = buildInitialNetwork(m_buffer->size(), false);
 }
 
 void ExaTnPmpsVisitor::visit(Identity& in_IdentityGate) 
@@ -589,6 +603,9 @@ void ExaTnPmpsVisitor::visit(U& in_UGate)
 void ExaTnPmpsVisitor::visit(CNOT& in_CNOTGate) 
 { 
     applyTwoQubitGate(in_CNOTGate);
+    // DEBUG:
+   std::cout << "Apply: " << in_CNOTGate.toString() << "\n";
+   printDensityMatrix(m_pmpsTensorNetwork, m_buffer->size());
 }
 
 void ExaTnPmpsVisitor::visit(Swap& in_SwapGate) 

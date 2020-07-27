@@ -59,7 +59,7 @@ public:
         std::function<int(talsh::Tensor& in_tensor)> m_func;
     }; 
 
-    exatn::TensorNetwork buildInitialNetwork(size_t in_nbQubits) const;
+    [[nodiscard]] exatn::TensorNetwork buildInitialNetwork(size_t in_nbQubits, bool in_createQubitTensors) const;
     void applySingleQubitGate(xacc::Instruction& in_gateInstruction);
     void applyTwoQubitGate(xacc::Instruction& in_gateInstruction);
 private:
