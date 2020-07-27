@@ -291,7 +291,47 @@ void contractTwoQubitGateTensor(const exatn::TensorNetwork& in_tensorNetwork, co
             patternStr = "Result(u0,u1,u2,u3)=" + qubitsMergedTensor->getName() + "(c0,u1,c1,u3)*" + in_gateTensorName + "(c0,c1,u0,u2)";
         }   
     }
-    // TODO: handle other cases:
+    else if (qubitsMergedTensor->getRank() == 5)
+    {
+        qubitsMergedTensor->printIt();
+        if (!shouldFlipOrder)
+        {
+            if (in_bits[0] == 0)
+            {
+                patternStr = "Result(u0,u1,u2,u3,u4)=" + qubitsMergedTensor->getName() + "(c0,u1,c1,u3,u4)*" + in_gateTensorName + "(c1,c0,u0,u2)";
+            }
+            else
+            {
+                patternStr = "Result(u0,u1,u2,u3,u4)=" + qubitsMergedTensor->getName() + "(c0,u1,u2,c1,u4)*" + in_gateTensorName + "(c1,c0,u0,u3)";
+            }
+        }
+        else
+        {
+            if (in_bits[1] == 0)
+            {
+                patternStr = "Result(u0,u1,u2,u3,u4)=" + qubitsMergedTensor->getName() + "(c0,u1,c1,u3,u4)*" + in_gateTensorName + "(c0,c1,u0,u2)";
+            }
+            else
+            {
+                patternStr = "Result(u0,u1,u2,u3,u4)=" + qubitsMergedTensor->getName() + "(c0,u1,u2,c1,u4)*" + in_gateTensorName + "(c0,c1,u0,u3)";
+            }
+        }   
+    }
+    else if (qubitsMergedTensor->getRank() == 6)
+    {
+        if (!shouldFlipOrder)
+        {
+            patternStr = "Result(u0,u1,u2,u3,u4,u5)=" + qubitsMergedTensor->getName() + "(c0,u1,u2,c1,u4,u5)*" + in_gateTensorName + "(c1,c0,u0,u3)";
+        }
+        else
+        {
+            patternStr = "Result(u0,u1,u2,u3,u4,u5)=" + qubitsMergedTensor->getName() + "(c0,u1,u2,c1,u4,u5)*" + in_gateTensorName + "(c0,c1,u0,u3)";
+        }   
+    }
+    else
+    {
+        xacc::error("Invalid tensor network structure encountered!");
+    }
     
     contractMergePattern(gateMergeTensor, patternStr);
 
