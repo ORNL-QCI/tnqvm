@@ -369,6 +369,28 @@ void contractTwoQubitGateTensor(const exatn::TensorNetwork& in_tensorNetwork, co
         assert(svdOk);
     }
 }
+
+std::shared_ptr<exatn::Tensor> constructKrausTensor(const tnqvm::KrausAmpl& in_krausAmpl)
+{
+    static size_t krausTensorCounter = 0;
+    if (in_krausAmpl.isZero())
+    {
+        return nullptr;
+    }
+    // TODO: this only handle Amplitude-Damping atm
+    // need to do Depolarize channel as well
+    ++krausTensorCounter;
+    auto krausTensor = std::make_shared<exatn::Tensor>("__KRAUS__" + std::to_string(krausTensorCounter), exatn::TensorShape{2, 2, 2});
+    const bool created = exatn::createTensorSync(krausTensor, exatn::TensorElementType::COMPLEX64);
+    assert(created);
+    const std::vector<std::complex<double>> tensorBody {
+        0.0, in_krausAmpl.probAD, in_krausAmpl.probAD, 0.0,
+        (1.0 - in_krausAmpl.probAD), 0.0, 0.0,  (1.0 - in_krausAmpl.probAD)
+    };
+    const bool initialized = exatn::initTensorDataSync(krausTensor->getName(), tensorBody);
+    assert(initialized);
+    return exatn::getTensor(krausTensor->getName());
+}
 }
 namespace tnqvm {
 ExaTnPmpsVisitor::ExaTnPmpsVisitor()
@@ -412,6 +434,13 @@ void ExaTnPmpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int
     m_pmpsTensorNetwork = buildInitialNetwork(buffer->size(), true);
     // DEBUG
     printDensityMatrix(m_pmpsTensorNetwork, m_buffer->size());
+    std::vector<KrausAmpl> noiseAmpl;
+    for (size_t i = 0; i < m_buffer->size(); ++i)
+    {
+        noiseAmpl.emplace_back(0.1, 0.1);
+    }
+    m_gateTimeConfig = std::shared_ptr<IGateTimeConfigProvider>(new DefaultGateTimeConfigProvider());
+    m_noiseConfig = std::make_shared<KrausConfig>(m_gateTimeConfig.get(), noiseAmpl);
 }
 
 exatn::TensorNetwork ExaTnPmpsVisitor::buildInitialNetwork(size_t in_nbQubits, bool in_createQubitTensors) const
@@ -597,10 +626,19 @@ void ExaTnPmpsVisitor::visit(Hadamard& in_HadamardGate)
 
 void ExaTnPmpsVisitor::visit(X& in_XGate) 
 { 
-   applySingleQubitGate(in_XGate);
-   // DEBUG:
-   std::cout << "Apply: " << in_XGate.toString() << "\n";
-   printDensityMatrix(m_pmpsTensorNetwork, m_buffer->size());
+    applySingleQubitGate(in_XGate);
+    // DEBUG:
+    std::cout << "Apply: " << in_XGate.toString() << "\n";
+    printDensityMatrix(m_pmpsTensorNetwork, m_buffer->size());
+    auto noiseConfig = m_noiseConfig->computeKrausAmplitudes(in_XGate);
+    assert(noiseConfig.size() == 1);
+
+    auto krausTensor = constructKrausTensor(noiseConfig[0]);
+    // Non-zero noise channels
+    if (krausTensor)
+    {
+        applyLocalKrausOp(in_XGate.bits()[0], krausTensor->getName());
+    }
 }
 
 void ExaTnPmpsVisitor::visit(Y& in_YGate) 

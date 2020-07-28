@@ -10,7 +10,7 @@ struct KrausAmpl
         probAD(in_probAD),
         probDP(in_probDP)
         {}
-
+    bool isZero() const { return std::abs(probAD) < 1e-12 && std::abs(probDP) < 1e-12; }
     KrausAmpl operator*(double in_time) const { return KrausAmpl(probAD * in_time, probDP * in_time); }
     // Probability of Amplitude Damping on any single qubit
     double probAD;
@@ -25,9 +25,17 @@ struct IGateTimeConfigProvider
     virtual double getGateTime(const xacc::quantum::Gate& in_gate) const = 0;
 };
 
+// A default (dummy) gate-time config provider:
+// all gates have gate time of 1.0
+struct DefaultGateTimeConfigProvider : public IGateTimeConfigProvider
+{
+    virtual double getGateTime(const xacc::quantum::Gate& in_gate) const override { return 1.0; }
+};
+
 // Configuration for noise channels
 class KrausConfig
 {
+public:
     KrausConfig(IGateTimeConfigProvider* gateTimeProvider, const std::vector<KrausAmpl>& krausAmpls):
         m_gateTimeProvider(gateTimeProvider),
         m_krausAmp(krausAmpls)
