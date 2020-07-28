@@ -3,6 +3,8 @@
 #include "talshxx.hpp"
 #include "utils/GateMatrixAlgebra.hpp"
 #include "base/Gates.hpp"
+#include "Kraus.hpp"
+
 #ifdef TNQVM_EXATN_USES_MKL_BLAS
 #include <dlfcn.h>
 #endif
@@ -571,6 +573,13 @@ void ExaTnPmpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
     const bool destroyed = exatn::destroyTensorSync(gateTensorName);
     assert(destroyed);
     m_pmpsTensorNetwork = buildInitialNetwork(m_buffer->size(), false);
+}
+
+void applyLocalKrausOp(size_t in_siteId, const std::string& in_opTensorName)
+{
+    auto opTensor = exatn::getTensor(in_opTensorName);
+    // Must be a 3-leg tensor
+    assert(opTensor->getRank() == 3);
 }
 
 void ExaTnPmpsVisitor::visit(Identity& in_IdentityGate) 

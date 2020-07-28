@@ -62,6 +62,8 @@ public:
     [[nodiscard]] exatn::TensorNetwork buildInitialNetwork(size_t in_nbQubits, bool in_createQubitTensors) const;
     void applySingleQubitGate(xacc::Instruction& in_gateInstruction);
     void applyTwoQubitGate(xacc::Instruction& in_gateInstruction);
+    // Apply a local (single-site) Kraus operator
+    void applyLocalKrausOp(size_t in_siteId, const std::string& in_opTensorName);
 private:
     exatn::TensorNetwork m_pmpsTensorNetwork;
     std::shared_ptr<AcceleratorBuffer> m_buffer;
