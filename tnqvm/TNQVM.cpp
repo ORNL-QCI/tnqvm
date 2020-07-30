@@ -29,18 +29,17 @@
  *
  **********************************************************************************/
 #include "TNQVM.hpp"
-#include "PauliOperator.hpp"
+#include "IRUtils.hpp"
 
 namespace {
-inline int getShotCountOption(const xacc::HeterogeneousMap& in_options) 
-{
+inline int getShotCountOption(const xacc::HeterogeneousMap &in_options) {
   int result = -1;
   if (in_options.keyExists<int>("shots")) {
     result = in_options.get<int>("shots");
   }
-  return result;  
+  return result;
 }
-}
+} // namespace
 namespace tnqvm {
 
 const std::string TNQVM::DEFAULT_VISITOR_BACKEND = "itensor-mps";
@@ -48,20 +47,19 @@ const std::string TNQVM::DEFAULT_VISITOR_BACKEND = "itensor-mps";
 void TNQVM::execute(
     std::shared_ptr<AcceleratorBuffer> buffer,
     const std::vector<std::shared_ptr<xacc::CompositeInstruction>> functions) {
-
-  if (vqeMode && functions[0]->getInstruction(0)->isComposite()) {
-    // Here we assume we have one ansatz function,
-    // functions[0]->getInstruction(0)
-
-    visitor = xacc::getService<TNQVMVisitor>(getVisitorName())->clone();
+  visitor = xacc::getService<TNQVMVisitor>(getVisitorName())->clone();
+  // If in VQE mode and there are more than one kernels
+  if (vqeMode && functions.size() > 1 && visitor->supportVqeMode()) {
+    auto kernelDecomposed = ObservedAnsatz::fromObservedComposites(functions);
+    // Always validate kernel decomposition in DEBUG
+    assert(kernelDecomposed.validate(functions));
     visitor->setOptions(options);
 
     // Initialize the visitor
     visitor->initialize(buffer, getShotCountOption(options));
-
-    // Walk the IR tree, and visit each node
-    InstructionIterator it(std::dynamic_pointer_cast<CompositeInstruction>(
-        functions[0]->getInstruction(0)));
+    visitor->setKernelName(kernelDecomposed.getBase()->name());
+    // Walk the base IR tree, and visit each node
+    InstructionIterator it(kernelDecomposed.getBase());
     while (it.hasNext()) {
       auto nextInst = it.next();
       if (nextInst->isEnabled() && !nextInst->isComposite()) {
@@ -69,25 +67,21 @@ void TNQVM::execute(
       }
     }
 
-    // Clean way to remove the ansatz and just have measurements
-    auto ir = xacc::getIRProvider("quantum")->createIR();
-    for (auto &f : functions)
-      f->getInstruction(0)->disable();
-
-    // Now we have a wavefunction that represents
-    // execution of the ansatz. Make measurements
-    for (int i = 0; i < functions.size(); i++) {
+    // Now we have a wavefunction that represents execution of the ansatz.
+    // Run the observable sub-circuits (change of basis + measurements)
+    auto obsCircuits = kernelDecomposed.getObservedSubCircuits();
+    for (int i = 0; i < obsCircuits.size(); ++i) {
       auto tmpBuffer = std::make_shared<xacc::AcceleratorBuffer>(
-          functions[i]->name(), buffer->size());
-      double e = visitor->getExpectationValueZ(functions[i]);
+          obsCircuits[i]->name(), buffer->size());
+      double e = visitor->getExpectationValueZ(obsCircuits[i]);
       tmpBuffer->addExtraInfo("exp-val-z", e);
-      buffer->appendChild(functions[i]->name(), tmpBuffer);
+      buffer->appendChild(obsCircuits[i]->name(), tmpBuffer);
     }
-
-    for (auto &f : functions)
-      f->getInstruction(0)->enable();
-
-  } else {
+    // Finalize the visitor
+    visitor->finalize();
+  }
+  // Normal execution mode
+  else {
     for (auto f : functions) {
       auto tmpBuffer =
           std::make_shared<xacc::AcceleratorBuffer>(f->name(), buffer->size());
@@ -109,15 +103,15 @@ void TNQVM::execute(std::shared_ptr<xacc::AcceleratorBuffer> buffer,
   visitor->initialize(buffer, getShotCountOption(options));
   visitor->setKernelName(kernel->name());
   // If this is an Exatn-MPS visitor, transform the kernel to nearest-neighbor
-  // Note: currently, we don't support MPS aggregated blocks (multiple qubit MPS tensors in one block).
-  // Hence, the circuit must always be transformed into *nearest* neighbor only (distance = 1 for two-qubit gates).
-  if (visitor->name() ==  "exatn-mps")
-  {
+  // Note: currently, we don't support MPS aggregated blocks (multiple qubit MPS
+  // tensors in one block). Hence, the circuit must always be transformed into
+  // *nearest* neighbor only (distance = 1 for two-qubit gates).
+  if (visitor->name() == "exatn-mps") {
     auto opt = xacc::getService<xacc::IRTransformation>("lnn-transform");
-    opt->apply(kernel, nullptr,  { std::make_pair("max-distance", 1)});
-    // std::cout << "After LNN transform: \n" << kernel->toString() << "\n"; 
+    opt->apply(kernel, nullptr, {std::make_pair("max-distance", 1)});
+    // std::cout << "After LNN transform: \n" << kernel->toString() << "\n";
   }
-  
+
   // Walk the IR tree, and visit each node
   InstructionIterator it(kernel);
   while (it.hasNext()) {

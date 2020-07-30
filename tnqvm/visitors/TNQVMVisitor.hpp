@@ -68,6 +68,9 @@ public:
   virtual void finalize() = 0;
   void setOptions(const HeterogeneousMap& in_options) { options = in_options; }
   virtual void setKernelName(const std::string& in_kernelName) {}
+  // Does this visitor implementation support VQE mode execution?
+  // i.e. ability to cache the state vector after simulating the ansatz.
+  virtual bool supportVqeMode() const { return false; }
 protected:
   std::shared_ptr<AcceleratorBuffer> buffer;
   HeterogeneousMap options;
