@@ -93,6 +93,7 @@ bool checkStateVectorNorm(
 
 double calcExpValueZ(const std::vector<int>& in_bits, const std::vector<std::complex<double>>& in_stateVec) 
 {
+  TNQVM_TELEMETRY_ZONE("calcExpValueZ", __FILE__, __LINE__); 
   const auto hasEvenParity = [](uint64_t x, const std::vector<int>& in_qubitIndices) -> bool {
     size_t count = 0;
     for (const auto& bitIdx : in_qubitIndices)
@@ -1428,11 +1429,16 @@ const double ExatnVisitor::getExpectationValueZ(
   const std::string resetTensorName = "RESET_";
   if (!m_hasEvaluated)
   {
-    const bool evaluated = exatn::evaluateSync(m_tensorNetwork);
-    assert(evaluated);
-    // Synchronize:
-    exatn::sync();
-    m_cacheStateVec = retrieveStateVector();
+    {
+      TNQVM_TELEMETRY_ZONE("exatn::evaluateSync", __FILE__, __LINE__); 
+      const bool evaluated = exatn::evaluateSync(m_tensorNetwork);
+      assert(evaluated);
+      // Synchronize:
+      exatn::sync();
+      m_cacheStateVec = retrieveStateVector();
+    }
+    
+    // State vector after the base ansatz
     assert(m_cacheStateVec.size() == (1ULL << m_buffer->size()));
     
     // The qubit register tensor shape is {2, 2, 2, ...}, 1 leg for each qubit
@@ -1465,6 +1471,7 @@ const double ExatnVisitor::getExpectationValueZ(
   // Walk the remaining circuit and visit all gates
   InstructionIterator it(in_function);
   m_hasEvaluated = false;
+  size_t nbBasisChangeInsts = 0;
   while (it.hasNext()) 
   {
     auto nextInst = it.next();
@@ -1473,6 +1480,7 @@ const double ExatnVisitor::getExpectationValueZ(
       if (nextInst->name() != "Measure")
       {
         nextInst->accept(this);
+        nbBasisChangeInsts++;
       }
       else
       {
@@ -1481,11 +1489,16 @@ const double ExatnVisitor::getExpectationValueZ(
     }
   }
   assert(!m_measureQbIdx.empty());
-  const bool evaluated = exatn::evaluateSync(m_tensorNetwork);
-  assert(evaluated);
+  // If there are basis change instructions:
+  // i.e. not Z basis
+  if (nbBasisChangeInsts > 0)
+  {
+    TNQVM_TELEMETRY_ZONE("exatn::evaluateSync", __FILE__, __LINE__); 
+    const bool evaluated = exatn::evaluateSync(m_tensorNetwork);
+    assert(evaluated);
+  }
   m_hasEvaluated = true;
-  const auto tensorData =  retrieveStateVector();
-  const double exp_val_z = calcExpValueZ(m_measureQbIdx, tensorData);
+  const double exp_val_z = (nbBasisChangeInsts > 0) ? calcExpValueZ(m_measureQbIdx, retrieveStateVector()) :  calcExpValueZ(m_measureQbIdx, m_cacheStateVec);
   m_measureQbIdx.clear();
   return exp_val_z;
 }
