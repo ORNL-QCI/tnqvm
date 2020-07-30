@@ -386,11 +386,31 @@ void ExatnVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer,
       const bool success = exatnParams.setParameter("host_memory_buffer_size", MAX_TALSH_MEMORY_BUFFER_SIZE_BYTES);
       assert(success);
     }
-
+// This is a flag from ExaTN indicating that ExaTN was compiled
+// w/ MPI enabled.
+#ifdef MPI_ENABLED
+  {
+    if (options.keyExists<void*>("mpi-communicator"))
     {
-      exatn::initialize(exatnParams);
-      exatn::activateContrSeqCaching();
+      xacc::info("Setting ExaTN MPI_COMMUNICATOR...");
+      auto communicator = options.get<void*>("mpi-communicator");
+      exatn::MPICommProxy commProxy(communicator);
+      exatn::initialize(commProxy, exatnParams);
     }
+    else
+    {
+      // No specific communicator is specified,
+      // exaTN will automatically use MPI_COMM_WORLD.
+      exatn::initialize(exatnParams);
+    }
+    exatn::activateContrSeqCaching();
+  }
+#else
+  {
+    exatn::initialize(exatnParams);
+    exatn::activateContrSeqCaching();
+  }
+#endif
 
     if (exatn::getDefaultProcessGroup().getSize() > 1)
     {
