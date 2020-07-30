@@ -386,7 +386,7 @@ void ExatnVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer,
       const bool success = exatnParams.setParameter("host_memory_buffer_size", MAX_TALSH_MEMORY_BUFFER_SIZE_BYTES);
       assert(success);
     }
-// This is a flag from ExaTN indicating that ExaTN was comompiled
+// This is a flag from ExaTN indicating that ExaTN was compiled
 // w/ MPI enabled.
 #ifdef MPI_ENABLED
   {
