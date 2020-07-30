@@ -223,7 +223,7 @@ namespace tnqvm {
         virtual void visit(fSim& in_fsimGate) override;
         // others
         virtual void visit(Measure& in_MeasureGate) override;
-        
+        virtual bool supportVqeMode() const override { return true; }
         virtual const double getExpectationValueZ(std::shared_ptr<CompositeInstruction> in_function) override;
 
         void subscribe(IExatnListener* listener) { m_listeners.emplace_back(listener); }
@@ -315,6 +315,7 @@ namespace tnqvm {
        // Tensor network of the qubit register (to close the tensor network for expectation calculation)
        TensorNetwork m_qubitRegTensor;
        std::string m_kernelName;
+       std::vector<std::complex<double>> m_cacheStateVec;
        // Make the debug logger friend, e.g. retrieve internal states for logging purposes.
        friend class ExatnDebugLogger;
     };
