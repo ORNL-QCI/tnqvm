@@ -150,8 +150,31 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
         }
 #endif
 
-        // If exaTN has not been initialized, do it now.
+// This is a flag from ExaTN indicating that ExaTN was compiled
+// w/ MPI enabled.
+    #ifdef MPI_ENABLED
+    {
+        if (options.keyExists<void*>("mpi-communicator"))
+        {
+            xacc::info("Setting ExaTN MPI_COMMUNICATOR...");
+            auto communicator = options.get<void*>("mpi-communicator");
+            exatn::MPICommProxy commProxy(communicator);
+            exatn::initialize(commProxy);
+        }
+        else
+        {
+            // No specific communicator is specified,
+            // exaTN will automatically use MPI_COMM_WORLD.
+            exatn::initialize();
+        }
+        exatn::activateContrSeqCaching();
+    }
+    #else
+    {
         exatn::initialize();
+        exatn::activateContrSeqCaching();
+    }
+    #endif
         // ExaTN and XACC logging levels are always in-synced.
         exatn::resetRuntimeLoggingLevel(xacc::verbose ? xacc::getLoggingLevel() : 0);
         xacc::subscribeLoggingLevel([](int level) {
