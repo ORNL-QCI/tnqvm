@@ -84,11 +84,6 @@ public:
           "The default visitor backend of type '" + DEFAULT_VISITOR_BACKEND + "' will be used.");
       }
     }
-    else {
-      // No visitor type was specified, use the default.
-      backendName = DEFAULT_VISITOR_BACKEND;
-      xacc::warning("No visitor backend was specified. The default visitor backend of type '" + DEFAULT_VISITOR_BACKEND + "' will be used.");
-    }
 
     if (config.keyExists<int>("shots")) {
       nbShots = config.get<int>("shots");
