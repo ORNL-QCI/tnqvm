@@ -17,11 +17,12 @@ std::string bitStringVecToString(const std::vector<int>& in_vec)
 int main(int argc, char **argv)
 {
     xacc::Initialize();
-    //xacc::set_verbose(true);
-    //xacc::setLoggingLevel(2);
+    xacc::set_verbose(true);
+    xacc::logToFile(true);
+    xacc::setLoggingLevel(2);
 
     // Options: 4, 5, 6, 8, 10, 12, 14, 16, 18, 20
-    const int CIRCUIT_DEPTH = 4;
+    const int CIRCUIT_DEPTH = 10;
 
    // Construct the full path to the XASM source file
     const std::string XASM_SRC_FILE = std::string(RESOURCE_DIR) + "/sycamore_53_" + std::to_string(CIRCUIT_DEPTH) + "_0.xasm";
