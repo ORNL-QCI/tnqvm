@@ -5,7 +5,7 @@
 #include "ExatnUtils.hpp"
 #include "utils/GateMatrixAlgebra.hpp"
 #include <map>
-#include <unistd.h> 
+#include <unistd.h>
 #ifdef TNQVM_EXATN_USES_MKL_BLAS
 #include <dlfcn.h>
 #endif
@@ -176,8 +176,10 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
     }
     #endif
         // ExaTN and XACC logging levels are always in-synced.
+        exatn::resetClientLoggingLevel(xacc::verbose ? 1 : 0);
         exatn::resetRuntimeLoggingLevel(xacc::verbose ? xacc::getLoggingLevel() : 0);
         xacc::subscribeLoggingLevel([](int level) {
+            exatn::resetClientLoggingLevel(xacc::verbose ? 1 : 0);
             exatn::resetRuntimeLoggingLevel(xacc::verbose ? level : 0);
         });
     }
@@ -264,6 +266,7 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
         if (loggingLevel > 0 && loggingLevel < 3)
         {
             std::cout << "[DEBUG]: Set ExaTN runtime logging level to " << loggingLevel << "\n";
+            exatn::resetClientLoggingLevel((loggingLevel > 0) ? 1 : 0);
             exatn::resetRuntimeLoggingLevel(loggingLevel);
         }
     }
@@ -488,6 +491,7 @@ void ExatnMpsVisitor::finalize()
     const auto finalizeStart = std::chrono::system_clock::now();
 
     // Always reset the logging level back to 0 when finished.
+    exatn::resetClientLoggingLevel(0);
     exatn::resetRuntimeLoggingLevel(0);
 
     if (m_aggregateEnabled)
