@@ -272,29 +272,45 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
     getStatInstance("Initialize").addSample(initializeStart, initializeEnd);
 #else
     // MPI
-    exatn::ProcessGroup process_group(exatn::getDefaultProcessGroup());
+    auto& process_group = exatn::getDefaultProcessGroup();
     m_qubitIdxToRank.clear();
     // Get the rank of the process    
     int process_rank = exatn::getProcessRank();
-
-    if (process_rank == 0)
+    static bool printOnce = false;
+    if (process_rank == 0 && !printOnce)
     {
-        std::cout << "============== MPI Info ============================\n";
-        std::cout << "Process " << ::getpid() << ": rank = " << process_rank << "\n";
-        std::cout << "Number of MPI processes = " << process_group.getSize() << "\n";
-        std::cout << "Memory limit per process = " << process_group.getMemoryLimitPerProcess() << "\n";
-        std::cout << "====================================================\n";
+        std::stringstream ss;
+        ss << "============== MPI Info ============================\n";
+        ss << "Process " << ::getpid() << ": rank = " << process_rank << "\n";
+        ss << "Number of MPI processes = " << process_group.getSize() << "\n";
+        ss << "Memory limit per process = " << process_group.getMemoryLimitPerProcess() << "\n";
+        ss << "====================================================\n";
+        xacc::info(ss.str());
+        printOnce = true;
     }
     m_rank = process_rank;
     // Split processes into groups:
-    m_selfProcessGroup = process_group.split(process_rank);
-    std::cout << "Process [" << process_rank << "]: Number of MPI processes in sub-group = " << m_selfProcessGroup->getSize() << "\n";
-    std::cout << "Process [" << process_rank << "]: Memory limit per process in sub-group = " << m_selfProcessGroup->getMemoryLimitPerProcess() << "\n";
+    if (process_group.getSize() > 1)
+    {
+        m_selfProcessGroup = process_group.split(process_rank);
+    }
+    else
+    {
+        // IMPORTANT:
+        // Handled an edge case where the sub-communicator (e.g. from XACC HPC Virt Decorator)
+        // is rank 1 (i.e. 1 process).
+        // In that case, we must not split the process group since ExaTN will create destroy
+        // the original COMMUNICATOR if we split the group w/ itself.
+        m_selfProcessGroup = xacc::as_shared_ptr(&(const_cast<exatn::ProcessGroup&>(exatn::getDefaultProcessGroup())));
+    }
+    // std::cout << "Process [" << process_rank << "]: Number of MPI processes in sub-group = " << m_selfProcessGroup->getSize() << "\n";
+    // std::cout << "Process [" << process_rank << "]: Memory limit per process in sub-group = " << m_selfProcessGroup->getMemoryLimitPerProcess() << "\n";
 
     // Establish shared process groups:
     // Pairwise split
     m_rightSharedProcessGroup.reset();
     m_leftSharedProcessGroup.reset();
+    if(process_group.getSize() > 1)
     {
         const int color = process_rank / 2;
         auto splitProcessGroup = process_group.split(color);
@@ -308,6 +324,8 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
             m_leftSharedProcessGroup = splitProcessGroup;
         }
     }
+    
+    if(process_group.getSize() > 1)
     {
         if (process_rank != 0)
         {
@@ -346,9 +364,9 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
         }
     };
 
-    std::cout << "Process [" << process_rank << "]: Left group = " 
-        << processGroupToString(m_leftSharedProcessGroup) 
-        << "; Right group = " << processGroupToString(m_rightSharedProcessGroup) << "\n";
+    // std::cout << "Process [" << process_rank << "]: Left group = " 
+    //     << processGroupToString(m_leftSharedProcessGroup) 
+    //     << "; Right group = " << processGroupToString(m_rightSharedProcessGroup) << "\n";
 
     if (process_group.getSize() < m_buffer->size())
     {
@@ -365,7 +383,7 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
         m_qubitRange = std::make_pair(process_rank, process_rank);
     }
 
-    std::cout << "Process [" << process_rank << "]: handles qubit " << m_qubitRange.first << " to " << m_qubitRange.second << "\n";  
+    // std::cout << "Process [" << process_rank << "]: handles qubit " << m_qubitRange.first << " to " << m_qubitRange.second << "\n";  
 
     if (m_buffer->size() > process_group.getSize())
     {
@@ -696,6 +714,11 @@ void ExatnMpsVisitor::finalize()
         }
     }
     
+    for (int i = 0; i < m_buffer->size(); ++i)
+    {
+        const bool qTensorDestroyed = exatn::destroyTensor("Q" + std::to_string(i));
+        assert(qTensorDestroyed);
+    }
     // Clean up
     m_selfProcessGroup.reset();
     m_leftSharedProcessGroup.reset();
