@@ -377,16 +377,18 @@ std::shared_ptr<exatn::Tensor> constructKrausTensor(const tnqvm::KrausAmpl& in_k
     {
         return nullptr;
     }
-    // TODO: this only handle Amplitude-Damping atm
-    // need to do Depolarize channel as well
+   
     ++krausTensorCounter;
-    auto krausTensor = std::make_shared<exatn::Tensor>("__KRAUS__" + std::to_string(krausTensorCounter), exatn::TensorShape{2, 2, 2});
+    auto krausTensor = std::make_shared<exatn::Tensor>("__KRAUS__" + std::to_string(krausTensorCounter), exatn::TensorShape{2, 2, 2, 2});
     const bool created = exatn::createTensorSync(krausTensor, exatn::TensorElementType::COMPLEX64);
     assert(created);
-    const std::vector<std::complex<double>> tensorBody {
-        0.0, in_krausAmpl.probAD, in_krausAmpl.probAD, 0.0,
-        (1.0 - in_krausAmpl.probAD), 0.0, 0.0,  (1.0 - in_krausAmpl.probAD)
-    };
+    
+    // !! TEMP CODE !! This body tensor was copied from Eugene's notebook,
+    // TODO: Needs to create this automatically for arbitrary noise strength.
+    const std::vector<std::complex<double>> tensorBody{
+        1., 0., 0.,   0.99498744, 0.,         0., 0., 0.,
+        0., 0., 0.01, 0.,         0.99498744, 0., 0., 0.99};
+
     const bool initialized = exatn::initTensorDataSync(krausTensor->getName(), tensorBody);
     assert(initialized);
     return exatn::getTensor(krausTensor->getName());
@@ -604,11 +606,19 @@ void ExaTnPmpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
     m_pmpsTensorNetwork = buildInitialNetwork(m_buffer->size(), false);
 }
 
-void applyLocalKrausOp(size_t in_siteId, const std::string& in_opTensorName)
+void ExaTnPmpsVisitor::applyLocalKrausOp(size_t in_siteId, const std::string& in_opTensorName)
 {
     auto opTensor = exatn::getTensor(in_opTensorName);
-    // Must be a 3-leg tensor
-    assert(opTensor->getRank() == 3);
+    // Must be a 4-leg tensor
+    assert(opTensor->getRank() == 4);
+
+    // Step 1: Merge Q - Q-dagger to form a 2-leg tensor
+
+    // Step 2: Append Kraus tensor as a 2-qubit gate
+
+    // Step 3: Contract the tensor network to form a new 2-leg tensor
+
+    // Step 4: SVD back
 }
 
 void ExaTnPmpsVisitor::visit(Identity& in_IdentityGate) 
@@ -638,6 +648,7 @@ void ExaTnPmpsVisitor::visit(X& in_XGate)
     if (krausTensor)
     {
         applyLocalKrausOp(in_XGate.bits()[0], krausTensor->getName());
+        m_pmpsTensorNetwork.printIt();
     }
 }
 
