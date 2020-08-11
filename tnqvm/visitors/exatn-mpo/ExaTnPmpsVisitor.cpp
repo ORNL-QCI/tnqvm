@@ -200,7 +200,7 @@ void contractSingleQubitGateTensor(const std::string& qubitTensorName, const std
     }
 
     assert(!patternStr.empty());
-    std::cout << "Pattern string: " << patternStr << "\n";
+    // std::cout << "Pattern string: " << patternStr << "\n";
     
     const bool contractOk = exatn::contractTensorsSync(patternStr, 1.0);
     assert(contractOk);
@@ -303,7 +303,7 @@ void contractTwoQubitGateTensor(const exatn::TensorNetwork& in_tensorNetwork, co
     }
     auto qubitsMergedTensor =  tempNetwork.getTensor(mergedTensorId);
     mergeContractionPattern.replace(mergeContractionPattern.find("D"), 1, qubitsMergedTensor->getName());
-    std::cout << "Merged: " << mergeContractionPattern << "\n";
+    // std::cout << "Merged: " << mergeContractionPattern << "\n";
     
     const auto contractMergePattern = [](std::shared_ptr<exatn::Tensor>& mergedTensor, const std::string& in_mergePattern) {
         const bool mergedTensorCreated = exatn::createTensorSync(mergedTensor, exatn::TensorElementType::COMPLEX64);
@@ -377,7 +377,7 @@ void contractTwoQubitGateTensor(const exatn::TensorNetwork& in_tensorNetwork, co
     // SVD:
     {
         svdPattern.replace(svdPattern.find(qubitsMergedTensor->getName()), qubitsMergedTensor->getName().size(), gateMergeTensor->getName());
-        std::cout << "SVD: " << svdPattern << "\n";
+        // std::cout << "SVD: " << svdPattern << "\n";
         auto q1Tensor = exatn::getTensor(q1TensorName);
         auto q2Tensor = exatn::getTensor(q2TensorName);
         const auto bondIds = getBondLegId(in_tensorNetwork, q1TensorName, q2TensorName);
@@ -575,7 +575,7 @@ exatn::TensorNetwork ExaTnPmpsVisitor::buildInitialNetwork(size_t in_nbQubits, b
         return result;
     }();
 
-    std::cout << "Purified MPS: \n" << pmpsString << "\n";
+    // std::cout << "Purified MPS: \n" << pmpsString << "\n";
     exatn::TensorNetwork purifiedMps("PMPS_Network", pmpsString, buildTensorMap(in_nbQubits));
     // purifiedMps.printIt();
 
@@ -592,8 +592,8 @@ exatn::TensorNetwork ExaTnPmpsVisitor::buildInitialNetwork(size_t in_nbQubits, b
     }
 
     purifiedMps.appendTensorNetwork(std::move(conjugate), pairings);
-    std::cout << "Purified MPS:\n";
-    purifiedMps.printIt();
+    // std::cout << "Purified MPS:\n";
+    // purifiedMps.printIt();
 
     return purifiedMps;
 }
@@ -625,7 +625,7 @@ void ExaTnPmpsVisitor::finalize()
     }
 }
 
-void ExaTnPmpsVisitor::applySingleQubitGate(xacc::Instruction& in_gateInstruction)
+void ExaTnPmpsVisitor::applySingleQubitGate(xacc::quantum::Gate& in_gateInstruction)
 {
     assert(in_gateInstruction.bits().size() == 1);
     const auto gateMatrix = getGateMatrix(in_gateInstruction);
@@ -643,9 +643,19 @@ void ExaTnPmpsVisitor::applySingleQubitGate(xacc::Instruction& in_gateInstructio
     contractSingleQubitGateTensor(qubitTensorName, gateTensorName);
     const bool destroyed = exatn::destroyTensorSync(gateTensorName);
     assert(destroyed);
+ 
+    // Apply noise (Kraus) Op
+    auto noiseConfig = m_noiseConfig->computeKrausAmplitudes(in_gateInstruction);
+    assert(noiseConfig.size() == 1);
+    auto krausTensor = constructKrausTensor(noiseConfig[0]);
+    // Non-zero noise channels
+    if (krausTensor)
+    {
+        applyLocalKrausOp(bitIdx, krausTensor->getName());
+    }
 }
 
-void ExaTnPmpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
+void ExaTnPmpsVisitor::applyTwoQubitGate(xacc::quantum::Gate& in_gateInstruction)
 {
     assert(in_gateInstruction.bits().size() == 2);
     // Must be a nearest-neighbor gate
@@ -664,6 +674,18 @@ void ExaTnPmpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
     const bool destroyed = exatn::destroyTensorSync(gateTensorName);
     assert(destroyed);
     m_pmpsTensorNetwork = buildInitialNetwork(m_buffer->size(), false);
+    
+    // Apply noise (Kraus) Op
+    auto noiseConfig = m_noiseConfig->computeKrausAmplitudes(in_gateInstruction);
+    assert(noiseConfig.size() == 1);
+    auto krausTensor = constructKrausTensor(noiseConfig[0]);
+    // Non-zero noise channels
+    if (krausTensor)
+    {
+        // Apply noises on both channels 
+        applyLocalKrausOp(in_gateInstruction.bits()[0], krausTensor->getName());
+        applyLocalKrausOp(in_gateInstruction.bits()[1], krausTensor->getName());
+    }
 }
 
 void ExaTnPmpsVisitor::applyLocalKrausOp(size_t in_siteId, const std::string& in_opTensorName)
@@ -679,7 +701,7 @@ void ExaTnPmpsVisitor::applyLocalKrausOp(size_t in_siteId, const std::string& in
     mergeContractionPattern.replace(mergeContractionPattern.find("R"), 1, "Q0");
     auto mergedTensor = m_pmpsTensorNetwork.getTensor(3);
     mergedTensor->rename("D");
-    std::cout << mergeContractionPattern << "\n";
+    // std::cout << mergeContractionPattern << "\n";
     const bool mergedTensorCreated = exatn::createTensorSync(mergedTensor, exatn::TensorElementType::COMPLEX64);
     assert(mergedTensorCreated);
     const bool mergedTensorInitialized = exatn::initTensorSync(mergedTensor->getName(), 0.0);
@@ -751,7 +773,7 @@ void ExaTnPmpsVisitor::applyLocalKrausOp(size_t in_siteId, const std::string& in
 
 void ExaTnPmpsVisitor::visit(Identity& in_IdentityGate) 
 { 
-    
+    applySingleQubitGate(in_IdentityGate);
 }
 
 void ExaTnPmpsVisitor::visit(Hadamard& in_HadamardGate) 
@@ -759,17 +781,6 @@ void ExaTnPmpsVisitor::visit(Hadamard& in_HadamardGate)
     applySingleQubitGate(in_HadamardGate);
     // DEBUG:
     std::cout << "Apply: " << in_HadamardGate.toString() << "\n";
-    printDensityMatrix(m_pmpsTensorNetwork, m_buffer->size());
-    auto noiseConfig = m_noiseConfig->computeKrausAmplitudes(in_HadamardGate);
-    assert(noiseConfig.size() == 1);
-
-    auto krausTensor = constructKrausTensor(noiseConfig[0]);
-    // Non-zero noise channels
-    if (krausTensor)
-    {
-        applyLocalKrausOp(in_HadamardGate.bits()[0], krausTensor->getName());
-    }
-    std::cout << "After Kraus:\n";
     printDensityMatrix(m_pmpsTensorNetwork, m_buffer->size());
 }
 
@@ -779,66 +790,41 @@ void ExaTnPmpsVisitor::visit(X& in_XGate)
     // DEBUG:
     std::cout << "Apply: " << in_XGate.toString() << "\n";
     printDensityMatrix(m_pmpsTensorNetwork, m_buffer->size());
-    auto noiseConfig = m_noiseConfig->computeKrausAmplitudes(in_XGate);
-    assert(noiseConfig.size() == 1);
-
-    auto krausTensor = constructKrausTensor(noiseConfig[0]);
-    // Non-zero noise channels
-    if (krausTensor)
-    {
-        applyLocalKrausOp(in_XGate.bits()[0], krausTensor->getName());
-    }
-    std::cout << "After Kraus:\n";
-    printDensityMatrix(m_pmpsTensorNetwork, m_buffer->size());
 }
 
 void ExaTnPmpsVisitor::visit(Y& in_YGate) 
 { 
     applySingleQubitGate(in_YGate);
-    // DEBUG:
-    std::cout << "Apply: " << in_YGate.toString() << "\n";
-    printDensityMatrix(m_pmpsTensorNetwork, m_buffer->size());
-    auto noiseConfig = m_noiseConfig->computeKrausAmplitudes(in_YGate);
-    assert(noiseConfig.size() == 1);
-
-    auto krausTensor = constructKrausTensor(noiseConfig[0]);
-    // Non-zero noise channels
-    if (krausTensor)
-    {
-        applyLocalKrausOp(in_YGate.bits()[0], krausTensor->getName());
-    }
-    std::cout << "After Kraus:\n";
-    printDensityMatrix(m_pmpsTensorNetwork, m_buffer->size());
 }
 
 void ExaTnPmpsVisitor::visit(Z& in_ZGate) 
 { 
-    
+    applySingleQubitGate(in_ZGate);
 }
 
 void ExaTnPmpsVisitor::visit(Rx& in_RxGate) 
 { 
-    
+    applySingleQubitGate(in_RxGate);
 }
 
 void ExaTnPmpsVisitor::visit(Ry& in_RyGate) 
 { 
-    
+    applySingleQubitGate(in_RyGate);
 }
 
 void ExaTnPmpsVisitor::visit(Rz& in_RzGate) 
 { 
-    
+    applySingleQubitGate(in_RzGate);
 }
 
 void ExaTnPmpsVisitor::visit(T& in_TGate) 
 { 
-   
+    applySingleQubitGate(in_TGate);
 }
 
 void ExaTnPmpsVisitor::visit(Tdg& in_TdgGate) 
 { 
-   
+    applySingleQubitGate(in_TdgGate);
 }
 
 // others
@@ -849,7 +835,7 @@ void ExaTnPmpsVisitor::visit(Measure& in_MeasureGate)
 
 void ExaTnPmpsVisitor::visit(U& in_UGate) 
 { 
-    
+    applySingleQubitGate(in_UGate);
 }
 
 // two-qubit gates: 
@@ -863,27 +849,27 @@ void ExaTnPmpsVisitor::visit(CNOT& in_CNOTGate)
 
 void ExaTnPmpsVisitor::visit(Swap& in_SwapGate) 
 { 
-    
+    applySingleQubitGate(in_SwapGate);
 }
 
 void ExaTnPmpsVisitor::visit(CZ& in_CZGate) 
 { 
-   
+    applySingleQubitGate(in_CZGate);
 }
 
 void ExaTnPmpsVisitor::visit(CPhase& in_CPhaseGate) 
 { 
-   
+    applySingleQubitGate(in_CPhaseGate);
 }
 
 void ExaTnPmpsVisitor::visit(iSwap& in_iSwapGate) 
 {
-    
+    applySingleQubitGate(in_iSwapGate);
 }
 
 void ExaTnPmpsVisitor::visit(fSim& in_fsimGate) 
 {
-   
+    applySingleQubitGate(in_fsimGate);
 }
 
 const double ExaTnPmpsVisitor::getExpectationValueZ(std::shared_ptr<CompositeInstruction> in_function) 
