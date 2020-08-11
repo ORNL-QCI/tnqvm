@@ -26,11 +26,21 @@ public:
         }
         
         auto provider = xacc::getIRProvider("quantum");
-        auto transformedProgram = provider->createComposite(in_program->name() + "_Transformed");
-        
-        for (int i = 0; i < in_program->nInstructions(); ++i) 
+        auto flattenedProgram = provider->createComposite(in_program->name() + "_Flattened");
+        InstructionIterator it(in_program);
+        while (it.hasNext()) 
         {
-            auto inst = in_program->getInstruction(i);
+            auto nextInst = it.next();
+            if (nextInst->isEnabled() && !nextInst->isComposite()) 
+            {
+                flattenedProgram->addInstruction(nextInst->clone());
+            }
+        }
+        
+        auto transformedProgram = provider->createComposite(in_program->name() + "_Transformed");
+        for (int i = 0; i < flattenedProgram->nInstructions(); ++i) 
+        {
+            auto inst = flattenedProgram->getInstruction(i);
 
             const auto exceedMaxDistance = [&maxDistance](int q1, int q2)->bool {
                 return std::abs(q1 - q2) > maxDistance;
