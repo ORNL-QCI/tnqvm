@@ -71,5 +71,7 @@ private:
     std::shared_ptr<AcceleratorBuffer> m_buffer;
     std::shared_ptr<IGateTimeConfigProvider> m_gateTimeConfig;
     std::shared_ptr<KrausConfig> m_noiseConfig;
+    std::vector<size_t> m_measuredBits;
+    int m_nbShots;
 };
 } 

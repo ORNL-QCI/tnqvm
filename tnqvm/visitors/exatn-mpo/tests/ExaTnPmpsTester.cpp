@@ -7,13 +7,22 @@ TEST(ExaTnPmpsTester, checkSimple)
 {
   auto xasmCompiler = xacc::getCompiler("xasm");
   auto ir = xasmCompiler->compile(R"(__qpu__ void test1(qbit q) {
-    H(q[0]);
+    // Run X gate 100 times, i.e. mimic randomized benchmarking.
+    for (int i = 0; i < 100; i++) {
+      X(q[0]);
+    }
+    Measure(q[0]);
   })");
 
   auto program = ir->getComposite("test1");
   auto accelerator = xacc::getAccelerator("tnqvm", { std::make_pair("tnqvm-visitor", "exatn-pmps") });
   auto qreg = xacc::qalloc(1);
   accelerator->execute(qreg, program);
+  // Because of amplitude damping,
+  // we won't get a perfect |0> state
+  qreg->print();
+  // There should be a non-zero count of "1" measurements.
+  EXPECT_GT(qreg->computeMeasurementProbability("1"), 0.01);
 } 
 
 int main(int argc, char **argv) 

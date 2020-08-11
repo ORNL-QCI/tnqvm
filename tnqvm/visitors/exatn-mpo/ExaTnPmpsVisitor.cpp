@@ -90,6 +90,43 @@ std::vector<std::complex<double>> getTensorData(const std::string& in_tensorName
     return result;
 } 
 
+std::vector<std::complex<double>> calculateDensityMatrix(const exatn::TensorNetwork& in_pmpsNet, size_t in_nbQubit)
+{
+    exatn::TensorNetwork tempNetwork(in_pmpsNet);
+    tempNetwork.rename("__TEMP__" + in_pmpsNet.getName());
+    const bool evaledOk = exatn::evaluateSync(tempNetwork);
+    assert(evaledOk); 
+    return getTensorData(tempNetwork.getTensor(0)->getName());
+}
+
+std::string generateResultBitString(const std::vector<std::complex<double>>& in_dmDiagonalElems, const std::vector<size_t>& in_measureQubits, size_t in_nbQubits)
+{
+    static auto randomProbFunc = std::bind(std::uniform_real_distribution<double>(0, 1), std::mt19937(std::chrono::high_resolution_clock::now().time_since_epoch().count()));
+    // Pick a random probability
+    const auto probPick = randomProbFunc();
+    const size_t N = in_dmDiagonalElems.size();
+    // Random state selection
+    double cumulativeProb = 0.0;
+    size_t stateSelect = 0;
+    // select a state based on cumulative distribution (diagonal elements)
+    while (cumulativeProb < probPick && stateSelect < N)
+    {
+        cumulativeProb += in_dmDiagonalElems[stateSelect++].real();
+    }
+
+    // back one step
+    stateSelect--;
+    std::string result;
+    for (const auto& qubit : in_measureQubits)
+    {
+        const auto qubitIdx = in_nbQubits - qubit - 1;
+        const bool bit = ((stateSelect >> qubitIdx) & 1);
+        result.push_back(bit ? '1' : '0');
+    }
+
+    return result;  
+}
+
 std::vector<std::complex<double>> getGateMatrix(const xacc::Instruction& in_gate)
 {
     using namespace tnqvm;
@@ -443,6 +480,7 @@ void ExaTnPmpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int
     }
     m_gateTimeConfig = std::shared_ptr<IGateTimeConfigProvider>(new DefaultGateTimeConfigProvider());
     m_noiseConfig = std::make_shared<KrausConfig>(m_gateTimeConfig.get(), noiseAmpl);
+    m_nbShots = 1024;
 }
 
 exatn::TensorNetwork ExaTnPmpsVisitor::buildInitialNetwork(size_t in_nbQubits, bool in_createQubitTensors) const
@@ -562,7 +600,29 @@ exatn::TensorNetwork ExaTnPmpsVisitor::buildInitialNetwork(size_t in_nbQubits, b
 
 void ExaTnPmpsVisitor::finalize() 
 { 
-    // TODO
+    // If there are measurements:
+    if (!m_measuredBits.empty())
+    {
+        // Retrieve the density matrix:
+        const auto flattenedDm = calculateDensityMatrix(m_pmpsTensorNetwork, m_buffer->size());
+        const std::vector<std::complex<double>> diagElems = [&](){
+            const auto dim = 1ULL << m_buffer->size();
+            std::vector<std::complex<double>> result(dim);
+            for (size_t i = 0; i < dim; ++i)
+            {
+                result[i] = flattenedDm[ i * dim + i];
+                assert(std::abs(result[i].imag()) < 1e-12);
+            }
+            return result;
+        }();
+
+        for (int i = 0; i < m_nbShots; ++i)
+        {
+            m_buffer->appendMeasurement(generateResultBitString(diagElems, m_measuredBits, m_buffer->size()));
+        }
+        
+        m_measuredBits.clear();
+    }
 }
 
 void ExaTnPmpsVisitor::applySingleQubitGate(xacc::Instruction& in_gateInstruction)
@@ -626,12 +686,12 @@ void ExaTnPmpsVisitor::applyLocalKrausOp(size_t in_siteId, const std::string& in
     assert(mergedTensorInitialized);
     const bool mergedContractionOk = exatn::contractTensorsSync(mergeContractionPattern, 1.0);
     assert(mergedContractionOk);
-    const auto dmTensorData = getTensorData("D");
-    std::cout << "Density Matrix: \n";
-    for (const auto& elem : dmTensorData)
-    {
-        std::cout << elem << "\n";
-    }
+    // const auto dmTensorData = getTensorData("D");
+    // std::cout << "Density Matrix: \n";
+    // for (const auto& elem : dmTensorData)
+    // {
+    //     std::cout << elem << "\n";
+    // }
     // Step 2: Append Kraus tensor as a 2-qubit gate
     const std::string RESULT_TENSOR_NAME = "Result";
     const std::string patternStr = RESULT_TENSOR_NAME + "(u0,u1)=D(c0,c1)*" + opTensor->getName() + "(u0,c0,u1,c1)";
@@ -647,14 +707,20 @@ void ExaTnPmpsVisitor::applyLocalKrausOp(size_t in_siteId, const std::string& in
     assert(contractionOk);
 
     const auto tensorData = getTensorData(RESULT_TENSOR_NAME);
-    std::cout << "Data: \n";
-    for (const auto& elem : tensorData)
-    {
-        std::cout << elem << "\n";
-    }
+
+    // std::cout << "Data: \n";
+    // for (const auto& elem : tensorData)
+    // {
+    //     std::cout << elem << "\n";
+    // }
+
+
     // Step 4: SVD back
-    auto svdTensor1 = std::make_shared<exatn::Tensor>("__SVD1__", exatn::TensorShape{2, 2});
-    auto svdTensor2 = std::make_shared<exatn::Tensor>("__SVD2__", exatn::TensorShape{2, 2});
+    bool destroyed = exatn::destroyTensorSync("Q0");
+    assert(destroyed);
+
+    auto svdTensor1 = std::make_shared<exatn::Tensor>("Q0", exatn::TensorShape{2, 2});
+    auto svdTensor2 = std::make_shared<exatn::Tensor>("__SVD__", exatn::TensorShape{2, 2});
     bool created = exatn::createTensorSync(svdTensor1, exatn::TensorElementType::COMPLEX64);
     assert(created);
     created = exatn::createTensorSync(svdTensor2, exatn::TensorElementType::COMPLEX64);
@@ -662,25 +728,25 @@ void ExaTnPmpsVisitor::applyLocalKrausOp(size_t in_siteId, const std::string& in
     const std::string svdPattern = RESULT_TENSOR_NAME + "(u0,u1)=" + svdTensor1->getName() + "(u0,c0)*" + svdTensor2->getName()+ "(u1,c0)";
     const bool svdOk = exatn::decomposeTensorSVDLRSync(svdPattern);
     assert(svdOk);
-    const auto tensorData1 = getTensorData(svdTensor1->getName());
-    std::cout << "Data1: \n";
-    for (const auto& elem : tensorData1)
-    {
-        std::cout << elem << "\n";
-    }
-    const auto tensorData2 = getTensorData(svdTensor2->getName());
-    std::cout << "Data2: \n";
-    for (const auto& elem : tensorData2)
-    {
-        std::cout << elem << "\n";
-    }
-
-    const bool destroyed = exatn::destroyTensorSync("Q0");
-    assert(destroyed);
-    svdTensor1->rename("Q0");
-    created = exatn::createTensorSync(svdTensor1, exatn::TensorElementType::COMPLEX64);
-    assert(created);
+    // const auto tensorData1 = getTensorData(svdTensor1->getName());
+    // std::cout << "Data1: \n";
+    // for (const auto& elem : tensorData1)
+    // {
+    //     std::cout << elem << "\n";
+    // }
+    // const auto tensorData2 = getTensorData(svdTensor2->getName());
+    // std::cout << "Data2: \n";
+    // for (const auto& elem : tensorData2)
+    // {
+    //     std::cout << elem << "\n";
+    // }
     m_pmpsTensorNetwork = buildInitialNetwork(m_buffer->size(), false);
+    destroyed = exatn::destroyTensorSync(svdTensor2->getName());
+    assert(destroyed);
+    destroyed = exatn::destroyTensorSync(mergedTensor->getName());
+    assert(destroyed);
+    destroyed = exatn::destroyTensorSync(RESULT_TENSOR_NAME);
+    assert(destroyed);
 }
 
 void ExaTnPmpsVisitor::visit(Identity& in_IdentityGate) 
@@ -778,6 +844,7 @@ void ExaTnPmpsVisitor::visit(Tdg& in_TdgGate)
 // others
 void ExaTnPmpsVisitor::visit(Measure& in_MeasureGate) 
 { 
+    m_measuredBits.emplace_back(in_MeasureGate.bits()[0]);
 }
 
 void ExaTnPmpsVisitor::visit(U& in_UGate) 
