@@ -623,6 +623,12 @@ void ExaTnPmpsVisitor::finalize()
         
         m_measuredBits.clear();
     }
+
+    for (size_t i = 0; i < m_buffer->size(); ++i)
+    {
+        const bool destroyed = exatn::destroyTensorSync("Q" + std::to_string(i));
+        assert(destroyed);
+    }
 }
 
 void ExaTnPmpsVisitor::applySingleQubitGate(xacc::quantum::Gate& in_gateInstruction)
@@ -693,15 +699,19 @@ void ExaTnPmpsVisitor::applyLocalKrausOp(size_t in_siteId, const std::string& in
     auto opTensor = exatn::getTensor(in_opTensorName);
     // Must be a 4-leg tensor
     assert(opTensor->getRank() == 4);
-
+    const auto qubitTensorName = "Q" + std::to_string(in_siteId);
     // Step 1: Merge Q - Q-dagger to form a 2-leg tensor
     std::string mergeContractionPattern;
-    m_pmpsTensorNetwork.mergeTensors(1,  2, 3, &mergeContractionPattern);
-    mergeContractionPattern.replace(mergeContractionPattern.find("L"), 1, "Q0");
-    mergeContractionPattern.replace(mergeContractionPattern.find("R"), 1, "Q0");
-    auto mergedTensor = m_pmpsTensorNetwork.getTensor(3);
+    const auto mergedTensorId = m_pmpsTensorNetwork.getMaxTensorId() + 1;
+    m_pmpsTensorNetwork.printIt();
+    const auto tensorId = in_siteId + 1;
+    const auto conjTensorId = m_buffer->size() + in_siteId + 1;
+    m_pmpsTensorNetwork.mergeTensors(tensorId,  conjTensorId, mergedTensorId, &mergeContractionPattern);
+    mergeContractionPattern.replace(mergeContractionPattern.find("L"), 1, qubitTensorName);
+    mergeContractionPattern.replace(mergeContractionPattern.find("R"), 1, qubitTensorName);
+    auto mergedTensor = m_pmpsTensorNetwork.getTensor(mergedTensorId);
     mergedTensor->rename("D");
-    // std::cout << mergeContractionPattern << "\n";
+    std::cout << mergeContractionPattern << "\n";
     const bool mergedTensorCreated = exatn::createTensorSync(mergedTensor, exatn::TensorElementType::COMPLEX64);
     assert(mergedTensorCreated);
     const bool mergedTensorInitialized = exatn::initTensorSync(mergedTensor->getName(), 0.0);
@@ -716,7 +726,27 @@ void ExaTnPmpsVisitor::applyLocalKrausOp(size_t in_siteId, const std::string& in
     // }
     // Step 2: Append Kraus tensor as a 2-qubit gate
     const std::string RESULT_TENSOR_NAME = "Result";
-    const std::string patternStr = RESULT_TENSOR_NAME + "(u0,u1)=D(c0,c1)*" + opTensor->getName() + "(u0,c0,u1,c1)";
+    const std::string patternStr = [&]() -> std::string {
+        if (mergedTensor->getRank() == 2)
+        {
+            assert(m_buffer->size() == 1);
+            return RESULT_TENSOR_NAME + "(u0,u1)=D(c0,c1)*" + opTensor->getName() + "(u0,c0,u1,c1)";
+        }
+        else if (mergedTensor->getRank() == 4)
+        {
+            return RESULT_TENSOR_NAME + "(u0,u1,u2,u3)=D(c0,u1,c1,u3)*" + opTensor->getName() + "(u0,c0,u2,c1)";
+        }
+        else if (mergedTensor->getRank() == 6)
+        {
+            return RESULT_TENSOR_NAME + "(u0,u1,u2,u3,u4,u5)=D(c0,u1,u2,c1,u4,u5)*" + opTensor->getName() + "(u0,c0,u3,c1)";
+        }
+        else
+        {
+            xacc::error("Internal error: " + mergeContractionPattern);
+            return "";
+        }
+    }();
+   
     // Result tensor always has the same shape as the *merged* qubit tensor
     const bool resultTensorCreated = exatn::createTensorSync(RESULT_TENSOR_NAME, 
                                                             exatn::TensorElementType::COMPLEX64, 
@@ -724,11 +754,12 @@ void ExaTnPmpsVisitor::applyLocalKrausOp(size_t in_siteId, const std::string& in
     assert(resultTensorCreated);
     const bool resultTensorInitialized = exatn::initTensorSync(RESULT_TENSOR_NAME, 0.0);
     assert(resultTensorInitialized);
-    // Step 3: Contract the tensor network to form a new 2-leg tensor
+    
+    // Step 3: Contract the tensor network to form a new tensor
     const bool contractionOk = exatn::contractTensorsSync(patternStr, 1.0);
     assert(contractionOk);
 
-    const auto tensorData = getTensorData(RESULT_TENSOR_NAME);
+    // const auto tensorData = getTensorData(RESULT_TENSOR_NAME);
 
     // std::cout << "Data: \n";
     // for (const auto& elem : tensorData)
@@ -738,16 +769,56 @@ void ExaTnPmpsVisitor::applyLocalKrausOp(size_t in_siteId, const std::string& in
 
 
     // Step 4: SVD back
-    bool destroyed = exatn::destroyTensorSync("Q0");
+    auto qubitTensor = exatn::getTensor(qubitTensorName);
+    // qubitTensor->printIt();
+    auto tensorShape = qubitTensor->getShape();
+    if (tensorShape.getRank() == 2)
+    {
+        const auto oldKrausBondDim = tensorShape.getDimExtent(1);
+        const auto newKrausBondDim = std::min(tensorShape.getVolume() / oldKrausBondDim,  oldKrausBondDim * 2);
+        tensorShape.resetDimension(1, newKrausBondDim);
+    }
+    else
+    {
+        const auto oldKrausBondDim = tensorShape.getDimExtent(2);
+        const auto newKrausBondDim = std::min(tensorShape.getVolume() / oldKrausBondDim,  oldKrausBondDim * 2);
+        tensorShape.resetDimension(2, newKrausBondDim);
+    }
+    // std::cout << "\nNew shape: ";
+    // tensorShape.printIt();
+    // std::cout << "\n";
+
+    bool destroyed = exatn::destroyTensorSync(qubitTensorName);
     assert(destroyed);
 
-    auto svdTensor1 = std::make_shared<exatn::Tensor>("Q0", exatn::TensorShape{2, 2});
-    auto svdTensor2 = std::make_shared<exatn::Tensor>("__SVD__", exatn::TensorShape{2, 2});
+    auto svdTensor1 = std::make_shared<exatn::Tensor>(qubitTensorName, tensorShape);
+    auto svdTensor2 = std::make_shared<exatn::Tensor>("__SVD__", tensorShape);
     bool created = exatn::createTensorSync(svdTensor1, exatn::TensorElementType::COMPLEX64);
     assert(created);
     created = exatn::createTensorSync(svdTensor2, exatn::TensorElementType::COMPLEX64);
     assert(created);
-    const std::string svdPattern = RESULT_TENSOR_NAME + "(u0,u1)=" + svdTensor1->getName() + "(u0,c0)*" + svdTensor2->getName()+ "(u1,c0)";
+
+    const std::string svdPattern = [&]() -> std::string {
+        if (mergedTensor->getRank() == 2)
+        {
+            assert(m_buffer->size() == 1);
+            return RESULT_TENSOR_NAME + "(u0,u1)=" + svdTensor1->getName() + "(u0,c0)*" + svdTensor2->getName()+ "(u1,c0)";
+        }
+        else if (mergedTensor->getRank() == 4)
+        {
+            return RESULT_TENSOR_NAME + "(u0,u1,u2,u3)=" + svdTensor1->getName() + "(u0,u1,c0)*" + svdTensor2->getName() + "(u2,u3,c0)";
+        }
+        else if (mergedTensor->getRank() == 6)
+        {
+            return RESULT_TENSOR_NAME + "(u0,u1,u2,u3,u4,u5)=" + svdTensor1->getName() + "(u0,u1,c0,u2)*" + svdTensor2->getName() + "(u3,u4,c0,u5)";
+        }
+        else
+        {
+            xacc::error("Internal error: " + mergeContractionPattern);
+            return "";
+        }
+    }();
+    
     const bool svdOk = exatn::decomposeTensorSVDLRSync(svdPattern);
     assert(svdOk);
     // const auto tensorData1 = getTensorData(svdTensor1->getName());

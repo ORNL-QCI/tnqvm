@@ -25,6 +25,25 @@ TEST(ExaTnPmpsTester, checkSimple)
   EXPECT_GT(qreg->computeMeasurementProbability("1"), 0.01);
 } 
 
+TEST(ExaTnPmpsTester, checkMultipleQubits)
+{
+  auto xasmCompiler = xacc::getCompiler("xasm");
+  auto ir = xasmCompiler->compile(R"(__qpu__ void test2(qbit q) {
+    X(q[0]);
+    X(q[1]);
+    X(q[2]);
+    Measure(q[0]);
+    Measure(q[1]);
+    Measure(q[2]);
+  })");
+
+  auto program = ir->getComposite("test2");
+  auto accelerator = xacc::getAccelerator("tnqvm", { std::make_pair("tnqvm-visitor", "exatn-pmps") });
+  auto qreg = xacc::qalloc(3);
+  accelerator->execute(qreg, program);
+  qreg->print();
+} 
+
 int main(int argc, char **argv) 
 {
   xacc::Initialize();
