@@ -420,11 +420,24 @@ std::shared_ptr<exatn::Tensor> constructKrausTensor(const tnqvm::KrausAmpl& in_k
     const bool created = exatn::createTensorSync(krausTensor, exatn::TensorElementType::COMPLEX64);
     assert(created);
     
-    // !! TEMP CODE !! This body tensor was copied from Eugene's notebook,
-    // TODO: Needs to create this automatically for arbitrary noise strength.
-    const std::vector<std::complex<double>> tensorBody{
-        1., 0., 0.,   0.99498744, 0.,         0., 0., 0.,
-        0., 0., 0.01, 0.,         0.99498744, 0., 0., 0.99};
+    // NOTE: This is Amplitude damping only atm
+    const double adElem = std::cos(std::asin(std::sqrt(in_krausAmpl.probAD)));
+    const std::vector<std::complex<double>> tensorBody{1.,
+                                                       0.,
+                                                       0.,
+                                                       adElem,
+                                                       0.,
+                                                       0.,
+                                                       0.,
+                                                       0.,
+                                                       0.,
+                                                       0.,
+                                                       in_krausAmpl.probAD,
+                                                       0.,
+                                                       adElem,
+                                                       0.,
+                                                       0.,
+                                                       1.0 - in_krausAmpl.probAD };
 
     const bool initialized = exatn::initTensorDataSync(krausTensor->getName(), tensorBody);
     assert(initialized);
@@ -476,7 +489,7 @@ void ExaTnPmpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int
     std::vector<KrausAmpl> noiseAmpl;
     for (size_t i = 0; i < m_buffer->size(); ++i)
     {
-        noiseAmpl.emplace_back(0.1, 0.1);
+        noiseAmpl.emplace_back(0.01, 0.01);
     }
     m_gateTimeConfig = std::shared_ptr<IGateTimeConfigProvider>(new DefaultGateTimeConfigProvider());
     m_noiseConfig = std::make_shared<KrausConfig>(m_gateTimeConfig.get(), noiseAmpl);
