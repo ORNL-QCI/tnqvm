@@ -1762,7 +1762,6 @@ bool ExatnVisitor::validateTensorNetworkContraction(TensorNetwork in_network) co
 
     combinedNetwork.appendTensorNetwork(std::move(inverseTensorNetwork), pairings);
     // combinedNetwork.printIt();
-    const bool collapsed = combinedNetwork.collapseIsometries();
 
     if (exatn::evaluateSync(combinedNetwork))
     {
