@@ -383,8 +383,12 @@ void contractTwoQubitGateTensor(const exatn::TensorNetwork& in_tensorNetwork, co
         const auto bondIds = getBondLegId(in_tensorNetwork, q1TensorName, q2TensorName);
         auto q1Shape = q1Tensor->getDimExtents();
         auto q2Shape = q2Tensor->getDimExtents();
-        q1Shape[bondIds.first] = 2 * q1Shape[bondIds.first];
-        q2Shape[bondIds.second] = 2 * q2Shape[bondIds.second];
+        const auto q1BondDim = 2 * q1Shape[bondIds.first];
+        const auto q2BondDim = 2 * q2Shape[bondIds.second];
+        const auto entangledBondDim = std::min(q1BondDim, q2BondDim);
+        std::cout << "entangledBondDim: " << entangledBondDim << "\n";
+        q1Shape[bondIds.first] = entangledBondDim;
+        q2Shape[bondIds.second] = entangledBondDim;
 
         // Destroy old qubit tensors
         const bool q1Destroyed = exatn::destroyTensor(q1TensorName);
@@ -405,6 +409,9 @@ void contractTwoQubitGateTensor(const exatn::TensorNetwork& in_tensorNetwork, co
         const bool svdOk = exatn::decomposeTensorSVDLRSync(svdPattern);
         assert(svdOk);
     }
+
+    const auto destroyed = exatn::destroyTensorSync("Result");
+    assert(destroyed);
 }
 
 std::shared_ptr<exatn::Tensor> constructKrausTensor(const tnqvm::KrausAmpl& in_krausAmpl)
@@ -489,7 +496,7 @@ void ExaTnPmpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int
     std::vector<KrausAmpl> noiseAmpl;
     for (size_t i = 0; i < m_buffer->size(); ++i)
     {
-        noiseAmpl.emplace_back(0.01, 0.01);
+        noiseAmpl.emplace_back(0.0, 0.0);
     }
     m_gateTimeConfig = std::shared_ptr<IGateTimeConfigProvider>(new DefaultGateTimeConfigProvider());
     m_noiseConfig = std::make_shared<KrausConfig>(m_gateTimeConfig.get(), noiseAmpl);
@@ -696,15 +703,21 @@ void ExaTnPmpsVisitor::applyTwoQubitGate(xacc::quantum::Gate& in_gateInstruction
     
     // Apply noise (Kraus) Op
     auto noiseConfig = m_noiseConfig->computeKrausAmplitudes(in_gateInstruction);
-    assert(noiseConfig.size() == 1);
-    auto krausTensor = constructKrausTensor(noiseConfig[0]);
+    assert(noiseConfig.size() == 2);
+    auto krausTensor1 = constructKrausTensor(noiseConfig[0]);
     // Non-zero noise channels
-    if (krausTensor)
-    {
-        // Apply noises on both channels 
-        applyLocalKrausOp(in_gateInstruction.bits()[0], krausTensor->getName());
-        applyLocalKrausOp(in_gateInstruction.bits()[1], krausTensor->getName());
-    }
+    // if (krausTensor1)
+    // {
+    //     // Apply noises on both channels 
+    //     applyLocalKrausOp(in_gateInstruction.bits()[0], krausTensor1->getName());
+    // }
+    //  auto krausTensor2 = constructKrausTensor(noiseConfig[1]);
+    // // Non-zero noise channels
+    // if (krausTensor2)
+    // {
+    //     // Apply noises on both channels 
+    //     applyLocalKrausOp(in_gateInstruction.bits()[1], krausTensor2->getName());
+    // }
 }
 
 void ExaTnPmpsVisitor::applyLocalKrausOp(size_t in_siteId, const std::string& in_opTensorName)
