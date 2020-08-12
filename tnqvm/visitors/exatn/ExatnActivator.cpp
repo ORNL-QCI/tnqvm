@@ -14,7 +14,7 @@ public:
   ExaTNActivator() {}
 
   void Start(BundleContext context) {
-    auto visitor = std::make_shared<tnqvm::ExatnVisitor>();
+    auto visitor = std::make_shared<tnqvm::ExatnVisitor<std::complex<double>>>();
     context.RegisterService<tnqvm::TNQVMVisitor>(visitor);
     context.RegisterService<xacc::OptionsProvider>(visitor);
     // Register the ExaTN teardown service to properly finalize ExaTN.

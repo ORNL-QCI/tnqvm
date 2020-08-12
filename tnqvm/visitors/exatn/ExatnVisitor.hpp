@@ -77,6 +77,7 @@ namespace tnqvm {
     }; 
 
     // Functor to inspect/print out tensor components
+    template<typename TNQVM_COMPLEX_TYPE>
     class TensorComponentPrintFunctor : public DefaultTNQVMTensorFunctor 
     {
     public:
@@ -84,18 +85,20 @@ namespace tnqvm {
     };
 
     // Functor to retrieve the state vector from the final/root tensor
+    template<typename TNQVM_COMPLEX_TYPE>
     class ReconstructStateVectorFunctor : public DefaultTNQVMTensorFunctor
     {
     public:
-        ReconstructStateVectorFunctor(const std::shared_ptr<AcceleratorBuffer>& buffer, std::vector<std::complex<double>>& io_stateVec);
+        ReconstructStateVectorFunctor(const std::shared_ptr<AcceleratorBuffer>& buffer, std::vector<TNQVM_COMPLEX_TYPE>& io_stateVec);
         virtual int apply(talsh::Tensor& local_tensor) override;
 
     private:
         int m_qubits;
-        std::vector<std::complex<double>>& m_stateVec;
+        std::vector<TNQVM_COMPLEX_TYPE>& m_stateVec;
     }; 
 
     // Functor to calculate the expected Z value across a list of qubit.
+    template<typename TNQVM_COMPLEX_TYPE>
     class CalculateExpectationValueFunctor : public DefaultTNQVMTensorFunctor
     {
     public:
@@ -107,6 +110,7 @@ namespace tnqvm {
         double m_result;
     };
 
+    template<typename TNQVM_COMPLEX_TYPE>
     class ApplyQubitMeasureFunctor : public DefaultTNQVMTensorFunctor
     {
     public:
@@ -119,13 +123,14 @@ namespace tnqvm {
         bool m_result;
     };
 
+    template<typename TNQVM_COMPLEX_TYPE>
     class ResetTensorDataFunctor : public DefaultTNQVMTensorFunctor
     {
     public:
-        ResetTensorDataFunctor(const std::vector<std::complex<double>>& in_stateVec);
+        ResetTensorDataFunctor(const std::vector<TNQVM_COMPLEX_TYPE>& in_stateVec);
         virtual int apply(talsh::Tensor& local_tensor) override;
     private:
-        const std::vector<std::complex<double>>& m_stateVec;
+        const std::vector<TNQVM_COMPLEX_TYPE>& m_stateVec;
     };  
 
     // Forward declarations:
@@ -137,27 +142,30 @@ namespace tnqvm {
     using TensorShape = exatn::numerics::TensorShape;
     using TensorLeg = exatn::numerics::TensorLeg;    
     
+    template<typename TNQVM_COMPLEX_TYPE>
     class ExatnVisitor;
 
     // Special listener interface for unit testing/logging purposes
+    template<typename TNQVM_COMPLEX_TYPE>
     class IExatnListener
     {
         public:
         // Called when the tensor network has been constructed, ready to be submitted.
-        virtual void preEvaluate(ExatnVisitor* in_backEnd) = 0;
+        virtual void preEvaluate(ExatnVisitor<TNQVM_COMPLEX_TYPE>* in_backEnd) = 0;
         // Called just before measurement is applied 
         // i.e. collapse then normalize the state vector. 
-        virtual void preMeasurement(ExatnVisitor* in_backEnd, Measure& in_measureGate) = 0;
+        virtual void preMeasurement(ExatnVisitor<TNQVM_COMPLEX_TYPE>* in_backEnd, Measure& in_measureGate) = 0;
         // After measurement
-        virtual void postMeasurement(ExatnVisitor* in_backEnd, Measure& in_measureGate, bool in_bitResult, double in_expectedValue) = 0;
+        virtual void postMeasurement(ExatnVisitor<TNQVM_COMPLEX_TYPE>* in_backEnd, Measure& in_measureGate, bool in_bitResult, double in_expectedValue) = 0;
         // Called before finalization, i.e. destroy the tensors.
         // Note: if there is no measurement in the circuit, 
         // this is where you can retrieve the final state vector.
-        virtual void onEvaluateComplete(ExatnVisitor* in_backEnd) = 0;
+        virtual void onEvaluateComplete(ExatnVisitor<TNQVM_COMPLEX_TYPE>* in_backEnd) = 0;
     };
 
     // Debug logger
-    class ExatnDebugLogger: public IExatnListener
+    template<typename TNQVM_COMPLEX_TYPE>
+    class ExatnDebugLogger: public IExatnListener<TNQVM_COMPLEX_TYPE>
     {
     public:
         static ExatnDebugLogger* GetInstance() {
@@ -165,10 +173,10 @@ namespace tnqvm {
             return &instance;
         }
 
-        virtual void preEvaluate(ExatnVisitor* in_backEnd) override; 
-        virtual void preMeasurement(ExatnVisitor* in_backEnd, Measure& in_measureGate) override;
-        virtual void postMeasurement(tnqvm::ExatnVisitor* in_backEnd, xacc::quantum::Measure& in_measureGate, bool in_bitResult, double in_expectedValue) override; 
-        virtual void onEvaluateComplete(tnqvm::ExatnVisitor* in_backEnd) override {}
+        virtual void preEvaluate(ExatnVisitor<TNQVM_COMPLEX_TYPE>* in_backEnd) override; 
+        virtual void preMeasurement(ExatnVisitor<TNQVM_COMPLEX_TYPE>* in_backEnd, Measure& in_measureGate) override;
+        virtual void postMeasurement(tnqvm::ExatnVisitor<TNQVM_COMPLEX_TYPE>* in_backEnd, xacc::quantum::Measure& in_measureGate, bool in_bitResult, double in_expectedValue) override; 
+        virtual void onEvaluateComplete(tnqvm::ExatnVisitor<TNQVM_COMPLEX_TYPE>* in_backEnd) override {}
 
     private:
         ExatnDebugLogger() = default;
@@ -181,6 +189,7 @@ namespace tnqvm {
     };
 
     // XACC simulation backend (TNQVM) visitor based on ExaTN
+    template<typename TNQVM_COMPLEX_TYPE>
     class ExatnVisitor : public TNQVMVisitor
     {
     public:
@@ -226,8 +235,8 @@ namespace tnqvm {
         virtual bool supportVqeMode() const override { return true; }
         virtual const double getExpectationValueZ(std::shared_ptr<CompositeInstruction> in_function) override;
 
-        void subscribe(IExatnListener* listener) { m_listeners.emplace_back(listener); }
-        std::vector<std::complex<double>> retrieveStateVector();
+        void subscribe(IExatnListener<TNQVM_COMPLEX_TYPE>* listener) { m_listeners.emplace_back(listener); }
+        std::vector<TNQVM_COMPLEX_TYPE> retrieveStateVector();
 
         // Advance API (based on unique capabilities of ExaTN/ExaTensor):
         // (1) Calculate the expectation value for an arbitrary observable operator
@@ -237,12 +246,12 @@ namespace tnqvm {
         // e.g. a1*Z1Z2 + a2*X0X1 + .. + Y2Y3, etc.
         struct ObservableTerm
         {
-            ObservableTerm(const std::vector<std::shared_ptr<Instruction>>& in_operatorsInProduct, const std::complex<double>& in_coeff = 1.0);
-            std::complex<double> coefficient;
+            ObservableTerm(const std::vector<std::shared_ptr<Instruction>>& in_operatorsInProduct, const TNQVM_COMPLEX_TYPE& in_coeff = 1.0);
+            TNQVM_COMPLEX_TYPE coefficient;
             std::vector<std::shared_ptr<Instruction>> operators;
         };
         // Note: the composite function is the *ORIGINAL* circuit (aka the ansatz), i.e. no change-of-basis or measurement is required.
-        std::complex<double> observableExpValCalc(std::shared_ptr<AcceleratorBuffer>& in_buffer, std::shared_ptr<CompositeInstruction>& in_function, const std::vector<ObservableTerm>& in_observableExpression); 
+        TNQVM_COMPLEX_TYPE observableExpValCalc(std::shared_ptr<AcceleratorBuffer>& in_buffer, std::shared_ptr<CompositeInstruction>& in_function, const std::vector<ObservableTerm>& in_observableExpression); 
         
 
         // (2) Get the RDM for a subset of qubit,
@@ -255,7 +264,7 @@ namespace tnqvm {
         // o------|---------|-------------|---------|------o
         /////////////////////////////////////////////////////
         // Returns the *flatten* RDM (size = 2^(2N)), N = number of *open* qubit wires.
-        std::vector<std::complex<double>> getReducedDensityMatrix(std::shared_ptr<AcceleratorBuffer>& in_buffer, std::shared_ptr<CompositeInstruction>& in_function, const std::vector<size_t>& in_qubitIdx);
+        std::vector<TNQVM_COMPLEX_TYPE> getReducedDensityMatrix(std::shared_ptr<AcceleratorBuffer>& in_buffer, std::shared_ptr<CompositeInstruction>& in_function, const std::vector<size_t>& in_qubitIdx);
         
 
         // (3) Get a sample measurement bit string:
@@ -270,8 +279,8 @@ namespace tnqvm {
         void evaluateNetwork(); 
         void resetExaTN(); 
         void resetNetwork();
-        std::complex<double> expVal(const std::vector<ObservableTerm>& in_observableExpression); 
-        std::complex<double> evaluateTerm(const std::vector<std::shared_ptr<Instruction>>& in_observableTerm); 
+        TNQVM_COMPLEX_TYPE expVal(const std::vector<ObservableTerm>& in_observableExpression); 
+        TNQVM_COMPLEX_TYPE evaluateTerm(const std::vector<std::shared_ptr<Instruction>>& in_observableTerm); 
         void applyInverse();
         std::vector<uint8_t> generateMeasureSample(const TensorNetwork& in_tensorNetwork, const std::vector<int>& in_qubitIdx);
         // Calculate the flops and memory requirements to generate a full sample (all qubits) for the input tensor network.
@@ -289,7 +298,7 @@ namespace tnqvm {
        std::shared_ptr<AcceleratorBuffer> m_buffer; 
        
        // List of listeners
-       std::vector<IExatnListener*> m_listeners;
+       std::vector<IExatnListener<TNQVM_COMPLEX_TYPE>*> m_listeners;
 
        // Bit-string of the measurement result, the bit order of this 
        // is the order in which the measure gates are specified:
@@ -306,7 +315,7 @@ namespace tnqvm {
        // This map is lazily constructed while we traverse the gate sequence,
        // i.e. if we encounter a new gate whose tensor has not been initialized, 
        // then we initialize before append the gate tensor (referencing the tensor by name) to the network.  
-       std::unordered_map<std::string, std::vector<std::complex<double>>> m_gateTensorBodies; 
+       std::unordered_map<std::string, std::vector<TNQVM_COMPLEX_TYPE>> m_gateTensorBodies; 
        
        // List of gate tensors (name and leg pairing) that we have appended to the network.
        // We use this list to construct the inverse tensor sequence (e.g. isometric collapse)
@@ -315,10 +324,13 @@ namespace tnqvm {
        // Tensor network of the qubit register (to close the tensor network for expectation calculation)
        TensorNetwork m_qubitRegTensor;
        std::string m_kernelName;
-       std::vector<std::complex<double>> m_cacheStateVec;
+       std::vector<TNQVM_COMPLEX_TYPE> m_cacheStateVec;
        // Make the debug logger friend, e.g. retrieve internal states for logging purposes.
-       friend class ExatnDebugLogger;
+       friend class ExatnDebugLogger<TNQVM_COMPLEX_TYPE>;
     };
+
+    template class ExatnVisitor<std::complex<double>>;
+    template class ExatnVisitor<std::complex<float>>;
 } //end namespace tnqvm
 
 #endif //TNQVM_HAS_EXATN

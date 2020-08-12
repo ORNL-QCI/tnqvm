@@ -64,10 +64,11 @@ const int MAX_NUMBER_QUBITS_FOR_STATE_VEC = 20;
 // Max memory size: 8GB
 const int64_t MAX_TALSH_MEMORY_BUFFER_SIZE_BYTES = 8 * (1ULL << 30);
 
-std::vector<std::complex<double>> flattenGateMatrix(
-    const std::vector<std::vector<std::complex<double>>> &in_gateMatrix) {
+template<typename TNQVM_COMPLEX_TYPE>
+std::vector<TNQVM_COMPLEX_TYPE> flattenGateMatrix(
+    const std::vector<std::vector<TNQVM_COMPLEX_TYPE>> &in_gateMatrix) {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
-  std::vector<std::complex<double>> resultVector;
+  std::vector<TNQVM_COMPLEX_TYPE> resultVector;
   resultVector.reserve(in_gateMatrix.size() * in_gateMatrix.size());
   for (const auto &row : in_gateMatrix) {
     for (const auto &entry : row) {
@@ -78,20 +79,22 @@ std::vector<std::complex<double>> flattenGateMatrix(
   return resultVector;
 }
 
+template<typename TNQVM_COMPLEX_TYPE>
 bool checkStateVectorNorm(
-    const std::vector<std::complex<double>> &in_stateVec) {
+    const std::vector<TNQVM_COMPLEX_TYPE> &in_stateVec) {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
 
   const double norm = std::accumulate(
       in_stateVec.begin(), in_stateVec.end(), 0.0,
-      [](double runningNorm, std::complex<double> vecComponent) {
+      [](double runningNorm, TNQVM_COMPLEX_TYPE vecComponent) {
         return runningNorm + std::norm(vecComponent);
       });
 
   return (std::abs(norm - 1.0) < 1e-12);
 }
 
-double calcExpValueZ(const std::vector<int>& in_bits, const std::vector<std::complex<double>>& in_stateVec)
+template<typename TNQVM_COMPLEX_TYPE>
+double calcExpValueZ(const std::vector<int>& in_bits, const std::vector<TNQVM_COMPLEX_TYPE>& in_stateVec)
 {
   TNQVM_TELEMETRY_ZONE("calcExpValueZ", __FILE__, __LINE__);
   const auto hasEvenParity = [](uint64_t x, const std::vector<int>& in_qubitIndices) -> bool {
@@ -168,26 +171,27 @@ std::string GateInstanceIdentifier::toNameString() const {
   }
 }
 
-
-int TensorComponentPrintFunctor::apply(talsh::Tensor &local_tensor) {
+template<typename TNQVM_COMPLEX_TYPE>
+int TensorComponentPrintFunctor<TNQVM_COMPLEX_TYPE>::apply(talsh::Tensor &local_tensor) {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
 
-  std::complex<double> *elements;
+  TNQVM_COMPLEX_TYPE *elements;
   const bool worked = local_tensor.getDataAccessHost(&elements);
   std::cout << "(Rank:" << local_tensor.getRank()
             << ", Volume: " << local_tensor.getVolume() << "): ";
   std::cout << "[";
   for (int i = 0; i < local_tensor.getVolume(); ++i) {
-    const std::complex<double> element = elements[i];
+    const TNQVM_COMPLEX_TYPE element = elements[i];
     std::cout << element;
   }
   std::cout << "]\n";
   return 0;
 }
 
-ReconstructStateVectorFunctor::ReconstructStateVectorFunctor(
+template<typename TNQVM_COMPLEX_TYPE>
+ReconstructStateVectorFunctor<TNQVM_COMPLEX_TYPE>::ReconstructStateVectorFunctor(
     const std::shared_ptr<AcceleratorBuffer> &buffer,
-    std::vector<std::complex<double>> &io_stateVec)
+    std::vector<TNQVM_COMPLEX_TYPE> &io_stateVec)
     : m_qubits(buffer->size()), m_stateVec(io_stateVec) {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
 
@@ -198,13 +202,14 @@ ReconstructStateVectorFunctor::ReconstructStateVectorFunctor(
   m_stateVec.reserve(1 << m_qubits);
 }
 
-int ReconstructStateVectorFunctor::apply(talsh::Tensor &local_tensor) {
+template<typename TNQVM_COMPLEX_TYPE>
+int ReconstructStateVectorFunctor<TNQVM_COMPLEX_TYPE>::apply(talsh::Tensor &local_tensor) {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
 
   // Make sure we only call this on the final state tensor,
   // i.e. the rank must equal the number of qubits.
   assert(local_tensor.getRank() == m_qubits);
-  std::complex<double> *elements;
+  TNQVM_COMPLEX_TYPE *elements;
 
   if (local_tensor.getDataAccessHost(&elements)) {
     m_stateVec.assign(elements, elements + local_tensor.getVolume());
@@ -218,11 +223,13 @@ int ReconstructStateVectorFunctor::apply(talsh::Tensor &local_tensor) {
   return 0;
 }
 
-CalculateExpectationValueFunctor::CalculateExpectationValueFunctor(
+template<typename TNQVM_COMPLEX_TYPE>
+CalculateExpectationValueFunctor<TNQVM_COMPLEX_TYPE>::CalculateExpectationValueFunctor(
     const std::vector<int> &qubitIndex)
     : m_qubitIndices(qubitIndex) {}
 
-int CalculateExpectationValueFunctor::apply(talsh::Tensor &local_tensor) {
+template<typename TNQVM_COMPLEX_TYPE>
+int CalculateExpectationValueFunctor<TNQVM_COMPLEX_TYPE>::apply(talsh::Tensor &local_tensor) {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
 
   const auto hasEvenParity =
@@ -236,7 +243,7 @@ int CalculateExpectationValueFunctor::apply(talsh::Tensor &local_tensor) {
     return (count % 2) == 0;
   };
 
-  std::complex<double> *elements;
+  TNQVM_COMPLEX_TYPE *elements;
   const bool isOkay = local_tensor.getDataAccessHost(&elements);
   m_result = 0.0;
   if (isOkay) {
@@ -249,14 +256,16 @@ int CalculateExpectationValueFunctor::apply(talsh::Tensor &local_tensor) {
   return 0;
 }
 
-ApplyQubitMeasureFunctor::ApplyQubitMeasureFunctor(int qubitIndex)
+template<typename TNQVM_COMPLEX_TYPE>
+ApplyQubitMeasureFunctor<TNQVM_COMPLEX_TYPE>::ApplyQubitMeasureFunctor(int qubitIndex)
     : m_qubitIndex(qubitIndex) {}
 
-int ApplyQubitMeasureFunctor::apply(talsh::Tensor &local_tensor) {
+template<typename TNQVM_COMPLEX_TYPE>
+int ApplyQubitMeasureFunctor<TNQVM_COMPLEX_TYPE>::apply(talsh::Tensor &local_tensor) {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
 
   assert(local_tensor.getRank() > m_qubitIndex);
-  std::complex<double> *elements;
+  TNQVM_COMPLEX_TYPE *elements;
   const auto N = local_tensor.getVolume();
   const bool isOkay = local_tensor.getDataAccessHost(&elements);
   if (isOkay) {
@@ -301,14 +310,16 @@ int ApplyQubitMeasureFunctor::apply(talsh::Tensor &local_tensor) {
   return 0;
 }
 
-ResetTensorDataFunctor::ResetTensorDataFunctor(
-    const std::vector<std::complex<double>> &in_stateVec)
+template<typename TNQVM_COMPLEX_TYPE>
+ResetTensorDataFunctor<TNQVM_COMPLEX_TYPE>::ResetTensorDataFunctor(
+    const std::vector<TNQVM_COMPLEX_TYPE> &in_stateVec)
     : m_stateVec(in_stateVec) {}
 
-int ResetTensorDataFunctor::apply(talsh::Tensor &local_tensor) {
+template<typename TNQVM_COMPLEX_TYPE>
+int ResetTensorDataFunctor<TNQVM_COMPLEX_TYPE>::apply(talsh::Tensor &local_tensor) {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
 
-  std::complex<double> *elements;
+  TNQVM_COMPLEX_TYPE *elements;
 
   if (local_tensor.getDataAccessHost(&elements)) {
     for (size_t i = 0; i < local_tensor.getVolume(); ++i) {
@@ -319,9 +330,10 @@ int ResetTensorDataFunctor::apply(talsh::Tensor &local_tensor) {
   return 0;
 }
 
-void ExatnDebugLogger::preEvaluate(tnqvm::ExatnVisitor *in_backEnd) {
+template<typename TNQVM_COMPLEX_TYPE>
+void ExatnDebugLogger<TNQVM_COMPLEX_TYPE>::preEvaluate(tnqvm::ExatnVisitor<TNQVM_COMPLEX_TYPE> *in_backEnd) {
   // If in Debug, print out tensor data using the Print Functor
-  auto functor = std::make_shared<tnqvm::TensorComponentPrintFunctor>();
+  auto functor = std::make_shared<tnqvm::TensorComponentPrintFunctor<TNQVM_COMPLEX_TYPE>>();
   for (auto iter = in_backEnd->m_tensorNetwork.cbegin();
        iter != in_backEnd->m_tensorNetwork.cend(); ++iter) {
     const auto tensor = iter->second.getTensor();
@@ -332,7 +344,8 @@ void ExatnDebugLogger::preEvaluate(tnqvm::ExatnVisitor *in_backEnd) {
   }
 }
 
-void ExatnDebugLogger::preMeasurement(tnqvm::ExatnVisitor *in_backEnd,
+template<typename TNQVM_COMPLEX_TYPE>
+void ExatnDebugLogger<TNQVM_COMPLEX_TYPE>::preMeasurement(tnqvm::ExatnVisitor<TNQVM_COMPLEX_TYPE> *in_backEnd,
                                       xacc::quantum::Measure &in_measureGate) {
   // Print out the state vector
   std::cout << "Applying " << in_measureGate.name() << " @ "
@@ -345,7 +358,8 @@ void ExatnDebugLogger::preMeasurement(tnqvm::ExatnVisitor *in_backEnd,
   std::cout << "]\n";
 }
 
-void ExatnDebugLogger::postMeasurement(tnqvm::ExatnVisitor *in_backEnd,
+template<typename TNQVM_COMPLEX_TYPE>
+void ExatnDebugLogger<TNQVM_COMPLEX_TYPE>::postMeasurement(tnqvm::ExatnVisitor<TNQVM_COMPLEX_TYPE> *in_backEnd,
                                        xacc::quantum::Measure &in_measureGate,
                                        bool in_bitResult,
                                        double in_expectedValue) {
@@ -362,11 +376,13 @@ void ExatnDebugLogger::postMeasurement(tnqvm::ExatnVisitor *in_backEnd,
   std::cout << "=============================================\n";
 }
 
-ExatnVisitor::ExatnVisitor()
+template<typename TNQVM_COMPLEX_TYPE>
+ExatnVisitor<TNQVM_COMPLEX_TYPE>::ExatnVisitor()
     : m_tensorNetwork("Quantum Circuit"), m_tensorIdCounter(0),
       m_hasEvaluated(false), m_isAppendingCircuitGates(true) {}
 
-void ExatnVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer,
+template<typename TNQVM_COMPLEX_TYPE>
+void ExatnVisitor<TNQVM_COMPLEX_TYPE>::initialize(std::shared_ptr<AcceleratorBuffer> buffer,
                               int nbShots) {
   if (!exatn::isInitialized()) {
 #ifdef TNQVM_EXATN_USES_MKL_BLAS
@@ -484,7 +500,7 @@ void ExatnVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer,
   // Initialize the qubit register tensor to zero state
   for (int i = 0; i < m_buffer->size(); ++i) {
     // Define the tensor body for a zero-state qubit
-    const bool initialized = exatn::initTensorData(generateQubitTensorName(i), std::vector<std::complex<double>>{{1.0, 0.0}, {0.0, 0.0}});
+    const bool initialized = exatn::initTensorData(generateQubitTensorName(i), std::vector<TNQVM_COMPLEX_TYPE>{{1.0, 0.0}, {0.0, 0.0}});
     assert(initialized);
   }
 
@@ -508,19 +524,21 @@ void ExatnVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer,
 #endif
 }
 
-std::vector<std::complex<double>> ExatnVisitor::retrieveStateVector() {
+template<typename TNQVM_COMPLEX_TYPE>
+std::vector<TNQVM_COMPLEX_TYPE> ExatnVisitor<TNQVM_COMPLEX_TYPE>::retrieveStateVector() {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
 
-  std::vector<std::complex<double>> stateVec;
+  std::vector<TNQVM_COMPLEX_TYPE> stateVec;
   auto stateVecFunctor =
-      std::make_shared<ReconstructStateVectorFunctor>(m_buffer, stateVec);
+      std::make_shared<ReconstructStateVectorFunctor<TNQVM_COMPLEX_TYPE>>(m_buffer, stateVec);
   exatn::numericalServer->transformTensorSync(
       m_tensorNetwork.getTensor(0)->getName(), stateVecFunctor);
   exatn::sync();
   return stateVec;
 }
 
-void ExatnVisitor::evaluateNetwork() {
+template<typename TNQVM_COMPLEX_TYPE>
+void ExatnVisitor<TNQVM_COMPLEX_TYPE>::evaluateNetwork() {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
 
   // Notify listeners
@@ -545,7 +563,8 @@ void ExatnVisitor::evaluateNetwork() {
   }
 }
 
-void ExatnVisitor::resetExaTN() {
+template<typename TNQVM_COMPLEX_TYPE>
+void ExatnVisitor<TNQVM_COMPLEX_TYPE>::resetExaTN() {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
 
   std::unordered_set<std::string> tensorList;
@@ -579,7 +598,8 @@ void ExatnVisitor::resetExaTN() {
   exatn::sync();
 }
 
-void ExatnVisitor::resetNetwork() {
+template<typename TNQVM_COMPLEX_TYPE>
+void ExatnVisitor<TNQVM_COMPLEX_TYPE>::resetNetwork() {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
 
   // We must have evaluated the tensor network.
@@ -613,7 +633,8 @@ void ExatnVisitor::resetNetwork() {
   m_hasEvaluated = false;
 }
 
-void ExatnVisitor::finalize() {
+template<typename TNQVM_COMPLEX_TYPE>
+void ExatnVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
 
   // Calculate tensor network contraction FLOPS if requested:
@@ -643,7 +664,7 @@ void ExatnVisitor::finalize() {
     const int elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(endOpt - startOpt).count();
     const double flops = combinedTensorNetwork.getFMAFlops();
     const double intermediatesVolume = combinedTensorNetwork.getMaxIntermediatePresenceVolume();
-    const double sizeInBytes = intermediatesVolume * sizeof(std::complex<double>);
+    const double sizeInBytes = intermediatesVolume * sizeof(TNQVM_COMPLEX_TYPE);
     // Note: we don't actually evaluate the tensor network when user requested this mode.
     m_hasEvaluated = true;
 
@@ -695,13 +716,13 @@ void ExatnVisitor::finalize() {
         if (bitVal == 0)
         {
           // Bit = 0
-          const bool initialized = exatn::initTensorData(braQubitName, std::vector<std::complex<double>>{{1.0, 0.0}, {0.0, 0.0}});
+          const bool initialized = exatn::initTensorData(braQubitName, std::vector<TNQVM_COMPLEX_TYPE>{{1.0, 0.0}, {0.0, 0.0}});
           assert(initialized);
         }
         else
         {
           // Bit = 1
-          const bool initialized = exatn::initTensorData(braQubitName, std::vector<std::complex<double>>{{0.0, 0.0}, {1.0, 0.0}});
+          const bool initialized = exatn::initTensorData(braQubitName, std::vector<TNQVM_COMPLEX_TYPE>{{0.0, 0.0}, {1.0, 0.0}});
           assert(initialized);
         }
 
@@ -727,7 +748,7 @@ void ExatnVisitor::finalize() {
     combinedTensorNetwork.collapseIsometries();
     // combinedTensorNetwork.printIt();
 
-    std::complex<double> result = 0.0;
+    TNQVM_COMPLEX_TYPE result = 0.0;
     {
       TNQVM_TELEMETRY_ZONE("exatn::evaluateSync", __FILE__, __LINE__);
       // std::cout << "SUBMIT TENSOR NETWORK FOR EVALUATION\n";
@@ -736,7 +757,7 @@ void ExatnVisitor::finalize() {
         auto talsh_tensor =
           exatn::getLocalTensor(combinedTensorNetwork.getTensor(0)->getName());
         assert(talsh_tensor->getVolume() == 1);
-        const std::complex<double> *body_ptr;
+        const TNQVM_COMPLEX_TYPE *body_ptr;
         if (talsh_tensor->getDataAccessHostConst(&body_ptr)) {
           result = *body_ptr;
         }
@@ -826,93 +847,110 @@ void ExatnVisitor::finalize() {
 }
 
 // === BEGIN: Gate Visitor Impls ===
-void ExatnVisitor::visit(Identity &in_IdentityGate) {
+template<typename TNQVM_COMPLEX_TYPE>
+void ExatnVisitor<TNQVM_COMPLEX_TYPE>::visit(Identity &in_IdentityGate) {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   appendGateTensor<CommonGates::I>(in_IdentityGate);
 }
 
-void ExatnVisitor::visit(Hadamard &in_HadamardGate) {
+template<typename TNQVM_COMPLEX_TYPE>
+void ExatnVisitor<TNQVM_COMPLEX_TYPE>::visit(Hadamard &in_HadamardGate) {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   appendGateTensor<CommonGates::H>(in_HadamardGate);
 }
 
-void ExatnVisitor::visit(X &in_XGate) {
+template<typename TNQVM_COMPLEX_TYPE>
+void ExatnVisitor<TNQVM_COMPLEX_TYPE>::visit(X &in_XGate) {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   appendGateTensor<CommonGates::X>(in_XGate);
 }
 
-void ExatnVisitor::visit(Y &in_YGate) {
+template<typename TNQVM_COMPLEX_TYPE>
+void ExatnVisitor<TNQVM_COMPLEX_TYPE>::visit(Y &in_YGate) {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   appendGateTensor<CommonGates::Y>(in_YGate);
 }
 
-void ExatnVisitor::visit(Z &in_ZGate) {
+template<typename TNQVM_COMPLEX_TYPE>
+void ExatnVisitor<TNQVM_COMPLEX_TYPE>::visit(Z &in_ZGate) {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   appendGateTensor<CommonGates::Z>(in_ZGate);
 }
 
-void ExatnVisitor::visit(Rx &in_RxGate) {
+template<typename TNQVM_COMPLEX_TYPE>
+void ExatnVisitor<TNQVM_COMPLEX_TYPE>::visit(Rx &in_RxGate) {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   assert(in_RxGate.nParameters() == 1);
   const double theta = in_RxGate.getParameter(0).as<double>();
   appendGateTensor<CommonGates::Rx>(in_RxGate, theta);
 }
 
-void ExatnVisitor::visit(Ry &in_RyGate) {
+template<typename TNQVM_COMPLEX_TYPE>
+void ExatnVisitor<TNQVM_COMPLEX_TYPE>::visit(Ry &in_RyGate) {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   assert(in_RyGate.nParameters() == 1);
   const double theta = in_RyGate.getParameter(0).as<double>();
   appendGateTensor<CommonGates::Ry>(in_RyGate, theta);
 }
 
-void ExatnVisitor::visit(Rz &in_RzGate) {
+template<typename TNQVM_COMPLEX_TYPE>
+void ExatnVisitor<TNQVM_COMPLEX_TYPE>::visit(Rz &in_RzGate) {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   assert(in_RzGate.nParameters() == 1);
   const double theta = in_RzGate.getParameter(0).as<double>();
   appendGateTensor<CommonGates::Rz>(in_RzGate, theta);
 }
 
-void ExatnVisitor::visit(T &in_TGate) {
+template<typename TNQVM_COMPLEX_TYPE>
+void ExatnVisitor<TNQVM_COMPLEX_TYPE>::visit(T &in_TGate) {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   appendGateTensor<CommonGates::T>(in_TGate);
 }
 
-void ExatnVisitor::visit(Tdg &in_TdgGate) {
+template<typename TNQVM_COMPLEX_TYPE>
+void ExatnVisitor<TNQVM_COMPLEX_TYPE>::visit(Tdg &in_TdgGate) {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   appendGateTensor<CommonGates::Tdg>(in_TdgGate);
 }
 
-void ExatnVisitor::visit(CPhase &in_CPhaseGate) {
+template<typename TNQVM_COMPLEX_TYPE>
+void ExatnVisitor<TNQVM_COMPLEX_TYPE>::visit(CPhase &in_CPhaseGate) {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   appendGateTensor<CommonGates::CPhase>(in_CPhaseGate);
 }
 
-void ExatnVisitor::visit(U &in_UGate) {
+template<typename TNQVM_COMPLEX_TYPE>
+void ExatnVisitor<TNQVM_COMPLEX_TYPE>::visit(U &in_UGate) {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   appendGateTensor<CommonGates::U>(in_UGate);
 }
 
-void ExatnVisitor::visit(CNOT &in_CNOTGate) {
+template<typename TNQVM_COMPLEX_TYPE>
+void ExatnVisitor<TNQVM_COMPLEX_TYPE>::visit(CNOT &in_CNOTGate) {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   appendGateTensor<CommonGates::CNOT>(in_CNOTGate);
 }
 
-void ExatnVisitor::visit(Swap &in_SwapGate) {
+template<typename TNQVM_COMPLEX_TYPE>
+void ExatnVisitor<TNQVM_COMPLEX_TYPE>::visit(Swap &in_SwapGate) {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   appendGateTensor<CommonGates::Swap>(in_SwapGate);
 }
 
-void ExatnVisitor::visit(CZ &in_CZGate) {
+template<typename TNQVM_COMPLEX_TYPE>
+void ExatnVisitor<TNQVM_COMPLEX_TYPE>::visit(CZ &in_CZGate) {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   appendGateTensor<CommonGates::CZ>(in_CZGate);
 }
 
-void ExatnVisitor::visit(iSwap& in_iSwapGate) {
+template<typename TNQVM_COMPLEX_TYPE>
+void ExatnVisitor<TNQVM_COMPLEX_TYPE>::visit(iSwap& in_iSwapGate) {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   appendGateTensor<CommonGates::iSwap>(in_iSwapGate);
 }
 
-void ExatnVisitor::visit(fSim& in_fsimGate) {
+template<typename TNQVM_COMPLEX_TYPE>
+void ExatnVisitor<TNQVM_COMPLEX_TYPE>::visit(fSim& in_fsimGate) {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   assert(in_fsimGate.nParameters() == 2);
   const double theta = in_fsimGate.getParameter(0).as<double>();
@@ -920,7 +958,8 @@ void ExatnVisitor::visit(fSim& in_fsimGate) {
   appendGateTensor<CommonGates::fSim>(in_fsimGate, theta, phi);
 }
 
-void ExatnVisitor::visit(Measure &in_MeasureGate) {
+template<typename TNQVM_COMPLEX_TYPE>
+void ExatnVisitor<TNQVM_COMPLEX_TYPE>::visit(Measure &in_MeasureGate) {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   if (m_buffer->size() > MAX_NUMBER_QUBITS_FOR_STATE_VEC)
   {
@@ -958,9 +997,9 @@ void ExatnVisitor::visit(Measure &in_MeasureGate) {
   }
 }
 // === END: Gate Visitor Impls ===
-
+template <typename TNQVM_COMPLEX_TYPE>
 template <tnqvm::CommonGates GateType, typename... GateParams>
-void ExatnVisitor::appendGateTensor(const xacc::Instruction &in_gateInstruction,
+void ExatnVisitor<TNQVM_COMPLEX_TYPE>::appendGateTensor(const xacc::Instruction &in_gateInstruction,
                                     GateParams &&... in_params) {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   if (m_hasEvaluated) {
@@ -977,7 +1016,13 @@ void ExatnVisitor::appendGateTensor(const xacc::Instruction &in_gateInstruction,
   // If the tensor data for this gate hasn't been initialized before,
   // then initialize it.
   if (m_gateTensorBodies.find(uniqueGateName) == m_gateTensorBodies.end()) {
-    const auto gateMatrix = GetGateMatrix<GateType>(in_params...);
+    const auto gateMatrixRaw= GetGateMatrix<GateType>(in_params...);
+    std::vector<std::vector<TNQVM_COMPLEX_TYPE>> gateMatrix;
+    for (auto& row : gateMatrixRaw)
+    {
+      std::vector<TNQVM_COMPLEX_TYPE> rowConverted(row.begin(), row.end());
+      gateMatrix.emplace_back(std::move(rowConverted));
+    }
     m_gateTensorBodies[uniqueGateName] = flattenGateMatrix(gateMatrix);
     // Currently, we only support 2-qubit gates.
     assert(in_gateInstruction.nRequiredBits() > 0 &&
@@ -1048,12 +1093,14 @@ void ExatnVisitor::appendGateTensor(const xacc::Instruction &in_gateInstruction,
       gatePairing);
 }
 
-ExatnVisitor::ObservableTerm::ObservableTerm(
+template<typename TNQVM_COMPLEX_TYPE>
+ExatnVisitor<TNQVM_COMPLEX_TYPE>::ObservableTerm::ObservableTerm(
     const std::vector<std::shared_ptr<Instruction>> &in_operatorsInProduct,
-    const std::complex<double> &in_coeff /*= 1.0*/)
+    const TNQVM_COMPLEX_TYPE &in_coeff /*= 1.0*/)
     : coefficient(in_coeff), operators(in_operatorsInProduct) {}
 
-std::complex<double> ExatnVisitor::observableExpValCalc(
+template<typename TNQVM_COMPLEX_TYPE>
+TNQVM_COMPLEX_TYPE ExatnVisitor<TNQVM_COMPLEX_TYPE>::observableExpValCalc(
     std::shared_ptr<AcceleratorBuffer> &in_buffer,
     std::shared_ptr<CompositeInstruction> &in_function,
     const std::vector<ObservableTerm> &in_observableExpression) {
@@ -1089,10 +1136,11 @@ std::complex<double> ExatnVisitor::observableExpValCalc(
   return result;
 }
 
-std::complex<double> ExatnVisitor::expVal(
+template<typename TNQVM_COMPLEX_TYPE>
+TNQVM_COMPLEX_TYPE ExatnVisitor<TNQVM_COMPLEX_TYPE>::expVal(
     const std::vector<ObservableTerm> &in_observableExpression) {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
-  std::complex<double> result = 0.0;
+  TNQVM_COMPLEX_TYPE result = 0.0;
   for (const auto &term : in_observableExpression) {
     result += (term.coefficient * evaluateTerm(term.operators));
   }
@@ -1100,10 +1148,11 @@ std::complex<double> ExatnVisitor::expVal(
   return result;
 }
 
-std::complex<double> ExatnVisitor::evaluateTerm(
+template<typename TNQVM_COMPLEX_TYPE>
+TNQVM_COMPLEX_TYPE ExatnVisitor<TNQVM_COMPLEX_TYPE>::evaluateTerm(
     const std::vector<std::shared_ptr<Instruction>> &in_observableTerm) {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
-  std::complex<double> result = 0.0;
+  TNQVM_COMPLEX_TYPE result = 0.0;
   // Save/cache the tensor network
   const auto cachedTensor = m_tensorNetwork;
   const auto cachedIdCounter = m_tensorIdCounter;
@@ -1126,7 +1175,7 @@ std::complex<double> ExatnVisitor::evaluateTerm(
       auto talsh_tensor =
           exatn::getLocalTensor(m_tensorNetwork.getTensor(0)->getName());
       assert(talsh_tensor->getVolume() == 1);
-      const std::complex<double> *body_ptr;
+      const TNQVM_COMPLEX_TYPE *body_ptr;
       if (talsh_tensor->getDataAccessHostConst(&body_ptr)) {
         result = *body_ptr;
       }
@@ -1141,7 +1190,8 @@ std::complex<double> ExatnVisitor::evaluateTerm(
   return result;
 }
 
-void ExatnVisitor::applyInverse() {
+template<typename TNQVM_COMPLEX_TYPE>
+void ExatnVisitor<TNQVM_COMPLEX_TYPE>::applyInverse() {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   for (auto iter = m_appendedGateTensors.rbegin();
        iter != m_appendedGateTensors.rend(); ++iter) {
@@ -1171,7 +1221,8 @@ void ExatnVisitor::applyInverse() {
   { const bool collapsed = m_tensorNetwork.collapseIsometries(); }
 }
 
-std::vector<std::complex<double>> ExatnVisitor::getReducedDensityMatrix(
+template<typename TNQVM_COMPLEX_TYPE>
+std::vector<TNQVM_COMPLEX_TYPE> ExatnVisitor<TNQVM_COMPLEX_TYPE>::getReducedDensityMatrix(
     std::shared_ptr<AcceleratorBuffer> &in_buffer,
     std::shared_ptr<CompositeInstruction> &in_function,
     const std::vector<size_t> &in_qubitIdx) {
@@ -1187,7 +1238,7 @@ std::vector<std::complex<double>> ExatnVisitor::getReducedDensityMatrix(
     return {};
   }
 
-  std::vector<std::complex<double>> resultRDM;
+  std::vector<TNQVM_COMPLEX_TYPE> resultRDM;
   BaseInstructionVisitor *visitorCast =
       static_cast<BaseInstructionVisitor *>(this);
   this->initialize(in_buffer, -1);
@@ -1230,7 +1281,7 @@ std::vector<std::complex<double>> ExatnVisitor::getReducedDensityMatrix(
       const auto tensorVolume = talsh_tensor->getVolume();
       // Double check the size of the RDM
       assert(tensorVolume == 1ULL << (2 * in_qubitIdx.size()));
-      const std::complex<double> *body_ptr;
+      const TNQVM_COMPLEX_TYPE *body_ptr;
       if (talsh_tensor->getDataAccessHostConst(&body_ptr)) {
         resultRDM.assign(body_ptr, body_ptr + tensorVolume);
       }
@@ -1243,7 +1294,8 @@ std::vector<std::complex<double>> ExatnVisitor::getReducedDensityMatrix(
   return resultRDM;
 }
 
-std::vector<uint8_t> ExatnVisitor::getMeasureSample(
+template<typename TNQVM_COMPLEX_TYPE>
+std::vector<uint8_t> ExatnVisitor<TNQVM_COMPLEX_TYPE>::getMeasureSample(
     std::shared_ptr<AcceleratorBuffer> &in_buffer,
     std::shared_ptr<CompositeInstruction> &in_function,
     const std::vector<size_t> &in_qubitIdx) {
@@ -1257,7 +1309,7 @@ std::vector<uint8_t> ExatnVisitor::getMeasureSample(
   std::vector<uint8_t> resultBitString;
   std::vector<double> resultProbs;
   for (const auto &qubitIdx : in_qubitIdx) {
-    std::vector<std::complex<double>> resultRDM;
+    std::vector<TNQVM_COMPLEX_TYPE> resultRDM;
 
     BaseInstructionVisitor *visitorCast =
         static_cast<BaseInstructionVisitor *>(this);
@@ -1285,7 +1337,7 @@ std::vector<uint8_t> ExatnVisitor::getMeasureSample(
           m_tensorIdCounter++;
           // If it was a "0":
           if (resultBitString[measIdx] == 0) {
-            const std::vector<std::complex<double>> COLLAPSE_0{
+            const std::vector<TNQVM_COMPLEX_TYPE> COLLAPSE_0{
                 // Renormalize based on the probability of this outcome
                 {1.0 / resultProbs[measIdx], 0.0},
                 {0.0, 0.0},
@@ -1310,7 +1362,7 @@ std::vector<uint8_t> ExatnVisitor::getMeasureSample(
           } else {
             assert(resultBitString[measIdx] == 1);
             // Renormalize based on the probability of this outcome
-            const std::vector<std::complex<double>> COLLAPSE_1{
+            const std::vector<TNQVM_COMPLEX_TYPE> COLLAPSE_1{
                 {0.0, 0.0},
                 {0.0, 0.0},
                 {0.0, 0.0},
@@ -1364,7 +1416,7 @@ std::vector<uint8_t> ExatnVisitor::getMeasureSample(
           const auto tensorVolume = talsh_tensor->getVolume();
           // Single qubit density matrix
           assert(tensorVolume == 4);
-          const std::complex<double> *body_ptr;
+          const TNQVM_COMPLEX_TYPE *body_ptr;
           if (talsh_tensor->getDataAccessHostConst(&body_ptr)) {
             resultRDM.assign(body_ptr, body_ptr + tensorVolume);
           }
@@ -1373,7 +1425,7 @@ std::vector<uint8_t> ExatnVisitor::getMeasureSample(
           {
             std::cout << "RDM @q" << qubitIdx << " = [";
             for (int i = 0; i < talsh_tensor->getVolume(); ++i) {
-              const std::complex<double> element = body_ptr[i];
+              const TNQVM_COMPLEX_TYPE element = body_ptr[i];
               std::cout << element;
             }
             std::cout << "]\n";
@@ -1419,7 +1471,8 @@ std::vector<uint8_t> ExatnVisitor::getMeasureSample(
   return resultBitString;
 }
 
-const double ExatnVisitor::getExpectationValueZ(
+template<typename TNQVM_COMPLEX_TYPE>
+const double ExatnVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZ(
     std::shared_ptr<CompositeInstruction> in_function) {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   if (!m_buffer) {
@@ -1505,7 +1558,8 @@ const double ExatnVisitor::getExpectationValueZ(
   return exp_val_z;
 }
 
-std::vector<uint8_t> ExatnVisitor::generateMeasureSample(const TensorNetwork& in_tensorNetwork, const std::vector<int>& in_qubitIdx)
+template<typename TNQVM_COMPLEX_TYPE>
+std::vector<uint8_t> ExatnVisitor<TNQVM_COMPLEX_TYPE>::generateMeasureSample(const TensorNetwork& in_tensorNetwork, const std::vector<int>& in_qubitIdx)
 {
     TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
     std::vector<uint8_t> resultBitString;
@@ -1513,7 +1567,7 @@ std::vector<uint8_t> ExatnVisitor::generateMeasureSample(const TensorNetwork& in
     for (const auto& qubitIdx : in_qubitIdx)
     {
         std::vector<std::string> tensorsToDestroy;
-        std::vector<std::complex<double>> resultRDM;
+        std::vector<TNQVM_COMPLEX_TYPE> resultRDM;
         exatn::TensorNetwork ket(in_tensorNetwork);
         ket.rename("MPSket");
 
@@ -1530,7 +1584,7 @@ std::vector<uint8_t> ExatnVisitor::generateMeasureSample(const TensorNetwork& in
             // If it was a "0":
             if (resultBitString[measIdx] == 0)
             {
-                const std::vector<std::complex<double>> COLLAPSE_0{
+                const std::vector<TNQVM_COMPLEX_TYPE> COLLAPSE_0{
                     // Renormalize based on the probability of this outcome
                     {1.0 / resultProbs[measIdx], 0.0},
                     {0.0, 0.0},
@@ -1553,7 +1607,7 @@ std::vector<uint8_t> ExatnVisitor::generateMeasureSample(const TensorNetwork& in
             {
                 assert(resultBitString[measIdx] == 1);
                 // Renormalize based on the probability of this outcome
-                const std::vector<std::complex<double>> COLLAPSE_1{
+                const std::vector<TNQVM_COMPLEX_TYPE> COLLAPSE_1{
                     {0.0, 0.0},
                     {0.0, 0.0},
                     {0.0, 0.0},
@@ -1608,7 +1662,7 @@ std::vector<uint8_t> ExatnVisitor::generateMeasureSample(const TensorNetwork& in
           const double flops = combinedNetwork.getFMAFlops();
           const double intermediatesVolume = combinedNetwork.getMaxIntermediatePresenceVolume();
           assert(intermediatesVolume >= 0.0);
-          const int64_t sizeInBytes = static_cast<int64_t>(intermediatesVolume * sizeof(std::complex<double>));
+          const int64_t sizeInBytes = static_cast<int64_t>(intermediatesVolume * sizeof(TNQVM_COMPLEX_TYPE));
           std::cout << "Combined circuit requires " << flops << " FMA flops and " << sizeInBytes << " bytes\n";
 
           if (sizeInBytes > MAX_TALSH_MEMORY_BUFFER_SIZE_BYTES)
@@ -1628,7 +1682,7 @@ std::vector<uint8_t> ExatnVisitor::generateMeasureSample(const TensorNetwork& in
               const auto tensorVolume = talsh_tensor->getVolume();
               // Single qubit density matrix
               assert(tensorVolume == 4);
-              const std::complex<double>* body_ptr;
+              const TNQVM_COMPLEX_TYPE* body_ptr;
               if (talsh_tensor->getDataAccessHostConst(&body_ptr))
               {
                   resultRDM.assign(body_ptr, body_ptr + tensorVolume);
@@ -1638,7 +1692,7 @@ std::vector<uint8_t> ExatnVisitor::generateMeasureSample(const TensorNetwork& in
                   std::cout << "RDM @q" << qubitIdx << " = [";
                   for (int i = 0; i < talsh_tensor->getVolume(); ++i)
                   {
-                      const std::complex<double> element = body_ptr[i];
+                      const TNQVM_COMPLEX_TYPE element = body_ptr[i];
                       std::cout << element;
                   }
                   std::cout << "]\n";
@@ -1677,13 +1731,14 @@ std::vector<uint8_t> ExatnVisitor::generateMeasureSample(const TensorNetwork& in
     return resultBitString;
 }
 
-std::vector<std::pair<double, double>> ExatnVisitor::calcFlopsAndMemoryForSample(const TensorNetwork& in_tensorNetwork)
+template<typename TNQVM_COMPLEX_TYPE>
+std::vector<std::pair<double, double>> ExatnVisitor<TNQVM_COMPLEX_TYPE>::calcFlopsAndMemoryForSample(const TensorNetwork& in_tensorNetwork)
 {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   std::vector<std::pair<double, double>> resultData;
   resultData.reserve(m_buffer->size());
   // Create the collapse tensor:
-  const std::vector<std::complex<double>> COLLAPSE_TEMP { {1.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0} };
+  const std::vector<TNQVM_COMPLEX_TYPE> COLLAPSE_TEMP { {1.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0} };
   const std::string tensorName = "COLLAPSE_TENSOR_TEMP";
   const bool created = exatn::createTensor(tensorName, exatn::TensorElementType::COMPLEX64, exatn::TensorShape{2, 2});
   assert(created);
@@ -1730,7 +1785,7 @@ std::vector<std::pair<double, double>> ExatnVisitor::calcFlopsAndMemoryForSample
     combinedNetwork.getOperationList(optimizerName);
     const double flops = combinedNetwork.getFMAFlops();
     const double intermediatesVolume = combinedNetwork.getMaxIntermediatePresenceVolume();
-    const double sizeInBytes = intermediatesVolume * sizeof(std::complex<double>);
+    const double sizeInBytes = intermediatesVolume * sizeof(TNQVM_COMPLEX_TYPE);
     // Save the data:
     resultData.emplace_back(flops, sizeInBytes);
   }
@@ -1742,7 +1797,8 @@ std::vector<std::pair<double, double>> ExatnVisitor::calcFlopsAndMemoryForSample
   return resultData;
 }
 
-bool ExatnVisitor::validateTensorNetworkContraction(TensorNetwork in_network) const
+template<typename TNQVM_COMPLEX_TYPE>
+bool ExatnVisitor<TNQVM_COMPLEX_TYPE>::validateTensorNetworkContraction(TensorNetwork in_network) const
 {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   auto inverseTensorNetwork = in_network;
@@ -1770,10 +1826,10 @@ bool ExatnVisitor::validateTensorNetworkContraction(TensorNetwork in_network) co
       const auto tensorVolume = talsh_tensor->getVolume();
       // Double check the size of the RDM
       assert(tensorVolume == 1);
-      const std::complex<double> *body_ptr;
+      const TNQVM_COMPLEX_TYPE *body_ptr;
       if (talsh_tensor->getDataAccessHostConst(&body_ptr))
       {
-        const std::complex<double> normVal = *body_ptr;
+        const TNQVM_COMPLEX_TYPE normVal = *body_ptr;
         constexpr double TOLERANCE = 1e-9;
         xacc::info("Contract <Tensor Network + Conjugate> = " + std::to_string(normVal.real()) + " + i " + std::to_string(normVal.imag()));
         return std::abs(normVal.real() - 1) < TOLERANCE && std::abs(normVal.imag()) < TOLERANCE;
