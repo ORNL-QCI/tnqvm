@@ -182,12 +182,16 @@ def parseFile(fileName, nbLayers, conjugateLastLayer):
                     xasmSrcLines.append(gateName + '(' + qubit1 + ', ' + qubit2 + ', ' + str(theta) + ', ' + str(phi) + ');')
             line = sourceFile.readline()
         sourceFile.close()
+    if conjugateLastLayer is True:
+        lastLayer = gatesPerlayers[nbLayers - 1]
+        xasmSrcLines.append('// Begin conjugate last layer')
+        # Reverse the last layer and conjugate the gates
+        for line in reversed(lastLayer):
+            conjLines = parseLine(line, True)
+            xasmSrcLines.extend(conjLines)
+        xasmSrcLines.append('// End conjugate last layer')
 
     xasmSrcLines.append('}')
-
-    # lastLayer = gatesPerlayers[nbLayers - 1]
-    # for line in lastLayer:
-    #     print(lastLayer)
     return '\n'.join(xasmSrcLines)
 
 # Parse all qFlex files to XASM and save
@@ -199,3 +203,13 @@ for filename in os.listdir('resources'):
         xasmFilename = pre + '.xasm'
         with open('resources/' + xasmFilename, 'w') as xasmFile:
             xasmFile.write(xasmSrc)
+
+# Generate debug circuits with the last layer conjugated
+for filename in os.listdir('resources'):
+    if filename.endswith('.txt'): 
+        nbLayers = int(re.search('sycamore_53_(.*)_0.txt', filename).group(1))
+        xasmSrc = parseFile(filename, nbLayers, True)
+        pre, ext = os.path.splitext(filename)
+        xasmFilename = pre + '_Conjugate.xasm'
+        with open('resources/' + xasmFilename, 'w') as xasmFile:
+            xasmFile.write(xasmSrc)        
