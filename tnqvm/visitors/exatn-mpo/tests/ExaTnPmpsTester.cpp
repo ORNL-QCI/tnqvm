@@ -3,46 +3,46 @@
 #include "xacc.hpp"
 #include "xacc_service.hpp"
 
-// TEST(ExaTnPmpsTester, checkSimple)
-// {
-//   auto xasmCompiler = xacc::getCompiler("xasm");
-//   auto ir = xasmCompiler->compile(R"(__qpu__ void test1(qbit q) {
-//     // Run X gate 100 times, i.e. mimic randomized benchmarking.
-//     for (int i = 0; i < 100; i++) {
-//       X(q[0]);
-//     }
-//     Measure(q[0]);
-//   })");
+TEST(ExaTnPmpsTester, checkSimple)
+{
+  auto xasmCompiler = xacc::getCompiler("xasm");
+  auto ir = xasmCompiler->compile(R"(__qpu__ void test1(qbit q) {
+    // Run X gate 100 times, i.e. mimic randomized benchmarking.
+    for (int i = 0; i < 100; i++) {
+      X(q[0]);
+    }
+    Measure(q[0]);
+  })");
 
-//   auto program = ir->getComposite("test1");
-//   auto accelerator = xacc::getAccelerator("tnqvm", { std::make_pair("tnqvm-visitor", "exatn-pmps") });
-//   auto qreg = xacc::qalloc(1);
-//   accelerator->execute(qreg, program);
-//   // Because of amplitude damping,
-//   // we won't get a perfect |0> state
-//   qreg->print();
-//   // There should be a non-zero count of "1" measurements.
-//   EXPECT_GT(qreg->computeMeasurementProbability("1"), 0.01);
-// } 
+  auto program = ir->getComposite("test1");
+  auto accelerator = xacc::getAccelerator("tnqvm", { std::make_pair("tnqvm-visitor", "exatn-pmps") });
+  auto qreg = xacc::qalloc(1);
+  accelerator->execute(qreg, program);
+  // Because of amplitude damping,
+  // we won't get a perfect |0> state
+  qreg->print();
+  // There should be a non-zero count of "1" measurements.
+  EXPECT_GT(qreg->computeMeasurementProbability("1"), 0.01);
+} 
 
-// TEST(ExaTnPmpsTester, checkMultipleQubits)
-// {
-//   auto xasmCompiler = xacc::getCompiler("xasm");
-//   auto ir = xasmCompiler->compile(R"(__qpu__ void test2(qbit q) {
-//     X(q[0]);
-//     X(q[1]);
-//     X(q[2]);
-//     Measure(q[0]);
-//     Measure(q[1]);
-//     Measure(q[2]);
-//   })");
+TEST(ExaTnPmpsTester, checkMultipleQubits)
+{
+  auto xasmCompiler = xacc::getCompiler("xasm");
+  auto ir = xasmCompiler->compile(R"(__qpu__ void test2(qbit q) {
+    X(q[0]);
+    X(q[1]);
+    X(q[2]);
+    Measure(q[0]);
+    Measure(q[1]);
+    Measure(q[2]);
+  })");
 
-//   auto program = ir->getComposite("test2");
-//   auto accelerator = xacc::getAccelerator("tnqvm", { std::make_pair("tnqvm-visitor", "exatn-pmps") });
-//   auto qreg = xacc::qalloc(3);
-//   accelerator->execute(qreg, program);
-//   qreg->print();
-// } 
+  auto program = ir->getComposite("test2");
+  auto accelerator = xacc::getAccelerator("tnqvm", { std::make_pair("tnqvm-visitor", "exatn-pmps") });
+  auto qreg = xacc::qalloc(3);
+  accelerator->execute(qreg, program);
+  qreg->print();
+} 
 
 TEST(ExaTnPmpsTester, checkBell)
 {

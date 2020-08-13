@@ -332,7 +332,7 @@ void contractTwoQubitGateTensor(const exatn::TensorNetwork& in_tensorNetwork, co
     }
     else if (qubitsMergedTensor->getRank() == 5)
     {
-        qubitsMergedTensor->printIt();
+        // qubitsMergedTensor->printIt();
         if (!shouldFlipOrder)
         {
             if (in_bits[0] == 0)
@@ -383,10 +383,9 @@ void contractTwoQubitGateTensor(const exatn::TensorNetwork& in_tensorNetwork, co
         const auto bondIds = getBondLegId(in_tensorNetwork, q1TensorName, q2TensorName);
         auto q1Shape = q1Tensor->getDimExtents();
         auto q2Shape = q2Tensor->getDimExtents();
-        const auto q1BondDim = 2 * q1Shape[bondIds.first];
-        const auto q2BondDim = 2 * q2Shape[bondIds.second];
+        const auto q1BondDim = std::max(2 * q1Shape[bondIds.first], q1Tensor->getVolume()/q1Shape[bondIds.first]);
+        const auto q2BondDim = std::max(2 * q2Shape[bondIds.second], q2Tensor->getVolume()/q2Shape[bondIds.second]);
         const auto entangledBondDim = std::min(q1BondDim, q2BondDim);
-        std::cout << "entangledBondDim: " << entangledBondDim << "\n";
         q1Shape[bondIds.first] = entangledBondDim;
         q2Shape[bondIds.second] = entangledBondDim;
 
@@ -492,11 +491,11 @@ void ExaTnPmpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int
     m_buffer = buffer;
     m_pmpsTensorNetwork = buildInitialNetwork(buffer->size(), true);
     // DEBUG
-    printDensityMatrix(m_pmpsTensorNetwork, m_buffer->size());
+    // printDensityMatrix(m_pmpsTensorNetwork, m_buffer->size());
     std::vector<KrausAmpl> noiseAmpl;
     for (size_t i = 0; i < m_buffer->size(); ++i)
     {
-        noiseAmpl.emplace_back(0.0, 0.0);
+        noiseAmpl.emplace_back(0.01, 0.01);
     }
     m_gateTimeConfig = std::shared_ptr<IGateTimeConfigProvider>(new DefaultGateTimeConfigProvider());
     m_noiseConfig = std::make_shared<KrausConfig>(m_gateTimeConfig.get(), noiseAmpl);
@@ -706,18 +705,18 @@ void ExaTnPmpsVisitor::applyTwoQubitGate(xacc::quantum::Gate& in_gateInstruction
     assert(noiseConfig.size() == 2);
     auto krausTensor1 = constructKrausTensor(noiseConfig[0]);
     // Non-zero noise channels
-    // if (krausTensor1)
-    // {
-    //     // Apply noises on both channels 
-    //     applyLocalKrausOp(in_gateInstruction.bits()[0], krausTensor1->getName());
-    // }
-    //  auto krausTensor2 = constructKrausTensor(noiseConfig[1]);
-    // // Non-zero noise channels
-    // if (krausTensor2)
-    // {
-    //     // Apply noises on both channels 
-    //     applyLocalKrausOp(in_gateInstruction.bits()[1], krausTensor2->getName());
-    // }
+    if (krausTensor1)
+    {
+        // Apply noises on both channels 
+        applyLocalKrausOp(in_gateInstruction.bits()[0], krausTensor1->getName());
+    }
+     auto krausTensor2 = constructKrausTensor(noiseConfig[1]);
+    // Non-zero noise channels
+    if (krausTensor2)
+    {
+        // Apply noises on both channels 
+        applyLocalKrausOp(in_gateInstruction.bits()[1], krausTensor2->getName());
+    }
 }
 
 void ExaTnPmpsVisitor::applyLocalKrausOp(size_t in_siteId, const std::string& in_opTensorName)
@@ -729,7 +728,7 @@ void ExaTnPmpsVisitor::applyLocalKrausOp(size_t in_siteId, const std::string& in
     // Step 1: Merge Q - Q-dagger to form a 2-leg tensor
     std::string mergeContractionPattern;
     const auto mergedTensorId = m_pmpsTensorNetwork.getMaxTensorId() + 1;
-    m_pmpsTensorNetwork.printIt();
+    // m_pmpsTensorNetwork.printIt();
     const auto tensorId = in_siteId + 1;
     const auto conjTensorId = m_buffer->size() + in_siteId + 1;
     m_pmpsTensorNetwork.mergeTensors(tensorId,  conjTensorId, mergedTensorId, &mergeContractionPattern);
@@ -737,7 +736,7 @@ void ExaTnPmpsVisitor::applyLocalKrausOp(size_t in_siteId, const std::string& in
     mergeContractionPattern.replace(mergeContractionPattern.find("R"), 1, qubitTensorName);
     auto mergedTensor = m_pmpsTensorNetwork.getTensor(mergedTensorId);
     mergedTensor->rename("D");
-    std::cout << mergeContractionPattern << "\n";
+    // std::cout << mergeContractionPattern << "\n";
     const bool mergedTensorCreated = exatn::createTensorSync(mergedTensor, exatn::TensorElementType::COMPLEX64);
     assert(mergedTensorCreated);
     const bool mergedTensorInitialized = exatn::initTensorSync(mergedTensor->getName(), 0.0);
@@ -877,16 +876,16 @@ void ExaTnPmpsVisitor::visit(Hadamard& in_HadamardGate)
 { 
     applySingleQubitGate(in_HadamardGate);
     // DEBUG:
-    std::cout << "Apply: " << in_HadamardGate.toString() << "\n";
-    printDensityMatrix(m_pmpsTensorNetwork, m_buffer->size());
+    // std::cout << "Apply: " << in_HadamardGate.toString() << "\n";
+    // printDensityMatrix(m_pmpsTensorNetwork, m_buffer->size());
 }
 
 void ExaTnPmpsVisitor::visit(X& in_XGate) 
 { 
     applySingleQubitGate(in_XGate);
     // DEBUG:
-    std::cout << "Apply: " << in_XGate.toString() << "\n";
-    printDensityMatrix(m_pmpsTensorNetwork, m_buffer->size());
+    // std::cout << "Apply: " << in_XGate.toString() << "\n";
+    // printDensityMatrix(m_pmpsTensorNetwork, m_buffer->size());
 }
 
 void ExaTnPmpsVisitor::visit(Y& in_YGate) 
@@ -940,8 +939,8 @@ void ExaTnPmpsVisitor::visit(CNOT& in_CNOTGate)
 { 
     applyTwoQubitGate(in_CNOTGate);
     // DEBUG:
-   std::cout << "Apply: " << in_CNOTGate.toString() << "\n";
-   printDensityMatrix(m_pmpsTensorNetwork, m_buffer->size());
+    // std::cout << "Apply: " << in_CNOTGate.toString() << "\n";
+    // printDensityMatrix(m_pmpsTensorNetwork, m_buffer->size());
 }
 
 void ExaTnPmpsVisitor::visit(Swap& in_SwapGate) 
