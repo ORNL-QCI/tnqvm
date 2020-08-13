@@ -62,16 +62,82 @@ qubitIdxMap[94] = 52
 # Change current dir to this file
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-def parseFile(fileName):
+def parseLine(qflexLine, conjugate):
+    xasmSrcLines = []
+    line = qflexLine.replace('rz', 'Rz')
+    line = line.replace(', ', ',')
+    components = re.split('\s+', line)      
+    if len(components) == 4:
+        # 1-q gate
+        gateName = components[1]
+        if gateName.startswith('Rz') is True:
+            # qflex Rz gate param is the exponent (not radiant)
+            angle = str(float(gateName[3:-1]) * (3.14159265359))
+            gateName = 'Rz'
+        if gateName == 'x_1_2':
+            angle = '1.57079632679'
+            gateName = 'Rx'
+        if gateName == 'y_1_2':
+            angle = '1.57079632679'
+            gateName = 'Ry'
+        if gateName == 'hz_1_2':
+            # qFlex's hz_1_2 == Cirq's PhasedXPowGate(phase_exponent=0.25, exponent=0.5)
+            # i.e. hz_1_2 == Z^-0.25─X^0.5─Z^0.25 == Rz(pi/4) - Rx(-pi/2) - Rz(-pi/4)
+            qubit = 'q[' + str(qubitIdxMap[int(components[2])]) + ']'
+            # Comment block around this transformation
+            xasmSrcLines.append('// Begin hz_1_2')
+            if conjugate is False:
+                xasmSrcLines.append('Rz' + '(' + qubit + ', ' + '-0.78539816339' + ');')
+                xasmSrcLines.append('Rx' + '(' + qubit + ', ' + '1.57079632679' + ');')
+                xasmSrcLines.append('Rz' + '(' + qubit + ', ' + '0.78539816339' + ');')
+            else:
+                xasmSrcLines.append('Rz' + '(' + qubit + ', ' + '-0.78539816339' + ');')
+                xasmSrcLines.append('Rx' + '(' + qubit + ', ' + '-1.57079632679' + ');')
+                xasmSrcLines.append('Rz' + '(' + qubit + ', ' + '0.78539816339' + ');')
+            xasmSrcLines.append('// End hz_1_2')
+            # We don't need to handle this gate anymore.
+            gateName = ''
+        qubit = 'q[' + str(qubitIdxMap[int(components[2])]) + ']'
+        if gateName ==  'Rx' or gateName ==  'Ry' or gateName ==  'Rz':
+            if conjugate is False:
+                xasmSrcLines.append(gateName + '(' + qubit + ', ' + angle + ');')
+            else:
+                xasmSrcLines.append(gateName + '(' + qubit + ', ' + str(-float(angle)) + ');')
+        elif len(gateName) > 0:
+            xasmSrcLines.append(gateName + '(' + qubit +');')
+    if len(components) == 5:
+        # 2-q gate
+        gateName = components[1]
+        if gateName.startswith('fsim') is True:
+            angles = gateName[5:-1].split(',')
+            # qFlex uses fractions of pi instead of radians
+            theta = float(angles[0]) * 3.14159265359
+            phi = float(angles[1]) * 3.14159265359
+            gateName = 'fSim'
+            qubit1 = 'q[' + str(qubitIdxMap[int(components[2])]) + ']'
+            qubit2 = 'q[' + str(qubitIdxMap[int(components[3])]) + ']'
+            if conjugate is False:
+                xasmSrcLines.append(gateName + '(' + qubit1 + ', ' + qubit2 + ', ' + str(theta) + ', ' + str(phi) + ');')
+            else:
+                xasmSrcLines.append(gateName + '(' + qubit1 + ', ' + qubit2 + ', ' + str(-theta) + ', ' + str(-phi) + ');')
+    return xasmSrcLines
+
+def parseFile(fileName, nbLayers, conjugateLastLayer):
     xasmSrcLines = []
     xasmSrcLines.append('__qpu__ void sycamoreCirc(qbit q) {')
-
+    gatesPerlayers = {}
     with open('resources/' + fileName, 'r') as sourceFile:
         line = sourceFile.readline()
         while line:
             line = line.replace('rz', 'Rz')
             line = line.replace(', ', ',')
             components = re.split('\s+', line)
+            if int(components[0]) > 0:
+                layerId = (int(components[0]) - 1) // 4
+                if layerId in gatesPerlayers:
+                    gatesPerlayers[layerId].append(line)
+                else:
+                    gatesPerlayers[layerId] = [line]       
             if len(components) == 4:
                 # 1-q gate
                 gateName = components[1]
@@ -116,6 +182,14 @@ def parseFile(fileName):
                     xasmSrcLines.append(gateName + '(' + qubit1 + ', ' + qubit2 + ', ' + str(theta) + ', ' + str(phi) + ');')
             line = sourceFile.readline()
         sourceFile.close()
+    if conjugateLastLayer is True:
+        lastLayer = gatesPerlayers[nbLayers - 1]
+        xasmSrcLines.append('// Begin conjugate last layer')
+        # Reverse the last layer and conjugate the gates
+        for line in reversed(lastLayer):
+            conjLines = parseLine(line, True)
+            xasmSrcLines.extend(conjLines)
+        xasmSrcLines.append('// End conjugate last layer')
 
     xasmSrcLines.append('}')
     return '\n'.join(xasmSrcLines)
@@ -123,8 +197,19 @@ def parseFile(fileName):
 # Parse all qFlex files to XASM and save
 for filename in os.listdir('resources'):
     if filename.endswith('.txt'): 
-        xasmSrc = parseFile(filename)
+        nbLayers = int(re.search('sycamore_53_(.*)_0.txt', filename).group(1))
+        xasmSrc = parseFile(filename, nbLayers, False)
         pre, ext = os.path.splitext(filename)
         xasmFilename = pre + '.xasm'
         with open('resources/' + xasmFilename, 'w') as xasmFile:
             xasmFile.write(xasmSrc)
+
+# Generate debug circuits with the last layer conjugated
+for filename in os.listdir('resources'):
+    if filename.endswith('.txt'): 
+        nbLayers = int(re.search('sycamore_53_(.*)_0.txt', filename).group(1))
+        xasmSrc = parseFile(filename, nbLayers, True)
+        pre, ext = os.path.splitext(filename)
+        xasmFilename = pre + '_Conjugate.xasm'
+        with open('resources/' + xasmFilename, 'w') as xasmFile:
+            xasmFile.write(xasmSrc)        

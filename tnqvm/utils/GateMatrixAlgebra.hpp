@@ -123,7 +123,8 @@ void ApplyCNOTGate(StateVectorType& io_psi, size_t in_controlIndex, size_t in_ta
 	}
 }
 
-bool ApplyMeasureOp(StateVectorType& io_psi, size_t in_qubitIndex)
+template<typename ElementType>
+bool ApplyMeasureOp(std::vector<ElementType>& io_psi, size_t in_qubitIndex)
 {
     const auto N = io_psi.size();
     const auto k_range = 1ULL << in_qubitIndex;        

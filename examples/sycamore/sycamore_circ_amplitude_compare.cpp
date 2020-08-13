@@ -3,6 +3,7 @@
 #include <iostream>
 #include <fstream>
 #include <numeric>
+#include <cassert>
 
 // Initial state:
 const std::vector<int> INITIAL_STATE_BIT_STRING(53, 0);
@@ -45,31 +46,40 @@ int main(int argc, char **argv)
     // Note: 
     // (1) "exatn" == "exatn:double" uses double (64-bit) type.
     // (1) "exatn:float" uses float (32-bit) type.
-    auto qpu = xacc::getAccelerator("tnqvm", {
-        std::make_pair("tnqvm-visitor", "exatn"),
+    
+    // Double-precision 
+    auto qpu1 = xacc::getAccelerator("tnqvm", {
+        std::make_pair("tnqvm-visitor", "exatn:double"),
         std::make_pair("bitstring", BIT_STRING),
         std::make_pair("exatn-buffer-size-gb", 2)
     });
 
-    // Allocate a register of 53 qubits
-    auto qubitReg = xacc::qalloc(53);
+    // Single-precision 
+    auto qpu2 = xacc::getAccelerator("tnqvm", {
+        std::make_pair("tnqvm-visitor", "exatn:float"),
+        std::make_pair("bitstring", BIT_STRING),
+        std::make_pair("exatn-buffer-size-gb", 2)
+    });
 
     // Compile the XASM program
     auto xasmCompiler = xacc::getCompiler("xasm");
-    auto ir = xasmCompiler->compile(xasmSrcStr, qpu);
+    auto ir = xasmCompiler->compile(xasmSrcStr);
     auto program = ir->getComposites()[0];
-    qpu->execute(qubitReg, program);
-    // qubitReg->print();
-    const double realAmpl = (*qubitReg)["amplitude-real"].as<double>();
-    const double imagAmpl = (*qubitReg)["amplitude-imag"].as<double>();
+    // Allocate a register of 53 qubits
+    auto qubitReg1 = xacc::qalloc(53);
+    qpu1->execute(qubitReg1, program);
 
-    // qflex style output:
-    std::cout << "================= RESULT =================\n";
-    std::cout << bitStringVecToString(INITIAL_STATE_BIT_STRING);
-    std::cout << " --> ";
-    std::cout << bitStringVecToString(BIT_STRING);
-    std::cout << ": " << realAmpl << " " << imagAmpl << "\n";
-    std::cout << "Bit-string probability: " << sqrt(realAmpl*realAmpl + imagAmpl*imagAmpl) << "\n";
+    auto qubitReg2 = xacc::qalloc(53);
+    qpu2->execute(qubitReg2, program);
+
+    const double realAmpl1 = (*qubitReg1)["amplitude-real"].as<double>();
+    const double imagAmpl1 = (*qubitReg1)["amplitude-imag"].as<double>();
+
+    const double realAmpl2 = (*qubitReg2)["amplitude-real"].as<double>();
+    const double imagAmpl2 = (*qubitReg2)["amplitude-imag"].as<double>();
+
+    assert(std::abs(realAmpl1 - realAmpl2) < 1e-9);
+    assert(std::abs(imagAmpl1 - imagAmpl2) < 1e-9);
 
     xacc::Finalize();
     return 0;

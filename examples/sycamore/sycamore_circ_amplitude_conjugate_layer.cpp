@@ -21,11 +21,21 @@ int main(int argc, char **argv)
     //xacc::logToFile(true);
     //xacc::setLoggingLevel(2);
 
-    // Options: 4, 5, 6, 8, 10, 12, 14, 16, 18, 20
+    // Options: 4, 5, 6, 8, 10, 12, 14
     const int CIRCUIT_DEPTH = 8;
 
-   // Construct the full path to the XASM source file
-    const std::string XASM_SRC_FILE = std::string(RESOURCE_DIR) + "/sycamore_53_" + std::to_string(CIRCUIT_DEPTH) + "_0.xasm";
+    // Note: In this test, we run a circuit which contains *TWO* extra layers
+    // in addition to the CIRCUIT_DEPTH value above.
+    // - Those two additional layers are *CONJUGATE* of each other,
+    //   hence the resulting amplitude should be equal to that of running the same depth
+    //   in sycamore_circ_amplitude.
+    // - The effective tensor network complexity is equivalent to a (CIRCUIT_DEPTH + 2) simulation.
+    //   e.g. a CIRCUIT_DEPTH = 8 above is expected to produce the same answer 
+    //   as in the sycamore_circ_amplitude (also w/ CIRCUIT_DEPTH = 8).
+    //   However, the underlying circuit (tensor network) in this file has two more layers.
+    
+    // Construct the full path to the XASM source file
+    const std::string XASM_SRC_FILE = std::string(RESOURCE_DIR) + "/sycamore_53_" + std::to_string(CIRCUIT_DEPTH + 1) + "_0_Conjugate.xasm";
     // Read XASM source
     std::ifstream inFile;
     inFile.open(XASM_SRC_FILE);
@@ -34,7 +44,7 @@ int main(int argc, char **argv)
     const std::string kernelName = "sycamoreCirc";
     std::string xasmSrcStr = strStream.str();
     // Construct a unique kernel name:
-    const std::string newKernelName = kernelName + "_" + std::to_string(CIRCUIT_DEPTH);
+    const std::string newKernelName = kernelName + "_" + std::to_string(CIRCUIT_DEPTH) + "_Conj";
     xasmSrcStr.replace(xasmSrcStr.find(kernelName), kernelName.length(), newKernelName);
 
     // The bitstring to calculate amplitude
