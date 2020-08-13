@@ -20,3 +20,7 @@ target_compile_definitions(sycamore_circ_validate_contraction PRIVATE RESOURCE_D
 add_executable(sycamore_circ_amplitude_compare sycamore_circ_amplitude_compare.cpp)
 target_link_libraries(sycamore_circ_amplitude_compare PRIVATE xacc::xacc tnqvm)
 target_compile_definitions(sycamore_circ_amplitude_compare PRIVATE RESOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/resources")
+
+add_executable(sycamore_circ_amplitude_conjugate_layer sycamore_circ_amplitude_conjugate_layer.cpp)
+target_link_libraries(sycamore_circ_amplitude_conjugate_layer PRIVATE xacc::xacc tnqvm)
+target_compile_definitions(sycamore_circ_amplitude_conjugate_layer PRIVATE RESOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/resources")
