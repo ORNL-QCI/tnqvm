@@ -122,7 +122,7 @@ def parseLine(qflexLine, conjugate):
                 xasmSrcLines.append(gateName + '(' + qubit1 + ', ' + qubit2 + ', ' + str(-theta) + ', ' + str(-phi) + ');')
     return xasmSrcLines
 
-def parseFile(fileName, nbLayers):
+def parseFile(fileName, nbLayers, conjugateLastLayer):
     xasmSrcLines = []
     xasmSrcLines.append('__qpu__ void sycamoreCirc(qbit q) {')
     gatesPerlayers = {}
@@ -194,7 +194,7 @@ def parseFile(fileName, nbLayers):
 for filename in os.listdir('resources'):
     if filename.endswith('.txt'): 
         nbLayers = int(re.search('sycamore_53_(.*)_0.txt', filename).group(1))
-        xasmSrc = parseFile(filename, nbLayers)
+        xasmSrc = parseFile(filename, nbLayers, False)
         pre, ext = os.path.splitext(filename)
         xasmFilename = pre + '.xasm'
         with open('resources/' + xasmFilename, 'w') as xasmFile:
