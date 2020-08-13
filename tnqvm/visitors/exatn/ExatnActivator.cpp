@@ -17,6 +17,9 @@ public:
     auto visitor = std::make_shared<tnqvm::DefaultExatnVisitor>();
     context.RegisterService<tnqvm::TNQVMVisitor>(visitor);
     context.RegisterService<xacc::OptionsProvider>(visitor);
+    // Register the alias for double and single precision visitors.
+    context.RegisterService<tnqvm::TNQVMVisitor>(std::make_shared<tnqvm::SinglePrecisionExatnVisitor>());
+    context.RegisterService<tnqvm::TNQVMVisitor>(std::make_shared<tnqvm::DoublePrecisionExatnVisitor>());
     // Register the ExaTN teardown service to properly finalize ExaTN.
     context.RegisterService<xacc::TearDown>(std::make_shared<tnqvm::ExatnTearDown>());
   }

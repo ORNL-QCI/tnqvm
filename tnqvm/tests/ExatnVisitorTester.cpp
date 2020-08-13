@@ -432,6 +432,104 @@ TEST(ExatnVisitorTester, testGatefSim)
   }
 }
 
+TEST(ExatnVisitorTester, testSinglePrecision) {
+  {
+    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn:float")});
+    auto qubitReg = xacc::qalloc(1);
+    auto xasmCompiler = xacc::getCompiler("xasm");
+    auto ir = xasmCompiler->compile(R"(__qpu__ void test1(qbit q) {
+      Measure(q[0]);
+    })", qpu);
+ 
+    auto program = ir->getComposites()[0];   
+    qpu->execute(qubitReg, program);
+    // Initial qubit in |0> state -> expected value is 1.0
+    EXPECT_NEAR(1.0, getExpectedValue(*qubitReg), 1e-12);
+  }
+
+  {
+    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn:float")});
+    auto qubitReg = xacc::qalloc(1);
+    auto xasmCompiler = xacc::getCompiler("xasm");
+    auto ir = xasmCompiler->compile(R"(__qpu__ void test2(qbit q) {
+      H(q[0]);
+      Measure(q[0]);
+    })", qpu);
+ 
+    auto program = ir->getComposites()[0];   
+    qpu->execute(qubitReg, program);
+    // |+> state -> expected value is 0.0
+    EXPECT_NEAR(0.0, getExpectedValue(*qubitReg), 1e-12);
+  }
+
+  {
+    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn:float")});
+    auto qubitReg = xacc::qalloc(1);
+    auto xasmCompiler = xacc::getCompiler("xasm");
+    auto ir = xasmCompiler->compile(R"(__qpu__ void test3(qbit q) {
+      X(q[0]);
+      Measure(q[0]);
+    })", qpu);
+ 
+    auto program = ir->getComposites()[0];   
+    qpu->execute(qubitReg, program);
+    // |1> state -> expected value is -1.0
+    EXPECT_NEAR(-1.0, getExpectedValue(*qubitReg), 1e-12);
+  }
+
+  {
+    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn:float")});
+    auto qubitReg = xacc::qalloc(3);
+    auto xasmCompiler = xacc::getCompiler("xasm");
+    auto ir = xasmCompiler->compile(R"(__qpu__ void test4(qbit q) {
+      X(q[0]);
+      CNOT(q[0], q[1]);
+      Measure(q[1]);
+    })", qpu);
+
+    
+    auto program = ir->getComposites()[0];   
+    qpu->execute(qubitReg, program);
+    // Expected state: |11>
+    // Measure q1 should return -1
+    EXPECT_NEAR(-1.0, getExpectedValue(*qubitReg), 1e-12);
+  }
+
+  {
+    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn:float")});
+    auto qubitReg = xacc::qalloc(3);
+    auto xasmCompiler = xacc::getCompiler("xasm");
+    auto ir = xasmCompiler->compile(R"(__qpu__ void test5(qbit q) {
+      X(q[0]);
+      X(q[2]);
+      CNOT(q[1], q[2]);
+      Measure(q[2]);
+    })", qpu);
+    
+    // q1 is in |0> state => CNOT is not active.
+    auto program = ir->getComposites()[0];   
+    qpu->execute(qubitReg, program);
+    EXPECT_NEAR(-1.0, getExpectedValue(*qubitReg), 1e-12);
+  }
+
+  {
+    auto qpu = xacc::getAccelerator("tnqvm", {std::make_pair("tnqvm-visitor", "exatn:float")});
+    auto qubitReg = xacc::qalloc(3);
+    auto xasmCompiler = xacc::getCompiler("xasm");
+    auto ir = xasmCompiler->compile(R"(__qpu__ void test6(qbit q) {
+      H(q[2]);
+      CNOT(q[2], q[1]);
+      CNOT(q[1], q[0]);
+      Measure(q[2]);
+    })", qpu);
+ 
+    auto program = ir->getComposites()[0];   
+    qpu->execute(qubitReg, program);
+    // GHZ state -> expected value is 0.0
+    EXPECT_NEAR(0.0, getExpectedValue(*qubitReg), 1e-12);
+  }
+}
+
 int main(int argc, char **argv) 
 {
   xacc::Initialize();

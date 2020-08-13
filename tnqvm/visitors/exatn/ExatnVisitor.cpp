@@ -766,6 +766,14 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
 
     m_buffer->addExtraInfo("amplitude-real", result.real());
     m_buffer->addExtraInfo("amplitude-imag", result.imag());
+    
+    // Destroy bra tensors
+    for (int i = 0; i < m_buffer->size(); ++i) {
+      const std::string braQubitName = "QB" + std::to_string(i);
+      const bool destroyed = exatn::destroyTensor(braQubitName);
+      assert(destroyed);
+    }
+
     m_buffer.reset();
     m_hasEvaluated = true;
     resetExaTN();
