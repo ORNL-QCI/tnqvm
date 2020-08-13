@@ -112,7 +112,7 @@ TEST(ExatnVisitorInternalTester, testTensorExpValCalc) {
 
     for (size_t i = 0; i < angles.size(); ++i)
     {
-        auto exatnVisitor = std::make_shared<ExatnVisitor<std::complex<double>>>();
+        auto exatnVisitor = std::make_shared<DefaultExatnVisitor>();
         auto buffer = xacc::qalloc(2);
         auto evaled = program->operator()({ angles[i] });
         // Calculate the expVal
@@ -177,7 +177,7 @@ TEST(ExatnVisitorInternalTester, testTensorExpValCalc) {
     {
       const double theta = expectedResult.first;
       const double energy = expectedResult.second;
-      auto exatnVisitor = std::make_shared<ExatnVisitor<std::complex<double>>>();
+      auto exatnVisitor = std::make_shared<DefaultExatnVisitor>();
       auto buffer = xacc::qalloc(2);
       auto evaled = program->operator()({ theta });
       // Calculate the expVal
@@ -214,7 +214,7 @@ TEST(ExatnVisitorInternalTester, testReducedDensityMatrixCalc) {
   })");
 
   const auto calcExpValByRdm = [](std::shared_ptr<CompositeInstruction>& in_function) -> double {
-    auto exatnVisitor = std::make_shared<ExatnVisitor<std::complex<double>>>();
+    auto exatnVisitor = std::make_shared<DefaultExatnVisitor>();
     auto buffer = xacc::qalloc(10);
     const auto rdm = exatnVisitor->getReducedDensityMatrix(buffer, in_function, {5});
     {
@@ -261,7 +261,7 @@ TEST(ExatnVisitorInternalTester, testSequentialCollapse)
     CNOT(q[0], q[4]);
   })");
   auto program = ir->getComposite("test2");
-  auto exatnVisitor = std::make_shared<ExatnVisitor<std::complex<double>>>();
+  auto exatnVisitor = std::make_shared<DefaultExatnVisitor>();
   auto buffer = xacc::qalloc(5);
   // Randomly select a subset of qubits
   const auto sampleBitString = exatnVisitor->getMeasureSample(buffer, program, { 1, 3 });

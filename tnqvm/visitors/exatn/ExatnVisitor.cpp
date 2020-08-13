@@ -492,7 +492,7 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::initialize(std::shared_ptr<AcceleratorBuf
   // Create the qubit register tensor
   for (int i = 0; i < m_buffer->size(); ++i) {
     const bool created = exatn::createTensor(
-        generateQubitTensorName(i), exatn::TensorElementType::COMPLEX64,
+        generateQubitTensorName(i), getExatnElementType(),
         TensorShape{2});
     assert(created);
   }
@@ -612,7 +612,7 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::resetNetwork() {
   // The qubit register tensor shape is {2, 2, 2, ...}, 1 leg for each qubit
   std::vector<int> qubitRegResetTensorShape(m_buffer->size(), 2);
   const bool created =
-      exatn::createTensor(resetTensorName, exatn::TensorElementType::COMPLEX64,
+      exatn::createTensor(resetTensorName, getExatnElementType(),
                           qubitRegResetTensorShape);
   assert(created);
   // Initialize the tensor body with the state vector from the previous
@@ -702,14 +702,14 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
       return;
     }
 
-    const auto constructBraNetwork = [](const std::vector<int>& in_bitString){
+    const auto constructBraNetwork = [&](const std::vector<int>& in_bitString){
       int tensorIdCounter = 1;
       TensorNetwork braTensorNet("bra");
       // Create the qubit register tensor
       for (int i = 0; i < in_bitString.size(); ++i) {
         const std::string braQubitName = "QB" + std::to_string(i);
         const bool created = exatn::createTensor(
-            braQubitName, exatn::TensorElementType::COMPLEX64,
+            braQubitName, getExatnElementType(),
             TensorShape{2});
         assert(created);
         const auto bitVal = in_bitString[i];
@@ -1032,7 +1032,7 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::appendGateTensor(const xacc::Instruction 
                                                  : TensorShape{2, 2, 2, 2});
     // Create the tensor
     const bool created = exatn::createTensor(
-        uniqueGateName, exatn::TensorElementType::COMPLEX64, gateTensorShape);
+        uniqueGateName, getExatnElementType(), gateTensorShape);
     assert(created);
     // Init tensor body data
     exatn::initTensorData(uniqueGateName, flattenGateMatrix(gateMatrix));
@@ -1307,7 +1307,7 @@ std::vector<uint8_t> ExatnVisitor<TNQVM_COMPLEX_TYPE>::getMeasureSample(
   }
 
   std::vector<uint8_t> resultBitString;
-  std::vector<double> resultProbs;
+  std::vector<ExatnVisitor<TNQVM_COMPLEX_TYPE>::TNQVM_FLOAT_TYPE> resultProbs;
   for (const auto &qubitIdx : in_qubitIdx) {
     std::vector<TNQVM_COMPLEX_TYPE> resultRDM;
 
@@ -1339,7 +1339,7 @@ std::vector<uint8_t> ExatnVisitor<TNQVM_COMPLEX_TYPE>::getMeasureSample(
           if (resultBitString[measIdx] == 0) {
             const std::vector<TNQVM_COMPLEX_TYPE> COLLAPSE_0{
                 // Renormalize based on the probability of this outcome
-                {1.0 / resultProbs[measIdx], 0.0},
+                {1.0f / resultProbs[measIdx], 0.0},
                 {0.0, 0.0},
                 {0.0, 0.0},
                 {0.0, 0.0}};
@@ -1347,7 +1347,7 @@ std::vector<uint8_t> ExatnVisitor<TNQVM_COMPLEX_TYPE>::getMeasureSample(
             const std::string tensorName =
                 "COLLAPSE_0_" + std::to_string(measIdx);
             const bool created = exatn::createTensor(
-                tensorName, exatn::TensorElementType::COMPLEX64,
+                tensorName, getExatnElementType(),
                 TensorShape{2, 2});
             assert(created);
             const bool registered =
@@ -1366,12 +1366,12 @@ std::vector<uint8_t> ExatnVisitor<TNQVM_COMPLEX_TYPE>::getMeasureSample(
                 {0.0, 0.0},
                 {0.0, 0.0},
                 {0.0, 0.0},
-                {1.0 / resultProbs[measIdx], 0.0}};
+                {1.0f / resultProbs[measIdx], 0.0}};
 
             const std::string tensorName =
                 "COLLAPSE_1_" + std::to_string(measIdx);
             const bool created = exatn::createTensor(
-                tensorName, exatn::TensorElementType::COMPLEX64,
+                tensorName, getExatnElementType(),
                 TensorShape{2, 2});
             assert(created);
             const bool registered =
@@ -1498,7 +1498,7 @@ const double ExatnVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZ(
 
     // The qubit register tensor shape is {2, 2, 2, ...}, 1 leg for each qubit
     std::vector<int> qubitRegResetTensorShape(m_buffer->size(), 2);
-    const bool created = exatn::createTensor(resetTensorName, exatn::TensorElementType::COMPLEX64, qubitRegResetTensorShape);
+    const bool created = exatn::createTensor(resetTensorName, getExatnElementType(), qubitRegResetTensorShape);
     assert(created);
     // Initialize the tensor body with the state vector from the previous
     // evaluation.
@@ -1563,7 +1563,7 @@ std::vector<uint8_t> ExatnVisitor<TNQVM_COMPLEX_TYPE>::generateMeasureSample(con
 {
     TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
     std::vector<uint8_t> resultBitString;
-    std::vector<double> resultProbs;
+    std::vector<ExatnVisitor<TNQVM_COMPLEX_TYPE>::TNQVM_FLOAT_TYPE> resultProbs;
     for (const auto& qubitIdx : in_qubitIdx)
     {
         std::vector<std::string> tensorsToDestroy;
@@ -1586,13 +1586,13 @@ std::vector<uint8_t> ExatnVisitor<TNQVM_COMPLEX_TYPE>::generateMeasureSample(con
             {
                 const std::vector<TNQVM_COMPLEX_TYPE> COLLAPSE_0{
                     // Renormalize based on the probability of this outcome
-                    {1.0 / resultProbs[measIdx], 0.0},
+                    {1.0f / resultProbs[measIdx], 0.0},
                     {0.0, 0.0},
                     {0.0, 0.0},
                     {0.0, 0.0}};
 
                 const std::string tensorName = "COLLAPSE_0_" + std::to_string(measIdx);
-                const bool created = exatn::createTensor(tensorName, exatn::TensorElementType::COMPLEX64, exatn::TensorShape{2, 2});
+                const bool created = exatn::createTensor(tensorName, getExatnElementType(), exatn::TensorShape{2, 2});
                 assert(created);
                 tensorsToDestroy.emplace_back(tensorName);
                 const bool registered = exatn::registerTensorIsometry(tensorName, {0}, {1});
@@ -1611,10 +1611,10 @@ std::vector<uint8_t> ExatnVisitor<TNQVM_COMPLEX_TYPE>::generateMeasureSample(con
                     {0.0, 0.0},
                     {0.0, 0.0},
                     {0.0, 0.0},
-                    {1.0 / resultProbs[measIdx], 0.0}};
+                    {1.0f / resultProbs[measIdx], 0.0}};
 
                 const std::string tensorName = "COLLAPSE_1_" + std::to_string(measIdx);
-                const bool created = exatn::createTensor(tensorName, exatn::TensorElementType::COMPLEX64, exatn::TensorShape{2, 2});
+                const bool created = exatn::createTensor(tensorName, getExatnElementType(), exatn::TensorShape{2, 2});
                 assert(created);
                 tensorsToDestroy.emplace_back(tensorName);
                 const bool registered = exatn::registerTensorIsometry(tensorName, {0}, {1});
@@ -1740,7 +1740,7 @@ std::vector<std::pair<double, double>> ExatnVisitor<TNQVM_COMPLEX_TYPE>::calcFlo
   // Create the collapse tensor:
   const std::vector<TNQVM_COMPLEX_TYPE> COLLAPSE_TEMP { {1.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {0.0, 0.0} };
   const std::string tensorName = "COLLAPSE_TENSOR_TEMP";
-  const bool created = exatn::createTensor(tensorName, exatn::TensorElementType::COMPLEX64, exatn::TensorShape{2, 2});
+  const bool created = exatn::createTensor(tensorName, getExatnElementType(), exatn::TensorShape{2, 2});
   assert(created);
   const bool registered = exatn::registerTensorIsometry(tensorName, {0}, {1});
   assert(registered);

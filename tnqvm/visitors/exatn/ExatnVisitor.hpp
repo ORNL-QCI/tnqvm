@@ -195,7 +195,8 @@ namespace tnqvm {
     public:
         // Constructor
         ExatnVisitor();
-        
+        typedef typename TNQVM_COMPLEX_TYPE::value_type TNQVM_FLOAT_TYPE;
+        virtual exatn::TensorElementType getExatnElementType() const = 0;
         // Virtual function impls:        
         virtual void initialize(std::shared_ptr<AcceleratorBuffer> buffer, int nbShots) override;
         virtual void finalize() override;
@@ -204,8 +205,6 @@ namespace tnqvm {
         virtual const std::string name() const override { return "exatn"; }
 
         virtual const std::string description() const override { return "ExaTN MPS Visitor"; }
-
-        virtual std::shared_ptr<TNQVMVisitor> clone() override { return std::make_shared<ExatnVisitor>(); }
         
         virtual OptionPairs getOptions() override { /*TODO: define options */ return OptionPairs{}; }
         
@@ -331,6 +330,24 @@ namespace tnqvm {
 
     template class ExatnVisitor<std::complex<double>>;
     template class ExatnVisitor<std::complex<float>>;
+    class DoublePrecisionExatnVisitor : public ExatnVisitor<std::complex<double>>
+    {
+        virtual const std::string name() const override { return "exatn:double"; }
+        virtual exatn::TensorElementType getExatnElementType() const override { return exatn::TensorElementType::COMPLEX64; }
+        virtual std::shared_ptr<TNQVMVisitor> clone() override { return std::make_shared<DoublePrecisionExatnVisitor>(); }
+    };
+
+    class SinglePrecisionExatnVisitor : public ExatnVisitor<std::complex<float>>
+    {
+        virtual const std::string name() const override { return "exatn:float"; }
+        virtual exatn::TensorElementType getExatnElementType() const override { return exatn::TensorElementType::COMPLEX32; }
+        virtual std::shared_ptr<TNQVMVisitor> clone() override { return std::make_shared<SinglePrecisionExatnVisitor>(); }
+    };
+
+    class DefaultExatnVisitor : public DoublePrecisionExatnVisitor
+    {
+        virtual const std::string name() const override { return "exatn"; }
+    };
 } //end namespace tnqvm
 
 #endif //TNQVM_HAS_EXATN
