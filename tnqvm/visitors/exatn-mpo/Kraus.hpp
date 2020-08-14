@@ -32,6 +32,7 @@ struct DefaultGateTimeConfigProvider : public IGateTimeConfigProvider
     virtual double getGateTime(const xacc::quantum::Gate& in_gate) const override { return 1.0; }
 };
 
+// TODO: Remove this struct
 // Configuration for noise channels
 class KrausConfig
 {
@@ -57,5 +58,21 @@ private:
     // Per-qubit *raw* Kraus amplitudes (i.e. normalized to gate time)
     std::vector<KrausAmpl> m_krausAmp;
     IGateTimeConfigProvider* m_gateTimeProvider;
+};
+
+// Helper class to parse and construct noise model
+// from IBM's backend JSON.
+class IBMNoiseModel
+{
+public:
+    static IBMNoiseModel fromJson(const std::string& in_jsonString) { return /*TODO*/ IBMNoiseModel(); }
+private:
+    // Parsed parameters needed for noise model construction.
+    size_t m_nbQubits;
+    std::vector<double> m_qubitT1;
+    std::vector<double> m_qubitT2;
+    std::vector<std::unordered_map<std::string, double>> m_gateErrors;
+    std::vector<std::unordered_map<std::string, double>> m_gateDurations;
+    std::vector<std::pair<double, double>> m_roErrors;
 };
 }

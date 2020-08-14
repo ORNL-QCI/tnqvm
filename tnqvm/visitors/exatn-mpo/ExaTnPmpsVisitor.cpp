@@ -926,6 +926,18 @@ void ExaTnPmpsVisitor::visit(Tdg& in_TdgGate)
 // others
 void ExaTnPmpsVisitor::visit(Measure& in_MeasureGate) 
 { 
+    // Apply noise during measurement.
+    // TODO: enhance the noise model to capture ro-error,
+    // which is usually larger than gate damping error.
+    auto noiseConfig = m_noiseConfig->computeKrausAmplitudes(in_MeasureGate);
+    assert(noiseConfig.size() == 1);
+    auto krausTensor = constructKrausTensor(noiseConfig[0]);
+    // Non-zero noise channels
+    if (krausTensor)
+    {
+        applyLocalKrausOp(in_MeasureGate.bits()[0], krausTensor->getName());
+    }
+    
     m_measuredBits.emplace_back(in_MeasureGate.bits()[0]);
 }
 
