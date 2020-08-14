@@ -73,8 +73,8 @@ private:
     size_t m_nbQubits;
     std::vector<double> m_qubitT1;
     std::vector<double> m_qubitT2;
-    std::vector<std::unordered_map<std::string, double>> m_gateErrors;
-    std::vector<std::unordered_map<std::string, double>> m_gateDurations;
+    std::unordered_map<std::string, double> m_gateErrors;
+    std::unordered_map<std::string, double> m_gateDurations;
     std::vector<std::pair<double, double>> m_roErrors;
 };
 }

@@ -56,7 +56,7 @@ if (ExaTN_FOUND)
       manifest.json
    )
 
-   target_include_directories(${LIBRARY_NAME} PUBLIC . ..)
+   target_include_directories(${LIBRARY_NAME} PUBLIC . .. ${XACC_DIR}/include/xacc/)
 
    # Links to ExaTN using its linker config flags.
    target_link_libraries(${LIBRARY_NAME} PUBLIC xacc::xacc exatn::exatn xacc::quantum_gate)
