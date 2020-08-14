@@ -5,8 +5,7 @@
 #include "exatn.hpp"
 
 namespace tnqvm {
-class KrausConfig;
-struct IGateTimeConfigProvider;
+class INoiseModel;
 class ExaTnPmpsVisitor : public TNQVMVisitor
 {
 public:
@@ -69,8 +68,7 @@ public:
 private:
     exatn::TensorNetwork m_pmpsTensorNetwork;
     std::shared_ptr<AcceleratorBuffer> m_buffer;
-    std::shared_ptr<IGateTimeConfigProvider> m_gateTimeConfig;
-    std::shared_ptr<KrausConfig> m_noiseConfig;
+    std::shared_ptr<INoiseModel> m_noiseConfig;
     std::vector<size_t> m_measuredBits;
     int m_nbShots;
 };

@@ -99,7 +99,7 @@ std::vector<std::complex<double>> calculateDensityMatrix(const exatn::TensorNetw
     return getTensorData(tempNetwork.getTensor(0)->getName());
 }
 
-std::string generateResultBitString(const std::vector<std::complex<double>>& in_dmDiagonalElems, const std::vector<size_t>& in_measureQubits, size_t in_nbQubits)
+std::string generateResultBitString(const std::vector<std::complex<double>>& in_dmDiagonalElems, const std::vector<size_t>& in_measureQubits, size_t in_nbQubits, tnqvm::INoiseModel* in_noiseModel = nullptr)
 {
     static auto randomProbFunc = std::bind(std::uniform_real_distribution<double>(0, 1), std::mt19937(std::chrono::high_resolution_clock::now().time_since_epoch().count()));
     // Pick a random probability
@@ -121,7 +121,15 @@ std::string generateResultBitString(const std::vector<std::complex<double>>& in_
     {
         const auto qubitIdx = in_nbQubits - qubit - 1;
         const bool bit = ((stateSelect >> qubitIdx) & 1);
-        result.push_back(bit ? '1' : '0');
+        if (in_noiseModel)
+        {
+            const bool errBit = in_noiseModel->applyRoError(qubit, bit);
+            result.push_back(errBit ? '1' : '0');
+        }
+        else
+        {
+            result.push_back(bit ? '1' : '0');
+        }    
     }
 
     return result;  
@@ -490,22 +498,13 @@ void ExaTnPmpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int
 
     m_buffer = buffer;
     m_pmpsTensorNetwork = buildInitialNetwork(buffer->size(), true);
-    
+    m_noiseConfig.reset();
     if (options.stringExists("backend-json"))
     {
-        options.getString("backend-json");
-        IBMNoiseModel noiseModel;
-        noiseModel.loadJson(options.getString("backend-json"));
+        m_noiseConfig = std::make_shared<IBMNoiseModel>(options.getString("backend-json"));
     }
     // DEBUG
     // printDensityMatrix(m_pmpsTensorNetwork, m_buffer->size());
-    std::vector<KrausAmpl> noiseAmpl;
-    for (size_t i = 0; i < m_buffer->size(); ++i)
-    {
-        noiseAmpl.emplace_back(0.01, 0.01);
-    }
-    m_gateTimeConfig = std::shared_ptr<IGateTimeConfigProvider>(new DefaultGateTimeConfigProvider());
-    m_noiseConfig = std::make_shared<KrausConfig>(m_gateTimeConfig.get(), noiseAmpl);
     m_nbShots = 1024;
 }
 
@@ -644,7 +643,7 @@ void ExaTnPmpsVisitor::finalize()
 
         for (int i = 0; i < m_nbShots; ++i)
         {
-            m_buffer->appendMeasurement(generateResultBitString(diagElems, m_measuredBits, m_buffer->size()));
+            m_buffer->appendMeasurement(generateResultBitString(diagElems, m_measuredBits, m_buffer->size(), m_noiseConfig.get()));
         }
         
         m_measuredBits.clear();
@@ -677,13 +676,17 @@ void ExaTnPmpsVisitor::applySingleQubitGate(xacc::quantum::Gate& in_gateInstruct
     assert(destroyed);
  
     // Apply noise (Kraus) Op
-    auto noiseConfig = m_noiseConfig->computeKrausAmplitudes(in_gateInstruction);
-    assert(noiseConfig.size() == 1);
-    auto krausTensor = constructKrausTensor(noiseConfig[0]);
-    // Non-zero noise channels
-    if (krausTensor)
+    if (m_noiseConfig) 
     {
-        applyLocalKrausOp(bitIdx, krausTensor->getName());
+        const auto noiseAmpls = m_noiseConfig->calculateAmplitudeDamping(in_gateInstruction);
+        assert(noiseAmpls.size() == 1);
+        // We only support AD atm
+        auto krausTensor = constructKrausTensor(KrausAmpl(noiseAmpls[0], 0.0));
+        // Non-zero noise channels
+        if (krausTensor)
+        {
+            applyLocalKrausOp(bitIdx, krausTensor->getName());
+        }
     }
 }
 
@@ -708,21 +711,24 @@ void ExaTnPmpsVisitor::applyTwoQubitGate(xacc::quantum::Gate& in_gateInstruction
     m_pmpsTensorNetwork = buildInitialNetwork(m_buffer->size(), false);
     
     // Apply noise (Kraus) Op
-    auto noiseConfig = m_noiseConfig->computeKrausAmplitudes(in_gateInstruction);
-    assert(noiseConfig.size() == 2);
-    auto krausTensor1 = constructKrausTensor(noiseConfig[0]);
-    // Non-zero noise channels
-    if (krausTensor1)
+    if (m_noiseConfig) 
     {
-        // Apply noises on both channels 
-        applyLocalKrausOp(in_gateInstruction.bits()[0], krausTensor1->getName());
-    }
-     auto krausTensor2 = constructKrausTensor(noiseConfig[1]);
-    // Non-zero noise channels
-    if (krausTensor2)
-    {
-        // Apply noises on both channels 
-        applyLocalKrausOp(in_gateInstruction.bits()[1], krausTensor2->getName());
+        const auto noiseAmpls = m_noiseConfig->calculateAmplitudeDamping(in_gateInstruction);
+        assert(noiseAmpls.size() == 2);
+        // We only support AD atm
+        auto krausTensor1 = constructKrausTensor(KrausAmpl(noiseAmpls[0], 0.0));
+        // Non-zero noise channels
+        if (krausTensor1)
+        {
+            applyLocalKrausOp(in_gateInstruction.bits()[0], krausTensor1->getName());
+        }
+
+        auto krausTensor2 = constructKrausTensor(KrausAmpl(noiseAmpls[1], 0.0));
+        // Non-zero noise channels
+        if (krausTensor2)
+        {
+            applyLocalKrausOp(in_gateInstruction.bits()[1], krausTensor2->getName());
+        }
     }
 }
 
@@ -933,18 +939,6 @@ void ExaTnPmpsVisitor::visit(Tdg& in_TdgGate)
 // others
 void ExaTnPmpsVisitor::visit(Measure& in_MeasureGate) 
 { 
-    // Apply noise during measurement.
-    // TODO: enhance the noise model to capture ro-error,
-    // which is usually larger than gate damping error.
-    auto noiseConfig = m_noiseConfig->computeKrausAmplitudes(in_MeasureGate);
-    assert(noiseConfig.size() == 1);
-    auto krausTensor = constructKrausTensor(noiseConfig[0]);
-    // Non-zero noise channels
-    if (krausTensor)
-    {
-        applyLocalKrausOp(in_MeasureGate.bits()[0], krausTensor->getName());
-    }
-    
     m_measuredBits.emplace_back(in_MeasureGate.bits()[0]);
 }
 

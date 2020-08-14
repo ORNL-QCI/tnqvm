@@ -1,8 +1,20 @@
 #include "NoiseModel.hpp"
 #include "json.hpp"
+#include <random>
+
+namespace {
+inline double generateRandomProbability() {
+  auto randFunc =
+      std::bind(std::uniform_real_distribution<double>(0, 1),
+                std::mt19937(std::chrono::high_resolution_clock::now()
+                                 .time_since_epoch()
+                                 .count()));
+  return randFunc();
+}
+} // namespace
 
 namespace tnqvm {
-void IBMNoiseModel::loadJson(const std::string &in_jsonString) {
+IBMNoiseModel::IBMNoiseModel(const std::string &in_jsonString) {
   auto backEndJson = nlohmann::json::parse(in_jsonString);
   // Parse qubit data:
   auto qubitsData = backEndJson["qubits"];
@@ -80,5 +92,49 @@ void IBMNoiseModel::loadJson(const std::string &in_jsonString) {
       }
     }
   }
+}
+
+bool INoiseModel::applyRoError(size_t in_bitIdx, bool in_exactMeasure) const
+{
+  const auto [meas0Prep1, meas1Prep0] = getRoErrorProbs(in_bitIdx);
+  // If exact measurement is 1 (true), use meas0Prep1 as the error probability
+  // and vice versa.
+  const double flipProb = in_exactMeasure ? meas0Prep1 : meas1Prep0;
+  return (generateRandomProbability() < flipProb) ? !in_exactMeasure : in_exactMeasure;
+}
+
+std::vector<double>
+IBMNoiseModel::calculateAmplitudeDamping(xacc::quantum::Gate &in_gate) const {
+  const std::string universalGateName = getUniversalGateEquiv(in_gate);
+  const auto gateDurationIter = m_gateDurations.find(universalGateName);
+  assert(gateDurationIter != m_gateDurations.end());
+  const double gateDuration = gateDurationIter->second;
+  std::vector<double> amplitudeDamping;
+  for (const auto& qubitIdx: in_gate.bits())
+  {
+    const double qubitT1 = m_qubitT1[qubitIdx];
+    const double dampingRate = 1.0 / qubitT1;
+    const double resetProb = 1.0 * std::exp(-gateDuration * dampingRate);
+    amplitudeDamping.emplace_back(1.0 - resetProb);
+  }
+  return amplitudeDamping;
+}
+
+std::string
+IBMNoiseModel::getUniversalGateEquiv(xacc::quantum::Gate &in_gate) const {
+  if (in_gate.bits().size() == 1 && in_gate.name() != "Measure") {
+    // TODO: need to do an actual mapping for one-qubit gate here.
+    // For now, just use u3 as the equivalent.
+    // Note: given that u3 has longer duration, this will give a *worst-case*
+    // estimate.
+    return "u3_" + std::to_string(in_gate.bits()[0]);
+  }
+
+  if (in_gate.bits().size() == 2) {
+    return "cx" + std::to_string(in_gate.bits()[0]) + "_" +
+           std::to_string(in_gate.bits()[1]);
+  }
+
+  return "id_" + std::to_string(in_gate.bits()[0]);
 }
 } // namespace tnqvm
