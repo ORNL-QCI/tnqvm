@@ -4,3 +4,8 @@ include_directories(${XACC_ROOT}/include/gtest)
 add_executable(ExaTnPmpsTester ExaTnPmpsTester.cpp)
 target_link_libraries(ExaTnPmpsTester PRIVATE ${XACC_ROOT}/lib/libgtest.so ${XACC_ROOT}/lib/libgtest_main.so tnqvm-exatn)
 add_test(NAME ExaTnPmpsTester COMMAND ExaTnPmpsTester)
+
+add_executable(NoiseModelTester NoiseModelTester.cpp)
+target_link_libraries(NoiseModelTester PRIVATE ${XACC_ROOT}/lib/libgtest.so ${XACC_ROOT}/lib/libgtest_main.so tnqvm-exatn)
+target_compile_definitions(NoiseModelTester PRIVATE BACKEND_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/resources")
+add_test(NAME NoiseModelTester COMMAND NoiseModelTester)

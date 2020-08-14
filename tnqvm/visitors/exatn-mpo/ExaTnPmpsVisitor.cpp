@@ -3,7 +3,7 @@
 #include "talshxx.hpp"
 #include "utils/GateMatrixAlgebra.hpp"
 #include "base/Gates.hpp"
-#include "Kraus.hpp"
+#include "NoiseModel.hpp"
 
 #ifdef TNQVM_EXATN_USES_MKL_BLAS
 #include <dlfcn.h>
@@ -490,6 +490,13 @@ void ExaTnPmpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int
 
     m_buffer = buffer;
     m_pmpsTensorNetwork = buildInitialNetwork(buffer->size(), true);
+    
+    if (options.stringExists("backend-json"))
+    {
+        options.getString("backend-json");
+        IBMNoiseModel noiseModel;
+        noiseModel.loadJson(options.getString("backend-json"));
+    }
     // DEBUG
     // printDensityMatrix(m_pmpsTensorNetwork, m_buffer->size());
     std::vector<KrausAmpl> noiseAmpl;

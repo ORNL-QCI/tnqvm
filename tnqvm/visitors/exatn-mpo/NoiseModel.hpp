@@ -1,3 +1,5 @@
+#pragma once
+
 #include <vector>
 #include "Gate.hpp"
 
@@ -65,7 +67,7 @@ private:
 class IBMNoiseModel
 {
 public:
-    static IBMNoiseModel fromJson(const std::string& in_jsonString) { return /*TODO*/ IBMNoiseModel(); }
+    void loadJson(const std::string& in_jsonString);
 private:
     // Parsed parameters needed for noise model construction.
     size_t m_nbQubits;
