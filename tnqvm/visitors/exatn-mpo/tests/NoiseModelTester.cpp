@@ -3,7 +3,7 @@
 #include "xacc.hpp"
 #include "xacc_service.hpp"
 
-TEST(NoiseModelTester, checkSimple)
+TEST(NoiseModelTester, checkReadout)
 {
     const std::string BACKEND_JSON_FILE = std::string(BACKEND_CONFIG_DIR) + "/ibmqx2.json";
     std::ifstream inFile;
@@ -12,18 +12,17 @@ TEST(NoiseModelTester, checkSimple)
     strStream << inFile.rdbuf();
     const std::string json = strStream.str();  
     auto xasmCompiler = xacc::getCompiler("xasm");
-    auto ir = xasmCompiler->compile(R"(__qpu__ void testBell(qbit q) {
-        X(q[0]);
-        CX(q[0],q[1]);
+    auto ir = xasmCompiler->compile(R"(__qpu__ void testPrep0(qbit q) {
         Measure(q[0]);
-        Measure(q[1]);
     })");
 
-    auto program = ir->getComposite("testBell");
-    auto accelerator = xacc::getAccelerator("tnqvm", { { "tnqvm-visitor", "exatn-pmps" }, { "backend-json", json } });
-    auto qreg = xacc::qalloc(2);
+    auto program = ir->getComposite("testPrep0");
+    auto accelerator = xacc::getAccelerator("tnqvm", { { "tnqvm-visitor", "exatn-pmps" }, { "backend-json", json }, { "shots", 8192 } });
+    auto qreg = xacc::qalloc(1);
     accelerator->execute(qreg, program);
     qreg->print();
+    // Expected error: prob_meas1_prep0 = 0.06499999999999995
+    EXPECT_NEAR(qreg->computeMeasurementProbability("1"), 0.06499999999999995, 0.01);
 } 
 
 int main(int argc, char **argv) 

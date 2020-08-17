@@ -505,7 +505,8 @@ void ExaTnPmpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int
     }
     // DEBUG
     // printDensityMatrix(m_pmpsTensorNetwork, m_buffer->size());
-    m_nbShots = 1024;
+    // Since this is a noisy simulation, always run shots by default.
+    m_nbShots = (nbShots < 1) ? 1024 : nbShots;
 }
 
 exatn::TensorNetwork ExaTnPmpsVisitor::buildInitialNetwork(size_t in_nbQubits, bool in_createQubitTensors) const
