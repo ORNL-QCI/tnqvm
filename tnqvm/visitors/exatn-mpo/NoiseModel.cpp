@@ -122,12 +122,21 @@ IBMNoiseModel::calculateAmplitudeDamping(xacc::quantum::Gate &in_gate) const {
 
 std::string
 IBMNoiseModel::getUniversalGateEquiv(xacc::quantum::Gate &in_gate) const {
+
   if (in_gate.bits().size() == 1 && in_gate.name() != "Measure") {
-    // TODO: need to do an actual mapping for one-qubit gate here.
-    // For now, just use u3 as the equivalent.
-    // Note: given that u3 has longer duration, this will give a *worst-case*
-    // estimate.
-    return "u3_" + std::to_string(in_gate.bits()[0]);
+    // Note: rotation around Z is a noiseless *u1* operation;
+    // *u2* operations are those that requires a half-length rotation;
+    // *u3* operations are those that requires a full-length rotation.
+    static const std::unordered_map<std::string, std::string>
+        SINGLE_QUBIT_GATE_MAP{{"X", "u3"},   {"Y", "u3"},  {"Z", "u1"},
+                              {"H", "u2"},   {"U", "u3"},  {"T", "u1"},
+                              {"Tdg", "u1"}, {"S", "u1"},  {"Sdg", "u1"},
+                              {"Rz", "u1"},  {"Rx", "u3"}, {"Ry", "u3"}};
+    const auto iter = SINGLE_QUBIT_GATE_MAP.find(in_gate.name());
+    // If cannot find the gate, just treat that as a noiseless u1 op.
+    const std::string universalGateName =
+        (iter == SINGLE_QUBIT_GATE_MAP.end()) ? "u1" : iter->second;
+    return universalGateName + "_" + std::to_string(in_gate.bits()[0]);
   }
 
   if (in_gate.bits().size() == 2) {
