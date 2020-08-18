@@ -18,9 +18,6 @@ struct KrausAmpl {
   bool isZero() const {
     return std::abs(probAD) < 1e-12 && std::abs(probDP) < 1e-12;
   }
-  KrausAmpl operator*(double in_time) const {
-    return KrausAmpl(probAD * in_time, probDP * in_time);
-  }
   // Probability of Amplitude Damping on any single qubit
   double probAD;
   // Probability of Depolarizing noise on any single qubit
