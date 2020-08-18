@@ -430,32 +430,70 @@ std::shared_ptr<exatn::Tensor> constructKrausTensor(const tnqvm::KrausAmpl& in_k
     }
    
     ++krausTensorCounter;
+    
     auto krausTensor = std::make_shared<exatn::Tensor>("__KRAUS__" + std::to_string(krausTensorCounter), exatn::TensorShape{2, 2, 2, 2});
     const bool created = exatn::createTensorSync(krausTensor, exatn::TensorElementType::COMPLEX64);
     assert(created);
     
-    // NOTE: This is Amplitude damping only atm
-    const double adElem = std::cos(std::asin(std::sqrt(in_krausAmpl.probAD)));
-    const std::vector<std::complex<double>> tensorBody{1.,
-                                                       0.,
-                                                       0.,
-                                                       adElem,
-                                                       0.,
-                                                       0.,
-                                                       0.,
-                                                       0.,
-                                                       0.,
-                                                       0.,
-                                                       in_krausAmpl.probAD,
-                                                       0.,
-                                                       adElem,
-                                                       0.,
-                                                       0.,
-                                                       1.0 - in_krausAmpl.probAD };
+    {
+        auto adKrausTensor = std::make_shared<exatn::Tensor>("__KRAUS__AD" + std::to_string(krausTensorCounter), exatn::TensorShape{2, 2, 2, 2});
+        const bool created = exatn::createTensorSync(adKrausTensor, exatn::TensorElementType::COMPLEX64);
+        assert(created);
+        const double adElem = std::cos(std::asin(std::sqrt(in_krausAmpl.probAD)));
+        const std::vector<std::complex<double>> adTensorBody{
+            1.,
+            0.,
+            0.,
+            adElem,
+            0.,
+            0.,
+            0.,
+            0.,
+            0.,
+            0.,
+            in_krausAmpl.probAD,
+            0.,
+            adElem,
+            0.,
+            0.,
+            1.0 - in_krausAmpl.probAD};
+            const bool initialized = exatn::initTensorDataSync(adKrausTensor->getName(), adTensorBody);
+            assert(initialized);
+    }
 
-    const bool initialized = exatn::initTensorDataSync(krausTensor->getName(), tensorBody);
-    assert(initialized);
-    return exatn::getTensor(krausTensor->getName());
+    {
+        auto dpKrausTensor = std::make_shared<exatn::Tensor>("__KRAUS__DP" + std::to_string(krausTensorCounter), exatn::TensorShape{2, 2, 2, 2});
+        const bool created = exatn::createTensorSync(dpKrausTensor, exatn::TensorElementType::COMPLEX64);
+        assert(created);
+        const double dpAmpl = in_krausAmpl.probDP;
+        const std::vector<std::complex<double>> dPtensorBody{
+            1.0 - dpAmpl / 2.0, 0., 0.,           dpAmpl / 2.0, 0.,
+            1.0 - dpAmpl,       0., 0.,           0.,           0.,
+            1.0 - dpAmpl,       0., dpAmpl / 2.0, 0.,           0.,
+            1.0 - dpAmpl / 2.0};
+        const bool initialized = exatn::initTensorDataSync(dpKrausTensor->getName(), dPtensorBody);
+        assert(initialized);
+    }
+
+    // Contract (multiply) the two Kraus tensors to construct the overall channel tensor
+    // which represents both amplitude damping and depolarization. 
+    if (in_krausAmpl.probAD > 1e-12 && in_krausAmpl.probDP > 1e-12)
+    {
+        const std::string contractPattern = [&](){
+            return "__KRAUS__" + std::to_string(krausTensorCounter) + "(u0,u1,u2,u3)=" + "__KRAUS__AD" + std::to_string(krausTensorCounter) + "(c0,u1,c1,u3)" + "*" +  "__KRAUS__DP" + std::to_string(krausTensorCounter) + "(u0,c0,u2,c1)"; 
+        }();
+        const bool contractOk = exatn::contractTensorsSync(contractPattern, 1.0);
+        assert(contractOk);
+        return exatn::getTensor(krausTensor->getName());
+    }
+    else if (in_krausAmpl.probAD > 1e-12)
+    {
+        return exatn::getTensor("__KRAUS__AD" + std::to_string(krausTensorCounter));
+    }
+    else
+    {
+        return exatn::getTensor("__KRAUS__DP" + std::to_string(krausTensorCounter));
+    }
 }
 }
 namespace tnqvm {
