@@ -434,6 +434,8 @@ std::shared_ptr<exatn::Tensor> constructKrausTensor(const tnqvm::KrausAmpl& in_k
     auto krausTensor = std::make_shared<exatn::Tensor>("__KRAUS__" + std::to_string(krausTensorCounter), exatn::TensorShape{2, 2, 2, 2});
     const bool created = exatn::createTensorSync(krausTensor, exatn::TensorElementType::COMPLEX64);
     assert(created);
+    const bool initialized = exatn::initTensorSync(krausTensor->getName(), 0.0);
+    assert(initialized);
     
     {
         auto adKrausTensor = std::make_shared<exatn::Tensor>("__KRAUS__AD" + std::to_string(krausTensorCounter), exatn::TensorShape{2, 2, 2, 2});
@@ -467,14 +469,13 @@ std::shared_ptr<exatn::Tensor> constructKrausTensor(const tnqvm::KrausAmpl& in_k
         assert(created);
         const double dpAmpl = in_krausAmpl.probDP;
         const std::vector<std::complex<double>> dPtensorBody{
-            1.0 - dpAmpl / 2.0, 0., 0.,           dpAmpl / 2.0, 0.,
-            1.0 - dpAmpl,       0., 0.,           0.,           0.,
-            1.0 - dpAmpl,       0., dpAmpl / 2.0, 0.,           0.,
+            1.0 - dpAmpl / 2.0, 0., 0.,           1.0 - dpAmpl, 0.,
+            dpAmpl / 2.0,       0., 0.,           0.,           0.,
+            dpAmpl / 2.0,       0., 1.0 - dpAmpl, 0.,           0.,
             1.0 - dpAmpl / 2.0};
         const bool initialized = exatn::initTensorDataSync(dpKrausTensor->getName(), dPtensorBody);
         assert(initialized);
     }
-
     // Contract (multiply) the two Kraus tensors to construct the overall channel tensor
     // which represents both amplitude damping and depolarization. 
     if (in_krausAmpl.probAD > 1e-12 && in_krausAmpl.probDP > 1e-12)
@@ -483,7 +484,14 @@ std::shared_ptr<exatn::Tensor> constructKrausTensor(const tnqvm::KrausAmpl& in_k
             return "__KRAUS__" + std::to_string(krausTensorCounter) + "(u0,u1,u2,u3)=" + "__KRAUS__AD" + std::to_string(krausTensorCounter) + "(c0,u1,c1,u3)" + "*" +  "__KRAUS__DP" + std::to_string(krausTensorCounter) + "(u0,c0,u2,c1)"; 
         }();
         const bool contractOk = exatn::contractTensorsSync(contractPattern, 1.0);
+        // std::cout << "Pattern: " << contractPattern << "\n";
         assert(contractOk);
+        // const auto krausTensorData = getTensorData(krausTensor->getName());
+        // std::cout << krausTensor->getName() << ":\n";
+        // for(const auto& x : krausTensorData)
+        // {
+        //     std::cout << x << "\n";
+        // }
         return exatn::getTensor(krausTensor->getName());
     }
     else if (in_krausAmpl.probAD > 1e-12)
@@ -658,12 +666,12 @@ exatn::TensorNetwork ExaTnPmpsVisitor::buildInitialNetwork(size_t in_nbQubits, b
     purifiedMps.appendTensorNetwork(std::move(conjugate), pairings);
     // std::cout << "Purified MPS:\n";
     // purifiedMps.printIt();
-
     return purifiedMps;
 }
 
 void ExaTnPmpsVisitor::finalize() 
 { 
+    exatn::sync();
     // If there are measurements:
     if (!m_measuredBits.empty())
     {
@@ -680,6 +688,16 @@ void ExaTnPmpsVisitor::finalize()
             return result;
         }();
 
+        const auto sumDiag = [](const std::vector<std::complex<double>>& in_diag){
+            double sum = 0.0;
+            for (const auto& x : in_diag)
+            {
+                sum += x.real();
+            }
+            return sum;
+        }(diagElems);
+        // Validate trace = 1.0
+        assert(std::abs(sumDiag - 1.0) < 1e-9);
         for (int i = 0; i < m_nbShots; ++i)
         {
             m_buffer->appendMeasurement(generateResultBitString(diagElems, m_measuredBits, m_buffer->size(), m_noiseConfig.get()));
