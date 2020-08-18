@@ -61,6 +61,35 @@ TEST(NoiseModelTester, checkGateTime)
     EXPECT_NEAR(qreg1->computeMeasurementProbability("1"), qreg2->computeMeasurementProbability("1"), 0.01);
 } 
 
+TEST(NoiseModelTester, checkGateError)
+{
+    const std::string BACKEND_JSON_FILE = std::string(BACKEND_CONFIG_DIR) + "/ibmqx2.json";
+    std::ifstream inFile;
+    inFile.open(BACKEND_JSON_FILE);
+    std::stringstream strStream;
+    strStream << inFile.rdbuf();
+    const std::string json = strStream.str();  
+    const double gateError = 0.004494703673832201;
+    // With the gate error of 0.004494703673832201 (from randomized benchmarking)
+    // we can compute the number of gates that results in a completely mixed state.
+    const size_t numberOfGates = 200;
+    auto xasmCompiler = xacc::getCompiler("xasm");
+    auto program1 = xasmCompiler->compile(R"(__qpu__ void testRb(qbit q) {
+        for (int i = 0; i < 200; i++) {
+            X(q[0]);
+        }
+        Measure(q[0]);
+    })")->getComposite("testRb");
+
+    auto accelerator = xacc::getAccelerator("tnqvm", { { "tnqvm-visitor", "exatn-pmps" }, { "backend-json", json }, { "shots", 8192 } });
+    auto qreg1 = xacc::qalloc(1);
+    accelerator->execute(qreg1, program1);
+    qreg1->print();
+    // The error should be very high (>40%) at this point.
+    // Note: due to relaxation, we won't be able to get a perfect 50-50 completely mixed state.
+    EXPECT_GT(qreg1->computeMeasurementProbability("1"), 0.4);
+} 
+
 int main(int argc, char **argv) 
 {
     xacc::Initialize();

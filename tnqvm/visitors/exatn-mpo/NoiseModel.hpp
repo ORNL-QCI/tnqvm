@@ -47,6 +47,10 @@ public:
   getRoErrorProbs(size_t in_bitIdx) const override {
     return m_roErrors[in_bitIdx];
   }
+  // Compute the gate fidelity given the amplitude damping noise:
+  static double
+  averageGateFidelity(xacc::quantum::Gate &in_gate,
+                      const std::vector<double> &in_amplitudeDamping);
 
 private:
   // Gets the name of the equivalent universal gate.

@@ -146,6 +146,22 @@ IBMNoiseModel::getUniversalGateEquiv(xacc::quantum::Gate &in_gate) const {
   return "id_" + std::to_string(in_gate.bits()[0]);
 }
 
+double IBMNoiseModel::averageGateFidelity(
+    xacc::quantum::Gate &in_gate,
+    const std::vector<double> &in_amplitudeDamping) {
+  // We only handle single-qubit gates for now.
+  if (in_gate.bits().size() == 1 && in_amplitudeDamping.size() == 1) {
+    // Note: this is based on the simplified amplitude-damping channel
+    const double processFidelity = (std::cos(std::asin(std::sqrt(in_amplitudeDamping[0])))*2.0 + 2.0 - in_amplitudeDamping[0])/4.0;
+    assert(processFidelity <= 1.0);
+    // std::cout << "Process Fidelity = " << processFidelity << "\n";
+    const double averageFidelity = (4.0 * processFidelity + 1.0) / 5.0;
+    // std::cout << "averageGateFidelity = " << averageFidelity << "\n";
+    return averageFidelity;
+  }
+  return 1.0;
+}
+
 std::vector<double> IBMNoiseModel::calculateDepolarizing(
     xacc::quantum::Gate &in_gate,
     const std::vector<double> &in_amplitudeDamping) const {
@@ -154,12 +170,7 @@ std::vector<double> IBMNoiseModel::calculateDepolarizing(
   //  Hence we have that the depolarizing error probability
   //  for the composed depolarization channel is
   //  p = dim * (F(E_relax) - F) / (dim * F(E_relax) - 1)
-  const double averageThermalError =
-      in_amplitudeDamping.empty()
-          ? 0.0
-          : std::accumulate(in_amplitudeDamping.begin(),
-                            in_amplitudeDamping.end(), 0.0) /
-                in_amplitudeDamping.size();
+  const double averageThermalError = 1.0 - averageGateFidelity(in_gate, in_amplitudeDamping);
   const std::string universalGateName = getUniversalGateEquiv(in_gate);
   // Retrieve the error rate:
   const auto gateErrorIter = m_gateErrors.find(universalGateName);
