@@ -94,13 +94,13 @@ IBMNoiseModel::IBMNoiseModel(const std::string &in_jsonString) {
   }
 }
 
-bool INoiseModel::applyRoError(size_t in_bitIdx, bool in_exactMeasure) const
-{
+bool INoiseModel::applyRoError(size_t in_bitIdx, bool in_exactMeasure) const {
   const auto [meas0Prep1, meas1Prep0] = getRoErrorProbs(in_bitIdx);
   // If exact measurement is 1 (true), use meas0Prep1 as the error probability
   // and vice versa.
   const double flipProb = in_exactMeasure ? meas0Prep1 : meas1Prep0;
-  return (generateRandomProbability() < flipProb) ? !in_exactMeasure : in_exactMeasure;
+  return (generateRandomProbability() < flipProb) ? !in_exactMeasure
+                                                  : in_exactMeasure;
 }
 
 std::vector<double>
@@ -110,8 +110,7 @@ IBMNoiseModel::calculateAmplitudeDamping(xacc::quantum::Gate &in_gate) const {
   assert(gateDurationIter != m_gateDurations.end());
   const double gateDuration = gateDurationIter->second;
   std::vector<double> amplitudeDamping;
-  for (const auto& qubitIdx: in_gate.bits())
-  {
+  for (const auto &qubitIdx : in_gate.bits()) {
     const double qubitT1 = m_qubitT1[qubitIdx];
     const double dampingRate = 1.0 / qubitT1;
     const double resetProb = 1.0 * std::exp(-gateDuration * dampingRate);
@@ -145,5 +144,36 @@ IBMNoiseModel::getUniversalGateEquiv(xacc::quantum::Gate &in_gate) const {
   }
 
   return "id_" + std::to_string(in_gate.bits()[0]);
+}
+
+std::vector<double> IBMNoiseModel::calculateDepolarizing(
+    xacc::quantum::Gate &in_gate,
+    const std::vector<double> &in_amplitudeDamping) const {
+  //  Compute the depolarizing channel error parameter in the
+  //  presence of T1/T2 thermal relaxation.
+  //  Hence we have that the depolarizing error probability
+  //  for the composed depolarization channel is
+  //  p = dim * (F(E_relax) - F) / (dim * F(E_relax) - 1)
+  const double averageThermalError =
+      in_amplitudeDamping.empty()
+          ? 0.0
+          : std::accumulate(in_amplitudeDamping.begin(),
+                            in_amplitudeDamping.end(), 0.0) /
+                in_amplitudeDamping.size();
+  const std::string universalGateName = getUniversalGateEquiv(in_gate);
+  // Retrieve the error rate:
+  const auto gateErrorIter = m_gateErrors.find(universalGateName);
+  const double gateError =
+      (gateErrorIter == m_gateErrors.end()) ? 0.0 : gateErrorIter->second;
+  // If the backend gate error (estimated by randomized benchmarking) is more
+  // than thermal relaxation error. We need to add depolarization to simulate
+  // the total gate error.
+  if (gateError > averageThermalError) {
+    // Model gate error entirely as depolarizing error
+    const double depolError = 2 * (gateError - averageThermalError) /
+                              (2 * (1 - averageThermalError) - 1);
+    return {depolError};
+  }
+  return {0.0};
 }
 } // namespace tnqvm

@@ -679,10 +679,11 @@ void ExaTnPmpsVisitor::applySingleQubitGate(xacc::quantum::Gate& in_gateInstruct
     // Apply noise (Kraus) Op
     if (m_noiseConfig) 
     {
-        const auto noiseAmpls = m_noiseConfig->calculateAmplitudeDamping(in_gateInstruction);
-        assert(noiseAmpls.size() == 1);
-        // We only support AD atm
-        auto krausTensor = constructKrausTensor(KrausAmpl(noiseAmpls[0], 0.0));
+        const auto adNoiseAmpls = m_noiseConfig->calculateAmplitudeDamping(in_gateInstruction);
+        assert(adNoiseAmpls.size() == 1);
+        const auto dpNoiseAmpls = m_noiseConfig->calculateDepolarizing(in_gateInstruction, adNoiseAmpls);
+        assert(dpNoiseAmpls.size() == 1);
+        auto krausTensor = constructKrausTensor(KrausAmpl(adNoiseAmpls[0], dpNoiseAmpls[0]));
         // Non-zero noise channels
         if (krausTensor)
         {
