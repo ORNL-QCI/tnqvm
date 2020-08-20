@@ -106,7 +106,7 @@ void TNQVM::execute(std::shared_ptr<xacc::AcceleratorBuffer> buffer,
   // Note: currently, we don't support MPS aggregated blocks (multiple qubit MPS
   // tensors in one block). Hence, the circuit must always be transformed into
   // *nearest* neighbor only (distance = 1 for two-qubit gates).
-  if (visitor->name() == "exatn-mps") {
+  if (visitor->name() == "exatn-mps" || visitor->name() == "exatn-pmps") {
     auto opt = xacc::getService<xacc::IRTransformation>("lnn-transform");
     opt->apply(kernel, nullptr, {std::make_pair("max-distance", 1)});
     // std::cout << "After LNN transform: \n" << kernel->toString() << "\n";
