@@ -4,8 +4,12 @@
 #include "tensor_network.hpp"
 #include "exatn.hpp"
 
+namespace xacc {
+// Forward declaration
+class NoiseModel;
+struct KrausOp;
+} // namespace xacc
 namespace tnqvm {
-class INoiseModel;
 class ExaTnPmpsVisitor : public TNQVMVisitor
 {
 public:
@@ -63,12 +67,13 @@ public:
     [[nodiscard]] exatn::TensorNetwork buildInitialNetwork(size_t in_nbQubits, bool in_createQubitTensors) const;
     void applySingleQubitGate(xacc::quantum::Gate& in_gateInstruction);
     void applyTwoQubitGate(xacc::quantum::Gate& in_gateInstruction);
+    void applyKrausOp(const xacc::KrausOp& in_op);
     // Apply a local (single-site) Kraus operator
     void applyLocalKrausOp(size_t in_siteId, const std::string& in_opTensorName);
 private:
     exatn::TensorNetwork m_pmpsTensorNetwork;
     std::shared_ptr<AcceleratorBuffer> m_buffer;
-    std::shared_ptr<INoiseModel> m_noiseConfig;
+    std::shared_ptr<xacc::NoiseModel> m_noiseConfig;
     std::vector<size_t> m_measuredBits;
     int m_nbShots;
 };

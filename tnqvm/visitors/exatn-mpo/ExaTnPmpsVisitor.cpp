@@ -4,7 +4,7 @@
 #include "utils/GateMatrixAlgebra.hpp"
 #include "base/Gates.hpp"
 #include "NoiseModel.hpp"
-
+#include "xacc_service.hpp"
 #ifdef TNQVM_EXATN_USES_MKL_BLAS
 #include <dlfcn.h>
 #endif
@@ -99,7 +99,7 @@ std::vector<std::complex<double>> calculateDensityMatrix(const exatn::TensorNetw
     return getTensorData(tempNetwork.getTensor(0)->getName());
 }
 
-std::string generateResultBitString(const std::vector<std::complex<double>>& in_dmDiagonalElems, const std::vector<size_t>& in_measureQubits, size_t in_nbQubits, tnqvm::INoiseModel* in_noiseModel = nullptr)
+std::string generateResultBitString(const std::vector<std::complex<double>>& in_dmDiagonalElems, const std::vector<size_t>& in_measureQubits, size_t in_nbQubits, xacc::NoiseModel* in_noiseModel = nullptr)
 {
     static auto randomProbFunc = std::bind(std::uniform_real_distribution<double>(0, 1), std::mt19937(std::chrono::high_resolution_clock::now().time_since_epoch().count()));
     // Pick a random probability
@@ -123,8 +123,12 @@ std::string generateResultBitString(const std::vector<std::complex<double>>& in_
         const bool bit = ((stateSelect >> qubitIdx) & 1);
         if (in_noiseModel)
         {
-            const bool errBit = in_noiseModel->applyRoError(qubit, bit);
-            result.push_back(errBit ? '1' : '0');
+            // Apply Readout error:
+            const auto roErrorProb = randomProbFunc();
+            const auto [meas0Prep1, meas1Prep0] = in_noiseModel->readoutError(qubit);
+            const double flipProb = bit ? meas0Prep1 : meas1Prep0;
+            const bool measBit = (roErrorProb < flipProb) ? !bit : bit;
+            result.push_back(measBit ? '1' : '0');
         }
         else
         {
@@ -420,89 +424,6 @@ void contractTwoQubitGateTensor(const exatn::TensorNetwork& in_tensorNetwork, co
     const auto destroyed = exatn::destroyTensorSync("Result");
     assert(destroyed);
 }
-
-std::shared_ptr<exatn::Tensor> constructKrausTensor(const tnqvm::KrausAmpl& in_krausAmpl)
-{
-    static size_t krausTensorCounter = 0;
-    if (in_krausAmpl.isZero())
-    {
-        return nullptr;
-    }
-   
-    ++krausTensorCounter;
-    
-    auto krausTensor = std::make_shared<exatn::Tensor>("__KRAUS__" + std::to_string(krausTensorCounter), exatn::TensorShape{2, 2, 2, 2});
-    const bool created = exatn::createTensorSync(krausTensor, exatn::TensorElementType::COMPLEX64);
-    assert(created);
-    const bool initialized = exatn::initTensorSync(krausTensor->getName(), 0.0);
-    assert(initialized);
-    
-    {
-        auto adKrausTensor = std::make_shared<exatn::Tensor>("__KRAUS__AD" + std::to_string(krausTensorCounter), exatn::TensorShape{2, 2, 2, 2});
-        const bool created = exatn::createTensorSync(adKrausTensor, exatn::TensorElementType::COMPLEX64);
-        assert(created);
-        const double adElem = std::cos(std::asin(std::sqrt(in_krausAmpl.probAD)));
-        const std::vector<std::complex<double>> adTensorBody{
-            1.,
-            0.,
-            0.,
-            adElem,
-            0.,
-            0.,
-            0.,
-            0.,
-            0.,
-            0.,
-            in_krausAmpl.probAD,
-            0.,
-            adElem,
-            0.,
-            0.,
-            1.0 - in_krausAmpl.probAD};
-            const bool initialized = exatn::initTensorDataSync(adKrausTensor->getName(), adTensorBody);
-            assert(initialized);
-    }
-
-    {
-        auto dpKrausTensor = std::make_shared<exatn::Tensor>("__KRAUS__DP" + std::to_string(krausTensorCounter), exatn::TensorShape{2, 2, 2, 2});
-        const bool created = exatn::createTensorSync(dpKrausTensor, exatn::TensorElementType::COMPLEX64);
-        assert(created);
-        const double dpAmpl = in_krausAmpl.probDP;
-        const std::vector<std::complex<double>> dPtensorBody{
-            1.0 - dpAmpl / 2.0, 0., 0.,           1.0 - dpAmpl, 0.,
-            dpAmpl / 2.0,       0., 0.,           0.,           0.,
-            dpAmpl / 2.0,       0., 1.0 - dpAmpl, 0.,           0.,
-            1.0 - dpAmpl / 2.0};
-        const bool initialized = exatn::initTensorDataSync(dpKrausTensor->getName(), dPtensorBody);
-        assert(initialized);
-    }
-    // Contract (multiply) the two Kraus tensors to construct the overall channel tensor
-    // which represents both amplitude damping and depolarization. 
-    if (in_krausAmpl.probAD > 1e-12 && in_krausAmpl.probDP > 1e-12)
-    {
-        const std::string contractPattern = [&](){
-            return "__KRAUS__" + std::to_string(krausTensorCounter) + "(u0,u1,u2,u3)=" + "__KRAUS__AD" + std::to_string(krausTensorCounter) + "(c0,u1,c1,u3)" + "*" +  "__KRAUS__DP" + std::to_string(krausTensorCounter) + "(u0,c0,u2,c1)"; 
-        }();
-        const bool contractOk = exatn::contractTensorsSync(contractPattern, 1.0);
-        // std::cout << "Pattern: " << contractPattern << "\n";
-        assert(contractOk);
-        // const auto krausTensorData = getTensorData(krausTensor->getName());
-        // std::cout << krausTensor->getName() << ":\n";
-        // for(const auto& x : krausTensorData)
-        // {
-        //     std::cout << x << "\n";
-        // }
-        return exatn::getTensor(krausTensor->getName());
-    }
-    else if (in_krausAmpl.probAD > 1e-12)
-    {
-        return exatn::getTensor("__KRAUS__AD" + std::to_string(krausTensorCounter));
-    }
-    else
-    {
-        return exatn::getTensor("__KRAUS__DP" + std::to_string(krausTensorCounter));
-    }
-}
 }
 namespace tnqvm {
 ExaTnPmpsVisitor::ExaTnPmpsVisitor()
@@ -545,9 +466,18 @@ void ExaTnPmpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int
     m_buffer = buffer;
     m_pmpsTensorNetwork = buildInitialNetwork(buffer->size(), true);
     m_noiseConfig.reset();
+    // Backend JSON was provided as a full string
     if (options.stringExists("backend-json"))
     {
-        m_noiseConfig = std::make_shared<IBMNoiseModel>(options.getString("backend-json"));
+        m_noiseConfig = xacc::getService<xacc::NoiseModel>("IBM");
+        m_noiseConfig->initialize({{"backend-json", options.getString("backend-json")}});        
+    }
+    // Backend was referred to by name
+    // e.g. ibmq_ourense
+    if (options.stringExists("backend"))
+    {
+        m_noiseConfig = xacc::getService<xacc::NoiseModel>("IBM");
+        m_noiseConfig->initialize({{"backend", options.getString("backend")}});        
     }
     // DEBUG
     // printDensityMatrix(m_pmpsTensorNetwork, m_buffer->size());
@@ -735,15 +665,10 @@ void ExaTnPmpsVisitor::applySingleQubitGate(xacc::quantum::Gate& in_gateInstruct
     // Apply noise (Kraus) Op
     if (m_noiseConfig) 
     {
-        const auto adNoiseAmpls = m_noiseConfig->calculateAmplitudeDamping(in_gateInstruction);
-        assert(adNoiseAmpls.size() == 1);
-        const auto dpNoiseAmpls = m_noiseConfig->calculateDepolarizing(in_gateInstruction, adNoiseAmpls);
-        assert(dpNoiseAmpls.size() == 1);
-        auto krausTensor = constructKrausTensor(KrausAmpl(adNoiseAmpls[0], dpNoiseAmpls[0]));
-        // Non-zero noise channels
-        if (krausTensor)
+        const auto noiseOps = m_noiseConfig->gateError(in_gateInstruction);
+        for (const auto& op : noiseOps)
         {
-            applyLocalKrausOp(bitIdx, krausTensor->getName());
+            applyKrausOp(op);
         }
     }
 }
@@ -771,23 +696,33 @@ void ExaTnPmpsVisitor::applyTwoQubitGate(xacc::quantum::Gate& in_gateInstruction
     // Apply noise (Kraus) Op
     if (m_noiseConfig) 
     {
-        const auto noiseAmpls = m_noiseConfig->calculateAmplitudeDamping(in_gateInstruction);
-        assert(noiseAmpls.size() == 2);
-        // We only support AD atm
-        auto krausTensor1 = constructKrausTensor(KrausAmpl(noiseAmpls[0], 0.0));
-        // Non-zero noise channels
-        if (krausTensor1)
+        const auto noiseOps = m_noiseConfig->gateError(in_gateInstruction);
+        for (const auto& op : noiseOps)
         {
-            applyLocalKrausOp(in_gateInstruction.bits()[0], krausTensor1->getName());
-        }
-
-        auto krausTensor2 = constructKrausTensor(KrausAmpl(noiseAmpls[1], 0.0));
-        // Non-zero noise channels
-        if (krausTensor2)
-        {
-            applyLocalKrausOp(in_gateInstruction.bits()[1], krausTensor2->getName());
+            applyKrausOp(op);
         }
     }
+}
+void ExaTnPmpsVisitor::applyKrausOp(const xacc::KrausOp& in_op) 
+{
+    static size_t krausTensorCounter = 0;
+    ++krausTensorCounter;
+    
+    auto krausTensor = std::make_shared<exatn::Tensor>("__KRAUS__" + std::to_string(krausTensorCounter), exatn::TensorShape{2, 2, 2, 2});
+    const bool created = exatn::createTensorSync(krausTensor, exatn::TensorElementType::COMPLEX64);
+    assert(created);
+    std::vector<std::complex<double>> krausVec;
+    krausVec.reserve(in_op.mats.size() * in_op.mats.size());
+    for (const auto &row : in_op.mats) 
+    {
+      for (const auto &entry : row) 
+      {
+        krausVec.emplace_back(entry);
+      }
+    }
+    const bool initialized = exatn::initTensorDataSync(krausTensor->getName(), krausVec);
+    assert(initialized);
+    applyLocalKrausOp(in_op.qubit, krausTensor->getName());
 }
 
 void ExaTnPmpsVisitor::applyLocalKrausOp(size_t in_siteId, const std::string& in_opTensorName)
@@ -935,6 +870,8 @@ void ExaTnPmpsVisitor::applyLocalKrausOp(size_t in_siteId, const std::string& in
     destroyed = exatn::destroyTensorSync(mergedTensor->getName());
     assert(destroyed);
     destroyed = exatn::destroyTensorSync(RESULT_TENSOR_NAME);
+    assert(destroyed);
+    destroyed = exatn::destroyTensorSync(in_opTensorName);
     assert(destroyed);
 }
 
