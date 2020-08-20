@@ -70,6 +70,7 @@ public:
     void applyKrausOp(const xacc::KrausOp& in_op);
     // Apply a local (single-site) Kraus operator
     void applyLocalKrausOp(size_t in_siteId, const std::string& in_opTensorName);
+    void truncateSvdTensors(const std::string& in_leftTensorName, const std::string& in_rightTensorName, double in_eps = 1e-9);
 private:
     exatn::TensorNetwork m_pmpsTensorNetwork;
     std::shared_ptr<AcceleratorBuffer> m_buffer;
