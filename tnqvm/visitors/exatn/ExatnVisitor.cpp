@@ -693,6 +693,8 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
   }
 
   // Calculates the amplitude of a specific bitstring
+  // or the partial (slice) wave function.
+  // The open indices are denoted by "-1" value.
   if (options.keyExists<std::vector<int>>("bitstring"))
   {
     std::vector<int> bitString = options.get<std::vector<int>>("bitstring");
@@ -702,30 +704,50 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
       return;
     }
 
+    // If there are open qubit indices denoted by '-1' bit values:
+    const bool isPartialWaveFuncCalc = xacc::container::contains(bitString, -1);
+
     const auto constructBraNetwork = [&](const std::vector<int>& in_bitString){
       int tensorIdCounter = 1;
       TensorNetwork braTensorNet("bra");
       // Create the qubit register tensor
       for (int i = 0; i < in_bitString.size(); ++i) {
-        const std::string braQubitName = "QB" + std::to_string(i);
-        const bool created = exatn::createTensor(
-            braQubitName, getExatnElementType(),
-            TensorShape{2});
-        assert(created);
         const auto bitVal = in_bitString[i];
+        const std::string braQubitName = "QB" + std::to_string(i);
         if (bitVal == 0)
         {
+          const bool created = exatn::createTensor(
+            braQubitName, getExatnElementType(),
+            TensorShape{2});
+          assert(created);
           // Bit = 0
           const bool initialized = exatn::initTensorData(braQubitName, std::vector<TNQVM_COMPLEX_TYPE>{{1.0, 0.0}, {0.0, 0.0}});
           assert(initialized);
         }
-        else
+        else if (bitVal == 0)
         {
+          const bool created = exatn::createTensor(
+            braQubitName, getExatnElementType(),
+            TensorShape{2});
+          assert(created);
           // Bit = 1
           const bool initialized = exatn::initTensorData(braQubitName, std::vector<TNQVM_COMPLEX_TYPE>{{0.0, 0.0}, {1.0, 0.0}});
           assert(initialized);
         }
-
+        else if (bitVal == -1) 
+        {
+          // Add an Id tensor
+          const bool created = exatn::createTensor(
+            braQubitName, getExatnElementType(),
+            TensorShape{2, 2});
+          assert(created);
+          const bool initialized = exatn::initTensorData(braQubitName, std::vector<TNQVM_COMPLEX_TYPE>{{1.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {1.0, 0.0}});
+          assert(initialized);
+        }
+        else 
+        {
+          xacc::error("Unknown values of '" + std::to_string(bitVal) + "' encountered.");
+        }
         braTensorNet.appendTensor(
           tensorIdCounter, exatn::getTensor(braQubitName),
           std::vector<std::pair<unsigned int, unsigned int>>{});
@@ -749,6 +771,7 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
     // combinedTensorNetwork.printIt();
 
     TNQVM_COMPLEX_TYPE result = 0.0;
+    std::vector<TNQVM_COMPLEX_TYPE> waveFnSlice;
     {
       TNQVM_TELEMETRY_ZONE("exatn::evaluateSync", __FILE__, __LINE__);
       // std::cout << "SUBMIT TENSOR NETWORK FOR EVALUATION\n";
@@ -756,16 +779,42 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
         exatn::sync();
         auto talsh_tensor =
           exatn::getLocalTensor(combinedTensorNetwork.getTensor(0)->getName());
-        assert(talsh_tensor->getVolume() == 1);
+        assert(isPartialWaveFuncCalc || talsh_tensor->getVolume() == 1);
         const TNQVM_COMPLEX_TYPE *body_ptr;
-        if (talsh_tensor->getDataAccessHostConst(&body_ptr)) {
-          result = *body_ptr;
+        if (talsh_tensor->getDataAccessHostConst(&body_ptr)) 
+        {
+          if (!isPartialWaveFuncCalc) 
+          {
+            result = *body_ptr;
+          }
+          else
+          {
+            waveFnSlice.assign(body_ptr, body_ptr + talsh_tensor->getVolume());
+          }
         }
      }
     }
 
-    m_buffer->addExtraInfo("amplitude-real", result.real());
-    m_buffer->addExtraInfo("amplitude-imag", result.imag());
+    if (!isPartialWaveFuncCalc)
+    {
+      m_buffer->addExtraInfo("amplitude-real", result.real());
+      m_buffer->addExtraInfo("amplitude-imag", result.imag());
+    }
+    else
+    {
+      assert(!waveFnSlice.empty());
+      std::vector<double> amplReal;
+      std::vector<double> amplImag;
+      amplReal.reserve(waveFnSlice.size());
+      amplImag.reserve(waveFnSlice.size());
+      for (const auto& val : waveFnSlice)
+      {
+        amplReal.emplace_back(val.real());
+        amplImag.emplace_back(val.imag());
+      }
+      m_buffer->addExtraInfo("amplitude-real-vec", amplReal);
+      m_buffer->addExtraInfo("amplitude-imag-vec", amplImag);  
+    }
     
     // Destroy bra tensors
     for (int i = 0; i < m_buffer->size(); ++i) {
