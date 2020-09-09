@@ -706,7 +706,9 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
 
     // If there are open qubit indices denoted by '-1' bit values:
     const bool isPartialWaveFuncCalc = xacc::container::contains(bitString, -1);
-
+    // Closing the tensor network with the bra
+    std::vector<std::pair<unsigned int, unsigned int>> pairings;
+    int nbOpenLegs = 0;
     const auto constructBraNetwork = [&](const std::vector<int>& in_bitString){
       int tensorIdCounter = 1;
       TensorNetwork braTensorNet("bra");
@@ -723,8 +725,9 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
           // Bit = 0
           const bool initialized = exatn::initTensorData(braQubitName, std::vector<TNQVM_COMPLEX_TYPE>{{1.0, 0.0}, {0.0, 0.0}});
           assert(initialized);
+          pairings.emplace_back(std::make_pair(i, i + nbOpenLegs));
         }
-        else if (bitVal == 0)
+        else if (bitVal == 1)
         {
           const bool created = exatn::createTensor(
             braQubitName, getExatnElementType(),
@@ -733,6 +736,7 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
           // Bit = 1
           const bool initialized = exatn::initTensorData(braQubitName, std::vector<TNQVM_COMPLEX_TYPE>{{0.0, 0.0}, {1.0, 0.0}});
           assert(initialized);
+          pairings.emplace_back(std::make_pair(i, i + nbOpenLegs));
         }
         else if (bitVal == -1) 
         {
@@ -743,6 +747,8 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
           assert(created);
           const bool initialized = exatn::initTensorData(braQubitName, std::vector<TNQVM_COMPLEX_TYPE>{{1.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {1.0, 0.0}});
           assert(initialized);
+          pairings.emplace_back(std::make_pair(i, i + nbOpenLegs));
+          nbOpenLegs++;
         }
         else 
         {
@@ -760,12 +766,7 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
     auto braTensors = constructBraNetwork(bitString);
     braTensors.conjugate();
     auto combinedTensorNetwork = m_tensorNetwork;
-    // Closing the tensor network with the bra
-    std::vector<std::pair<unsigned int, unsigned int>> pairings;
-    for (unsigned int i = 0; i < m_buffer->size(); ++i)
-    {
-      pairings.emplace_back(std::make_pair(i, i));
-    }
+    assert(pairings.size() == m_buffer->size());
     combinedTensorNetwork.appendTensorNetwork(std::move(braTensors), pairings);
     combinedTensorNetwork.collapseIsometries();
     // combinedTensorNetwork.printIt();
@@ -803,6 +804,21 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
     else
     {
       assert(!waveFnSlice.empty());
+      const auto normalizeWaveFnSlice = [](std::vector<TNQVM_COMPLEX_TYPE>& io_waveFn){
+        const double normVal = std::accumulate(io_waveFn.begin(), io_waveFn.end(), 0.0, [](double sumVal, const TNQVM_COMPLEX_TYPE& val){
+          return sumVal + std::norm(val);
+        }); 
+        // The slice may have zero norm:
+        if (normVal > 1e-12) {
+          const TNQVM_COMPLEX_TYPE sqrtNorm = sqrt(normVal);
+          for (auto& val : io_waveFn)
+          {
+            val = val / sqrtNorm;
+          }
+        }
+      };
+
+      normalizeWaveFnSlice(waveFnSlice);
       std::vector<double> amplReal;
       std::vector<double> amplImag;
       amplReal.reserve(waveFnSlice.size());

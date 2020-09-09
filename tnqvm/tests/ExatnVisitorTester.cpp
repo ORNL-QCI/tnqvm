@@ -530,6 +530,129 @@ TEST(ExatnVisitorTester, testSinglePrecision) {
   }
 }
 
+TEST(ExatnVisitorTester, testBitStringAmplitude)
+{
+  auto xasmCompiler = xacc::getCompiler("xasm");
+  auto ir = xasmCompiler->compile(R"(__qpu__ void testGhz1(qbit q) {
+    H(q[0]);
+    for (int i = 1; i < 50; i++) {
+      CX(q[0], q[i]); 
+    }
+  })", nullptr);
+  auto program = ir->getComposites()[0]; 
+  std::cout << "PROGRAM:\n" << program->toString() << "\n";
+
+  {
+    // All zero's
+    const std::vector<int> bitstring(50, 0);
+    auto qpu = xacc::getAccelerator("tnqvm",
+                                    {
+                                      std::make_pair("tnqvm-visitor", "exatn"),
+                                      std::make_pair("bitstring", bitstring),
+                                    });
+    
+    auto buffer = xacc::qalloc(50);
+    qpu->execute(buffer, program);  
+    buffer->print();
+    const double realAmpl = (*buffer)["amplitude-real"].as<double>();
+    const double imagAmpl = (*buffer)["amplitude-imag"].as<double>();
+    EXPECT_NEAR(realAmpl, M_SQRT1_2, 1e-6);
+    EXPECT_NEAR(imagAmpl, 0.0, 1e-6);
+  }
+  {
+    // All one's
+    const std::vector<int> bitstring(50, 1);
+    auto qpu = xacc::getAccelerator("tnqvm",
+                                    {
+                                      std::make_pair("tnqvm-visitor", "exatn"),
+                                      std::make_pair("bitstring", bitstring),
+                                    });
+    
+    auto buffer = xacc::qalloc(50);
+    qpu->execute(buffer, program);  
+    buffer->print();
+    const double realAmpl = (*buffer)["amplitude-real"].as<double>();
+    const double imagAmpl = (*buffer)["amplitude-imag"].as<double>();
+    EXPECT_NEAR(realAmpl, M_SQRT1_2, 1e-6);
+    EXPECT_NEAR(imagAmpl, 0.0, 1e-6);
+  }
+  {
+    // Other state:
+    std::vector<int> bitstring(50, 1);
+    bitstring[4] = 0;
+    auto qpu = xacc::getAccelerator("tnqvm",
+                                    {
+                                      std::make_pair("tnqvm-visitor", "exatn"),
+                                      std::make_pair("bitstring", bitstring),
+                                    });
+    
+    auto buffer = xacc::qalloc(50);
+    qpu->execute(buffer, program);  
+    buffer->print();
+    const double realAmpl = (*buffer)["amplitude-real"].as<double>();
+    const double imagAmpl = (*buffer)["amplitude-imag"].as<double>();
+    // Zero amplitude
+    EXPECT_NEAR(realAmpl, 0.0, 1e-6);
+    EXPECT_NEAR(imagAmpl, 0.0, 1e-6);
+  }
+  {
+    // Wave function slice:
+    std::vector<int> bitstring(50, 0);
+    // Open 2 qubits
+    bitstring[5] = -1;
+    bitstring[35] = -1;
+    auto qpu = xacc::getAccelerator("tnqvm",
+                                    {
+                                      std::make_pair("tnqvm-visitor", "exatn"),
+                                      std::make_pair("bitstring", bitstring),
+                                    });
+    
+    auto buffer = xacc::qalloc(50);
+    qpu->execute(buffer, program);  
+    buffer->print();
+    const auto realAmpl = (*buffer)["amplitude-real-vec"].as<std::vector<double>>();
+    const auto imagAmpl = (*buffer)["amplitude-imag-vec"].as<std::vector<double>>();
+    // Open 2 legs
+    EXPECT_EQ(realAmpl.size(), 4);
+    EXPECT_EQ(imagAmpl.size(), 4);
+    for (size_t i = 0; i < 4; ++i) {
+      EXPECT_NEAR(imagAmpl[i], 0.0, 1e-9);
+      EXPECT_NEAR(realAmpl[i], i == 0 ? 1.0 : 0.0, 1e-9);
+    }
+  }
+  auto program2 = xasmCompiler->compile(R"(__qpu__ void testEqualDist(qbit q) {
+    for (int i = 0; i < 5; i++) {
+      H(q[i]);
+    }
+  })", nullptr)->getComposites()[0];
+  std::cout << "PROGRAM:\n" << program2->toString() << "\n";
+  {
+    // Wave function slice:
+    std::vector<int> bitstring(5, 0);
+    bitstring[2] = -1;
+    bitstring[4] = -1;
+    auto qpu = xacc::getAccelerator("tnqvm",
+                                    {
+                                      std::make_pair("tnqvm-visitor", "exatn"),
+                                      std::make_pair("bitstring", bitstring),
+                                    });
+    
+    auto buffer = xacc::qalloc(5);
+    qpu->execute(buffer, program2);  
+    buffer->print();
+    const auto realAmpl = (*buffer)["amplitude-real-vec"].as<std::vector<double>>();
+    const auto imagAmpl = (*buffer)["amplitude-imag-vec"].as<std::vector<double>>();
+    // Open 2 legs
+    EXPECT_EQ(realAmpl.size(), 4);
+    EXPECT_EQ(imagAmpl.size(), 4);
+    for (size_t i = 0; i < 4; ++i) {
+      EXPECT_NEAR(imagAmpl[i], 0.0, 1e-9);
+      // Equal distribution:
+      EXPECT_NEAR(realAmpl[i], 0.5, 1e-9);
+    }
+  }
+}
+
 int main(int argc, char **argv) 
 {
   xacc::Initialize();
