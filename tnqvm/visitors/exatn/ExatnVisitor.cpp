@@ -1158,12 +1158,24 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::appendGateTensor(const xacc::Instruction 
   }
 
   // Append the tensor for this gate to the network
-  m_tensorNetwork.appendTensorGate(
+  const bool appended = m_tensorNetwork.appendTensorGate(
       m_tensorIdCounter,
       // Get the gate tensor data which must have been initialized.
       exatn::getTensor(uniqueGateName),
       // which qubits that the gate is acting on
       gatePairing);
+  if (!appended) {
+    const std::string gatePairingString = [&gatePairing](){
+      std::stringstream ss;
+      ss << "{";
+      for (const auto& pairIdx : gatePairing) {
+        ss << pairIdx << ",";
+      }
+      ss << "}";
+      return ss.str();
+    }();
+    xacc::error("Failed to append tensor for gate " + in_gateInstruction.name() + ", pairing = " + gatePairingString);
+  }
 }
 
 template<typename TNQVM_COMPLEX_TYPE>
