@@ -36,6 +36,8 @@
 #include "TNQVMVisitor.hpp"
 #include <cassert>
 
+// Documentation: https://xacc.readthedocs.io/en/latest/extensions.html#tnqvm
+
 namespace tnqvm {
 
 class TNQVM : public Accelerator {

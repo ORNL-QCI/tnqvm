@@ -4,6 +4,20 @@
 #include "GateTensorAggregator.hpp"
 #include "tensor_network.hpp"
 
+// MPS visitor:
+// Name: "exatn-mps"
+// Supported initialization keys:
+// +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
+// |  Initialization Parameter   |                  Parameter Description                                 |    type     |         default          |
+// +=============================+========================================================================+=============+==========================+
+// | svd-cutoff                  | SVD cut-off limit.                                                     |    double   | numeric_limits::min      |
+// +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
+// | max-bond-dim                | Max bond dimension to keep.                                            |    int      | no limit                 |
+// +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
+// | mpi-communicator            | The MPI communicator to initialize ExaTN runtime with.                 |    void*    | <unused>                 |
+// |                             | If not provided, by default, ExaTN will use `MPI_COMM_WORLD`.          |             |                          |
+// +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
+
 namespace tnqvm {
 class ExatnMpsVisitor : public TNQVMVisitor, public IAggregatorListener
 {

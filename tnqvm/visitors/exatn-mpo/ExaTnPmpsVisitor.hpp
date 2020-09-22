@@ -4,6 +4,18 @@
 #include "tensor_network.hpp"
 #include "exatn.hpp"
 
+// Purified-MPS visitor:
+// Name: "exatn-pmps"
+// Supported initialization keys:
+// +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
+// |  Initialization Parameter   |                  Parameter Description                                 |    type     |         default          |
+// +=============================+========================================================================+=============+==========================+
+// | backend-json                | Backend configuration JSON to estimate the noise model from.           |    string   | None                     |
+// +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
+// | backend                     | Name of the IBMQ backend to query the backend configuration.           |    string   | None                     |
+// +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
+// If either `backend-json` or `backend` is provided, the `exatn-pmps` simulator will simulate the backend noise associated with each quantum gate.
+
 namespace xacc {
 // Forward declaration
 class NoiseModel;

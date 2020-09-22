@@ -44,6 +44,42 @@ using namespace xacc;
 using namespace xacc::quantum;
 using TensorFunctor = talsh::TensorFunctor<exatn::Identifiable>;
 
+// Full tensor network contraction visitor:
+// Name: "exatn"
+// Tensor element floating-point precision (float/double) can be specified using:
+// "exatn:float" or "exatn:double"
+// Default is *double* if not provided.
+// Supported initialization keys:
+// +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
+// |  Initialization Parameter   |                  Parameter Description                                 |    type     |         default          |
+// +=============================+========================================================================+=============+==========================+
+// | exatn-buffer-size-gb        | ExaTN's host memory buffer size (in GB)                                |    int      | 8 (GB)                   |
+// +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
+// | exatn-contract-seq-optimizer| ExaTN's contraction sequence optimizer to use.                         |    string   | metis                    |
+// +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
+// | calc-contract-cost-flops    | Estimate the Flops and Memory requirements only (no tensor contraction)|    bool     | false                    |
+// |                             | If true, the following info will be added to the AcceleratorBuffer:    |             |                          |
+// |                             | - `contract-flops`: Flops count.                                       |             |                          |
+// |                             | - `max-node-bytes`: Max intermediate tensor size in memory.            |             |                          |
+// |                             | - `optimizer-elapsed-time-ms`: optimization walltime.                  |             |                          |
+// +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
+// | bitstring                   | If provided, the output amplitude/partial state vector associated with | vector<int> | <unused>                 |
+// |                             | that `bitstring` will be computed.                                     |             |                          |
+// |                             | The length of the input `bitstring` must match the number of qubits.   |             |                          |
+// |                             | Non-projected bits (partial state vector) are indicated by `-1` values.|             |                          |
+// |                             | Returned values in the AcceleratorBuffer:                              |             |                          |
+// |                             | - `amplitude-real`/`amplitude-real-vec`: Real part of the result.      |             |                          |
+// |                             | - `amplitude-imag`/`amplitude-imag-vec`: Imaginary part of the result. |             |                          |
+// +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
+// | contract-with-conjugate     | If true, we append the conjugate of the input circuit.                 |    bool     | false                    |
+// |                             | This is used to validate internal tensor contraction.                  |             |                          |
+// |                             | `contract-with-conjugate-result` key in the AcceleratorBuffer will be  |             |                          |
+// |                             | set to `true` if the validation is successful.                         |             |                          |
+// +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
+// | mpi-communicator            | The MPI communicator to initialize ExaTN runtime with.                 |    void*    | <unused>                 |
+// |                             | If not provided, by default, ExaTN will use `MPI_COMM_WORLD`.          |             |                          |
+// +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
+
 namespace tnqvm {
     // Simple struct to identify a concrete quantum gate instance,
     // For example, parametric gates, e.g. Rx(theta), will have an instance for each value of theta
