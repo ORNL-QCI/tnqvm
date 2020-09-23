@@ -786,13 +786,38 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
       const size_t nbProjectedQubits = m_buffer->size() - m_maxQubit;
       // The number of paths we need to reduce.
       const int64_t nbProjectedPaths = (1ULL << nbProjectedQubits);
-      std::cout << "Max qubit = " << m_maxQubit << "\n";
       // Strategy:
       // Q0 -> Q(m_maxQubit - 1): compute slice
       // The rest (nbProjectedQubits): we sequence through nbProjectedPaths to
       // compute partial expectations for all slices then reduce.
-      std::cout << "Here\n";
-
+      // Loop to be parallelized 
+      std::vector<double> partialExpectationValues;
+      partialExpectationValues.reserve(nbProjectedPaths);
+      bool evenParity = true;
+      for (int i = 0; i < nbProjectedPaths; ++i) {
+        // Open legs: 0-m_maxQubit
+        std::vector<int> bitString(m_maxQubit, -1);
+        for (int64_t bitIdx = 0; bitIdx < nbProjectedQubits; ++bitIdx) {
+          const int globalQid = bitIdx + m_maxQubit;
+          const int64_t bitMask = 1ULL << bitIdx;
+          if ((i & bitMask) == bitMask) {
+            bitString.emplace_back(1);
+            if (xacc::container::contains(m_measureQbIdx, globalQid)) {
+              // Flip even parity flag
+              evenParity = !evenParity;
+            }
+          }
+          else {
+            bitString.emplace_back(0);
+          }
+        }
+        std::vector<TNQVM_COMPLEX_TYPE> waveFuncSlice = computeWaveFuncSlice(m_tensorNetwork, bitString); 
+        const double exp_val_z = calcExpValueZ(m_measureQbIdx, waveFuncSlice);
+        partialExpectationValues[i] = evenParity ? exp_val_z : -exp_val_z;
+      }
+      
+      const auto finalExpVal = std::accumulate(partialExpectationValues.begin(), partialExpectationValues.end(), 0.0);
+      m_buffer->addExtraInfo("exp-val-z", finalExpVal);
     } else {
       if (!m_hasEvaluated) {
         // If we haven't evaluated the network, do it now (end of circuit).
