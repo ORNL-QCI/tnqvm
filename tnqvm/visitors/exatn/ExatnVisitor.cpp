@@ -491,7 +491,12 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::initialize(std::shared_ptr<AcceleratorBuf
   m_kernelName = "Quantum Circuit";
   // TEMP CODE:
   // TODO: set this based on memory buffer or user inputs
-  m_maxQubit = 20;
+  m_maxQubit = 30;
+  if (options.keyExists<int>("max-qubit")) 
+  {
+    m_maxQubit = options.get<int>("max-qubit");
+    xacc::info("Set max qubit to " + m_maxQubit);
+  }
   // Create the qubit register tensor
   for (int i = 0; i < m_buffer->size(); ++i) {
     const bool created = exatn::createTensor(
@@ -791,8 +796,7 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
       // The rest (nbProjectedQubits): we sequence through nbProjectedPaths to
       // compute partial expectations for all slices then reduce.
       // Loop to be parallelized 
-      std::vector<double> partialExpectationValues;
-      partialExpectationValues.reserve(nbProjectedPaths);
+      std::vector<double> partialExpectationValues(nbProjectedPaths);
       bool evenParity = true;
       for (int i = 0; i < nbProjectedPaths; ++i) {
         // Open legs: 0-m_maxQubit
@@ -815,7 +819,6 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
         const double exp_val_z = calcExpValueZ(m_measureQbIdx, waveFuncSlice);
         partialExpectationValues[i] = evenParity ? exp_val_z : -exp_val_z;
       }
-      
       const auto finalExpVal = std::accumulate(partialExpectationValues.begin(), partialExpectationValues.end(), 0.0);
       m_buffer->addExtraInfo("exp-val-z", finalExpVal);
     } else {
