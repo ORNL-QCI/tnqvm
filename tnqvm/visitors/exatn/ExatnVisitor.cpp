@@ -59,7 +59,7 @@ std::string generateQubitTensorName(int qubitIndex) {
 // The max number of qubits that we allow full state vector contraction.
 // Above this limit, only tensor-based calculation is allowed.
 // e.g. simulating bit-string measurement by tensor contraction.
-const int MAX_NUMBER_QUBITS_FOR_STATE_VEC = 20;
+const int MAX_NUMBER_QUBITS_FOR_STATE_VEC = 50;
 
 // Max memory size: 8GB
 const int64_t MAX_TALSH_MEMORY_BUFFER_SIZE_BYTES = 8 * (1ULL << 30);
@@ -489,6 +489,9 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::initialize(std::shared_ptr<AcceleratorBuf
   m_shots = nbShots;
   // Generic kernel name:
   m_kernelName = "Quantum Circuit";
+  // TEMP CODE:
+  // TODO: set this based on memory buffer or user inputs
+  m_maxQubit = 20;
   // Create the qubit register tensor
   for (int i = 0; i < m_buffer->size(); ++i) {
     const bool created = exatn::createTensor(
@@ -704,106 +707,15 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
       return;
     }
 
-    // If there are open qubit indices denoted by '-1' bit values:
-    const bool isPartialWaveFuncCalc = xacc::container::contains(bitString, -1);
-    // Closing the tensor network with the bra
-    std::vector<std::pair<unsigned int, unsigned int>> pairings;
-    int nbOpenLegs = 0;
-    const auto constructBraNetwork = [&](const std::vector<int>& in_bitString){
-      int tensorIdCounter = 1;
-      TensorNetwork braTensorNet("bra");
-      // Create the qubit register tensor
-      for (int i = 0; i < in_bitString.size(); ++i) {
-        const auto bitVal = in_bitString[i];
-        const std::string braQubitName = "QB" + std::to_string(i);
-        if (bitVal == 0)
-        {
-          const bool created = exatn::createTensor(
-            braQubitName, getExatnElementType(),
-            TensorShape{2});
-          assert(created);
-          // Bit = 0
-          const bool initialized = exatn::initTensorData(braQubitName, std::vector<TNQVM_COMPLEX_TYPE>{{1.0, 0.0}, {0.0, 0.0}});
-          assert(initialized);
-          pairings.emplace_back(std::make_pair(i, i + nbOpenLegs));
-        }
-        else if (bitVal == 1)
-        {
-          const bool created = exatn::createTensor(
-            braQubitName, getExatnElementType(),
-            TensorShape{2});
-          assert(created);
-          // Bit = 1
-          const bool initialized = exatn::initTensorData(braQubitName, std::vector<TNQVM_COMPLEX_TYPE>{{0.0, 0.0}, {1.0, 0.0}});
-          assert(initialized);
-          pairings.emplace_back(std::make_pair(i, i + nbOpenLegs));
-        }
-        else if (bitVal == -1) 
-        {
-          // Add an Id tensor
-          const bool created = exatn::createTensor(
-            braQubitName, getExatnElementType(),
-            TensorShape{2, 2});
-          assert(created);
-          const bool initialized = exatn::initTensorData(braQubitName, std::vector<TNQVM_COMPLEX_TYPE>{{1.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {1.0, 0.0}});
-          assert(initialized);
-          pairings.emplace_back(std::make_pair(i, i + nbOpenLegs));
-          nbOpenLegs++;
-        }
-        else 
-        {
-          xacc::error("Unknown values of '" + std::to_string(bitVal) + "' encountered.");
-        }
-        braTensorNet.appendTensor(
-          tensorIdCounter, exatn::getTensor(braQubitName),
-          std::vector<std::pair<unsigned int, unsigned int>>{});
-        tensorIdCounter++;
-      }
-
-      return braTensorNet;
-    };
-
-    auto braTensors = constructBraNetwork(bitString);
-    braTensors.conjugate();
-    auto combinedTensorNetwork = m_tensorNetwork;
-    assert(pairings.size() == m_buffer->size());
-    combinedTensorNetwork.appendTensorNetwork(std::move(braTensors), pairings);
-    combinedTensorNetwork.collapseIsometries();
-    // combinedTensorNetwork.printIt();
-
-    TNQVM_COMPLEX_TYPE result = 0.0;
-    std::vector<TNQVM_COMPLEX_TYPE> waveFnSlice;
+    std::vector<TNQVM_COMPLEX_TYPE> waveFuncSlice = computeWaveFuncSlice(m_tensorNetwork, bitString); 
+    assert(!waveFuncSlice.empty());
+    if (waveFuncSlice.size() == 1)
     {
-      TNQVM_TELEMETRY_ZONE("exatn::evaluateSync", __FILE__, __LINE__);
-      // std::cout << "SUBMIT TENSOR NETWORK FOR EVALUATION\n";
-      if (exatn::evaluateSync(combinedTensorNetwork)) {
-        exatn::sync();
-        auto talsh_tensor =
-          exatn::getLocalTensor(combinedTensorNetwork.getTensor(0)->getName());
-        assert(isPartialWaveFuncCalc || talsh_tensor->getVolume() == 1);
-        const TNQVM_COMPLEX_TYPE *body_ptr;
-        if (talsh_tensor->getDataAccessHostConst(&body_ptr)) 
-        {
-          if (!isPartialWaveFuncCalc) 
-          {
-            result = *body_ptr;
-          }
-          else
-          {
-            waveFnSlice.assign(body_ptr, body_ptr + talsh_tensor->getVolume());
-          }
-        }
-     }
-    }
-
-    if (!isPartialWaveFuncCalc)
-    {
-      m_buffer->addExtraInfo("amplitude-real", result.real());
-      m_buffer->addExtraInfo("amplitude-imag", result.imag());
+      m_buffer->addExtraInfo("amplitude-real", waveFuncSlice[0].real());
+      m_buffer->addExtraInfo("amplitude-imag", waveFuncSlice[1].imag());
     }
     else
     {
-      assert(!waveFnSlice.empty());
       const auto normalizeWaveFnSlice = [](std::vector<TNQVM_COMPLEX_TYPE>& io_waveFn){
         const double normVal = std::accumulate(io_waveFn.begin(), io_waveFn.end(), 0.0, [](double sumVal, const TNQVM_COMPLEX_TYPE& val){
           return sumVal + std::norm(val);
@@ -818,25 +730,18 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
         }
       };
 
-      normalizeWaveFnSlice(waveFnSlice);
+      normalizeWaveFnSlice(waveFuncSlice);
       std::vector<double> amplReal;
       std::vector<double> amplImag;
-      amplReal.reserve(waveFnSlice.size());
-      amplImag.reserve(waveFnSlice.size());
-      for (const auto& val : waveFnSlice)
+      amplReal.reserve(waveFuncSlice.size());
+      amplImag.reserve(waveFuncSlice.size());
+      for (const auto& val : waveFuncSlice)
       {
         amplReal.emplace_back(val.real());
         amplImag.emplace_back(val.imag());
       }
       m_buffer->addExtraInfo("amplitude-real-vec", amplReal);
       m_buffer->addExtraInfo("amplitude-imag-vec", amplImag);  
-    }
-    
-    // Destroy bra tensors
-    for (int i = 0; i < m_buffer->size(); ++i) {
-      const std::string braQubitName = "QB" + std::to_string(i);
-      const bool destroyed = exatn::destroyTensor(braQubitName);
-      assert(destroyed);
     }
 
     m_buffer.reset();
@@ -859,7 +764,7 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
 
   if (m_buffer->size() > MAX_NUMBER_QUBITS_FOR_STATE_VEC && !m_measureQbIdx.empty() && m_shots > 0 && !m_hasEvaluated)
   {
-    std::cout << "Simulating bit string by MPS tensor contraction\n";
+    std::cout << "Simulating bit string by tensor contraction and projection \n";
     for (int i = 0; i < m_shots; ++i)
     {
       const auto convertToBitString = [](const std::vector<uint8_t>& in_bitVec){
@@ -876,34 +781,48 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
   }
   else
   {
-    if (!m_hasEvaluated) {
-      // If we haven't evaluated the network, do it now (end of circuit).
-      evaluateNetwork();
-    }
-    // Shots
-    if (m_shots > 0) {
-      const auto cachedStateVec = retrieveStateVector();
-      for (int i = 0; i < m_shots; ++i) {
-        auto stateVecCopy = cachedStateVec;
-        for (const auto &idx : m_measureQbIdx) {
-          // Append the boolean true/false as bit value
-          m_resultBitString.append(std::to_string(ApplyMeasureOp(stateVecCopy, idx)));
-        }
-        // Finish measuring all qubits, append the bit-string measurement result.
-        m_buffer->appendMeasurement(m_resultBitString);
-        // Clear the result bit string after appending (to be constructed in the
-        // next shot)
-        m_resultBitString.clear();
+    if (m_buffer->size() > m_maxQubit) {
+      // Number of qubits we need to project.
+      const size_t nbProjectedQubits = m_buffer->size() - m_maxQubit;
+      // The number of paths we need to reduce.
+      const int64_t nbProjectedPaths = (1ULL << nbProjectedQubits);
+      std::cout << "Max qubit = " << m_maxQubit << "\n";
+      // Strategy:
+      // Q0 -> Q(m_maxQubit - 1): compute slice
+      // The rest (nbProjectedQubits): we sequence through nbProjectedPaths to
+      // compute partial expectations for all slices then reduce.
+      std::cout << "Here\n";
+
+    } else {
+      if (!m_hasEvaluated) {
+        // If we haven't evaluated the network, do it now (end of circuit).
+        evaluateNetwork();
       }
-    }
-    // No-shots, just add expectation value:
-    else
-    {
-      if (!m_measureQbIdx.empty())
-      {
-        const auto tensorData =  retrieveStateVector();
-        const double exp_val_z = calcExpValueZ(m_measureQbIdx, tensorData);
-        m_buffer->addExtraInfo("exp-val-z", exp_val_z);
+      // Shots
+      if (m_shots > 0) {
+        const auto cachedStateVec = retrieveStateVector();
+        for (int i = 0; i < m_shots; ++i) {
+          auto stateVecCopy = cachedStateVec;
+          for (const auto &idx : m_measureQbIdx) {
+            // Append the boolean true/false as bit value
+            m_resultBitString.append(
+                std::to_string(ApplyMeasureOp(stateVecCopy, idx)));
+          }
+          // Finish measuring all qubits, append the bit-string measurement
+          // result.
+          m_buffer->appendMeasurement(m_resultBitString);
+          // Clear the result bit string after appending (to be constructed in
+          // the next shot)
+          m_resultBitString.clear();
+        }
+      }
+      // No-shots, just add expectation value:
+      else {
+        if (!m_measureQbIdx.empty()) {
+          const auto tensorData = retrieveStateVector();
+          const double exp_val_z = calcExpValueZ(m_measureQbIdx, tensorData);
+          m_buffer->addExtraInfo("exp-val-z", exp_val_z);
+        }
       }
     }
 
@@ -1923,6 +1842,101 @@ bool ExatnVisitor<TNQVM_COMPLEX_TYPE>::validateTensorNetworkContraction(TensorNe
   }
 
   return false;
+}
+
+template <typename TNQVM_COMPLEX_TYPE>
+std::vector<TNQVM_COMPLEX_TYPE>
+ExatnVisitor<TNQVM_COMPLEX_TYPE>::computeWaveFuncSlice(
+    const TensorNetwork &in_tensorNetwork,
+    const std::vector<int> &bitString) const {
+  // Closing the tensor network with the bra
+  std::vector<std::pair<unsigned int, unsigned int>> pairings;
+  int nbOpenLegs = 0;
+  const auto constructBraNetwork = [&](const std::vector<int> &in_bitString) {
+    int tensorIdCounter = 1;
+    TensorNetwork braTensorNet("bra");
+    // Create the qubit register tensor
+    for (int i = 0; i < in_bitString.size(); ++i) {
+      const auto bitVal = in_bitString[i];
+      const std::string braQubitName = "QB" + std::to_string(i);
+      if (bitVal == 0) {
+        const bool created = exatn::createTensor(
+            braQubitName, getExatnElementType(), TensorShape{2});
+        assert(created);
+        // Bit = 0
+        const bool initialized = exatn::initTensorData(
+            braQubitName,
+            std::vector<TNQVM_COMPLEX_TYPE>{{1.0, 0.0}, {0.0, 0.0}});
+        assert(initialized);
+        pairings.emplace_back(std::make_pair(i, i + nbOpenLegs));
+      } else if (bitVal == 1) {
+        const bool created = exatn::createTensor(
+            braQubitName, getExatnElementType(), TensorShape{2});
+        assert(created);
+        // Bit = 1
+        const bool initialized = exatn::initTensorData(
+            braQubitName,
+            std::vector<TNQVM_COMPLEX_TYPE>{{0.0, 0.0}, {1.0, 0.0}});
+        assert(initialized);
+        pairings.emplace_back(std::make_pair(i, i + nbOpenLegs));
+      } else if (bitVal == -1) {
+        // Add an Id tensor
+        const bool created = exatn::createTensor(
+            braQubitName, getExatnElementType(), TensorShape{2, 2});
+        assert(created);
+        const bool initialized = exatn::initTensorData(
+            braQubitName, std::vector<TNQVM_COMPLEX_TYPE>{
+                              {1.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {1.0, 0.0}});
+        assert(initialized);
+        pairings.emplace_back(std::make_pair(i, i + nbOpenLegs));
+        nbOpenLegs++;
+      } else {
+        xacc::error("Unknown values of '" + std::to_string(bitVal) +
+                    "' encountered.");
+      }
+      braTensorNet.appendTensor(
+          tensorIdCounter, exatn::getTensor(braQubitName),
+          std::vector<std::pair<unsigned int, unsigned int>>{});
+      tensorIdCounter++;
+    }
+
+    return braTensorNet;
+  };
+
+  auto braTensors = constructBraNetwork(bitString);
+  braTensors.conjugate();
+  auto combinedTensorNetwork = in_tensorNetwork;
+  assert(pairings.size() == m_buffer->size());
+  combinedTensorNetwork.appendTensorNetwork(std::move(braTensors), pairings);
+  combinedTensorNetwork.collapseIsometries();
+  // combinedTensorNetwork.printIt();
+  std::vector<TNQVM_COMPLEX_TYPE> waveFnSlice;
+  {
+    TNQVM_TELEMETRY_ZONE("exatn::evaluateSync", __FILE__, __LINE__);
+    // std::cout << "SUBMIT TENSOR NETWORK FOR EVALUATION\n";
+    if (exatn::evaluateSync(combinedTensorNetwork)) {
+      exatn::sync();
+      auto talsh_tensor =
+          exatn::getLocalTensor(combinedTensorNetwork.getTensor(0)->getName());
+      const TNQVM_COMPLEX_TYPE *body_ptr;
+      if (talsh_tensor->getDataAccessHostConst(&body_ptr)) {
+        waveFnSlice.assign(body_ptr, body_ptr + talsh_tensor->getVolume());
+      }
+    }
+  }
+  // Destroy bra tensors
+  for (int i = 0; i < m_buffer->size(); ++i) {
+    const std::string braQubitName = "QB" + std::to_string(i);
+    const bool destroyed = exatn::destroyTensor(braQubitName);
+    assert(destroyed);
+  }
+  return waveFnSlice;
+}
+
+template <typename TNQVM_COMPLEX_TYPE>
+size_t ExatnVisitor<TNQVM_COMPLEX_TYPE>::getNumMpiProcs() const {
+  auto &process_group = exatn::getDefaultProcessGroup();
+  return process_group.getSize();
 }
 } // end namespace tnqvm
 

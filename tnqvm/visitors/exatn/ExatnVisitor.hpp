@@ -325,6 +325,11 @@ namespace tnqvm {
         // Validates tensor network contraction: tensor network + its conjugate.
         // Returns true if the result is 1.
         bool validateTensorNetworkContraction(TensorNetwork in_network) const; 
+        // Returns the number of MPI processes in the process group if using MPI.
+        // (returns 1 if not using MPI)
+        size_t getNumMpiProcs() const;
+        // Compute the wave-function slice or amplitude (if all bits are set): 
+        std::vector<TNQVM_COMPLEX_TYPE> computeWaveFuncSlice(const TensorNetwork& in_tensorNetwork, const std::vector<int>& in_bitString) const;
     private:
        TensorNetwork m_tensorNetwork;
        unsigned int m_tensorIdCounter;
@@ -360,6 +365,8 @@ namespace tnqvm {
        TensorNetwork m_qubitRegTensor;
        std::string m_kernelName;
        std::vector<TNQVM_COMPLEX_TYPE> m_cacheStateVec;
+       // Max number of qubits that we allow full wave function contraction.
+       size_t m_maxQubit;
        // Make the debug logger friend, e.g. retrieve internal states for logging purposes.
        friend class ExatnDebugLogger<TNQVM_COMPLEX_TYPE>;
     };
