@@ -333,6 +333,10 @@ namespace tnqvm {
         computeWaveFuncSlice(const TensorNetwork &in_tensorNetwork,
                              const std::vector<int> &in_bitString,
                              const exatn::ProcessGroup &in_processGroup) const;
+        double getExpectationValueZBySlicing(
+            std::shared_ptr<CompositeInstruction> in_function);
+
+        double getExpectationValueZBySlicing();
 
       private:
         TensorNetwork m_tensorNetwork;

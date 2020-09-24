@@ -795,159 +795,7 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
   else
   {
     if (m_buffer->size() > m_maxQubit) {
-      // Number of qubits we need to project.
-      const size_t nbProjectedQubits = m_buffer->size() - m_maxQubit;
-      // The number of paths we need to reduce.
-      const int64_t nbProjectedPaths = (1ULL << nbProjectedQubits);
-      // Strategy:
-      // Q0 -> Q(m_maxQubit - 1): compute slice
-      // The rest (nbProjectedQubits): we sequence through nbProjectedPaths to
-      // compute partial expectations for all slices then reduce.
-      // Loop to be parallelized 
-      if (getNumMpiProcs() <= 1) {
-        std::vector<double> partialExpectationValues(nbProjectedPaths);
-        bool evenParity = true;
-        for (int i = 0; i < nbProjectedPaths; ++i) {
-          // Open legs: 0-m_maxQubit
-          std::vector<int> bitString(m_maxQubit, -1);
-          for (int64_t bitIdx = 0; bitIdx < nbProjectedQubits; ++bitIdx) {
-            const int globalQid = bitIdx + m_maxQubit;
-            const int64_t bitMask = 1ULL << bitIdx;
-            if ((i & bitMask) == bitMask) {
-              bitString.emplace_back(1);
-              if (xacc::container::contains(m_measureQbIdx, globalQid)) {
-                // Flip even parity flag
-                evenParity = !evenParity;
-              }
-            } else {
-              bitString.emplace_back(0);
-            }
-          }
-          std::vector<TNQVM_COMPLEX_TYPE> waveFuncSlice =
-              computeWaveFuncSlice(m_tensorNetwork, bitString, exatn::getDefaultProcessGroup());
-          const double exp_val_z = calcExpValueZ(m_measureQbIdx, waveFuncSlice);
-          partialExpectationValues[i] = evenParity ? exp_val_z : -exp_val_z;
-        }
-        const auto finalExpVal =
-            std::accumulate(partialExpectationValues.begin(),
-                            partialExpectationValues.end(), 0.0);
-        m_buffer->addExtraInfo("exp-val-z", finalExpVal);
-      } else {
-        // Multiple MPI processes:
-        // Note: if the number of MPI processes > total number of paths,
-        // just use enough processes (each process handles 1 path), the rest is
-        // unused.
-        const auto nbMpiProcsToUse = (nbProjectedPaths > getNumMpiProcs())
-                                         ? getNumMpiProcs()
-                                         : nbProjectedPaths;
-        const auto processRank = exatn::getProcessRank();
-        const auto nbProjectedPathsPerProcess = nbProjectedPaths / nbMpiProcsToUse;
-        // If not evenly divided, process 0 to get the remain.
-        // i.e. process 0 always has the largest partial exp-val vectors.
-        const auto nbProjectedPathsProcess0 =
-            nbProjectedPathsPerProcess + nbProjectedPaths % nbMpiProcsToUse;
-        assert((nbProjectedPathsProcess0 +
-                (nbMpiProcsToUse - 1) * nbProjectedPathsPerProcess) ==
-               nbProjectedPaths);
-        std::vector<double> partialExpectationValues(
-            nbProjectedPathsPerProcess);
-        if (processRank == 0) {
-          partialExpectationValues.resize(nbProjectedPathsProcess0);
-        }
-        // Name of the tensor to hold the accumulated exp-value of the process.
-        const std::string accumulatedTensorName = "ExpVal";
-
-        // These processes need to do work:
-        if (processRank < nbMpiProcsToUse) {
-          const int64_t processStartIdx =
-              (processRank == 0)
-                  ? 0
-                  : (nbProjectedPathsProcess0 +
-                     (processRank - 1) * nbProjectedPathsPerProcess);
-          const int64_t processEndIdx =
-              (processRank == 0)
-                  ? nbProjectedPathsProcess0
-                  : (processStartIdx + nbProjectedPathsPerProcess);
-          // std::cout << "Process [" << processRank
-          //           << "]: Start = " << processStartIdx
-          //           << "; End = " << processEndIdx << "\n";
-          bool evenParity = true;
-          int64_t vectorIdx = 0;
-          for (int64_t i = processStartIdx; i < processEndIdx; ++i) {
-            // Open legs: 0-m_maxQubit
-            std::vector<int> bitString(m_maxQubit, -1);
-            for (int64_t bitIdx = 0; bitIdx < nbProjectedQubits; ++bitIdx) {
-              const int globalQid = bitIdx + m_maxQubit;
-              const int64_t bitMask = 1ULL << bitIdx;
-              if ((i & bitMask) == bitMask) {
-                bitString.emplace_back(1);
-                if (xacc::container::contains(m_measureQbIdx, globalQid)) {
-                  // Flip even parity flag
-                  evenParity = !evenParity;
-                }
-              } else {
-                bitString.emplace_back(0);
-              }
-            }
-            std::vector<TNQVM_COMPLEX_TYPE> waveFuncSlice =
-                computeWaveFuncSlice(m_tensorNetwork, bitString, exatn::getCurrentProcessGroup());
-            const double exp_val_z =
-                calcExpValueZ(m_measureQbIdx, waveFuncSlice);
-            assert(vectorIdx < partialExpectationValues.size());
-            partialExpectationValues[vectorIdx] =
-                evenParity ? exp_val_z : -exp_val_z;
-            ++vectorIdx;
-          }
-
-          // Compute local accumulate:
-          const double localAccumulateExpVal =
-              std::accumulate(partialExpectationValues.begin(),
-                              partialExpectationValues.end(), 0.0);
-
-          // MPI Reduce: We don't want to explicitly use MPI API here,
-          // hence using exatn::allreduceTensor API.
-          // Each process will just construct an one-element tensor which
-          // contains the local accumulated exp-val.
-          const bool created = exatn::createTensor(
-              accumulatedTensorName, exatn::TensorElementType::REAL64,
-              exatn::TensorShape{1});
-          assert(created);
-          // std::cout << "Process [" << processRank
-          //           << "]: Local accumulated exp-val = "
-          //           << localAccumulateExpVal << "\n";
-          // Init tensor body data
-          exatn::initTensorData(accumulatedTensorName,
-                                std::vector<double>{localAccumulateExpVal});
-        } else {
-          // These processes are excess (in case there are too many processes)
-          const bool created = exatn::createTensor(
-              accumulatedTensorName, exatn::TensorElementType::REAL64,
-              exatn::TensorShape{1});
-          assert(created);
-          // Init zero tensor body data
-          exatn::initTensorData(accumulatedTensorName,
-                                std::vector<double>{0.0});
-        }
-
-        // All-reduce the accumulated tensor across all processes in the group.
-        const bool allReduced = exatn::allreduceTensorSync(
-            exatn::getDefaultProcessGroup(), accumulatedTensorName);
-        assert(allReduced);
-
-        // Done:
-        auto talsh_tensor =
-          exatn::getLocalTensor(accumulatedTensorName);
-        assert(talsh_tensor->getVolume() == 1);
-        const double *body_ptr;
-        // Invalid value to detect any problems.
-        double finalExpVal = -9999.99;
-        if (talsh_tensor->getDataAccessHostConst(&body_ptr)) {
-          finalExpVal = *body_ptr;
-        }
-        m_buffer->addExtraInfo("exp-val-z", finalExpVal);
-        const bool destroyed = exatn::destroyTensorSync(accumulatedTensorName);
-        assert(destroyed);
-      }
+      m_buffer->addExtraInfo("exp-val-z", getExpectationValueZBySlicing());
     } else {
       if (!m_hasEvaluated) {
         // If we haven't evaluated the network, do it now (end of circuit).
@@ -1108,7 +956,7 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::visit(fSim& in_fsimGate) {
 template<typename TNQVM_COMPLEX_TYPE>
 void ExatnVisitor<TNQVM_COMPLEX_TYPE>::visit(Measure &in_MeasureGate) {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
-  if (m_buffer->size() > MAX_NUMBER_QUBITS_FOR_STATE_VEC)
+  if (m_buffer->size() > m_maxQubit)
   {
     // If the circuit contains many qubits, we can only
     // generate bit string samples by contracting tensors in the end.
@@ -1639,6 +1487,13 @@ const double ExatnVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZ(
                 "getExpectationValueZ()!");
     return 0.0;
   }
+  // The number of qubits exceed the limit for full wave-function contraction,
+  // hence we cannot cache the wavefunction.
+  if (m_buffer->size() > m_maxQubit) {
+    // Need to slice.
+    return getExpectationValueZBySlicing(in_function);
+  }
+
   // The new qubit register tensor name will have name "RESET_"
   const std::string resetTensorName = "RESET_";
   if (!m_hasEvaluated)
@@ -1715,6 +1570,177 @@ const double ExatnVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZ(
   const double exp_val_z = (nbBasisChangeInsts > 0) ? calcExpValueZ(m_measureQbIdx, retrieveStateVector()) :  calcExpValueZ(m_measureQbIdx, m_cacheStateVec);
   m_measureQbIdx.clear();
   return exp_val_z;
+}
+
+template <typename TNQVM_COMPLEX_TYPE>
+double ExatnVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZBySlicing(
+    std::shared_ptr<CompositeInstruction> in_function) {
+  // Cache the current tensor network:
+  exatn::TensorNetwork cacheTensorNet = m_tensorNetwork;
+  InstructionIterator it(in_function);
+  // Add remaining instructions:
+  while (it.hasNext()) {
+    auto nextInst = it.next();
+    if (nextInst->isEnabled() && !nextInst->isComposite()) {
+      nextInst->accept(this);
+    }
+  }
+  assert(!m_measureQbIdx.empty());
+  const double result = getExpectationValueZBySlicing();
+  m_measureQbIdx.clear();
+  // Restore the base tensor network
+  m_tensorNetwork = cacheTensorNet;
+  return result;
+}
+
+template <typename TNQVM_COMPLEX_TYPE>
+double ExatnVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZBySlicing() {
+  // Number of qubits we need to project.
+  const size_t nbProjectedQubits = m_buffer->size() - m_maxQubit;
+  // The number of paths we need to reduce.
+  const int64_t nbProjectedPaths = (1ULL << nbProjectedQubits);
+  // Strategy:
+  // Q0 -> Q(m_maxQubit - 1): compute slice
+  // The rest (nbProjectedQubits): we sequence through nbProjectedPaths to
+  // compute partial expectations for all slices then reduce.
+  // Loop to be parallelized
+  if (getNumMpiProcs() <= 1) {
+    std::vector<double> partialExpectationValues(nbProjectedPaths);
+    bool evenParity = true;
+    for (int i = 0; i < nbProjectedPaths; ++i) {
+      // Open legs: 0-m_maxQubit
+      std::vector<int> bitString(m_maxQubit, -1);
+      for (int64_t bitIdx = 0; bitIdx < nbProjectedQubits; ++bitIdx) {
+        const int globalQid = bitIdx + m_maxQubit;
+        const int64_t bitMask = 1ULL << bitIdx;
+        if ((i & bitMask) == bitMask) {
+          bitString.emplace_back(1);
+          if (xacc::container::contains(m_measureQbIdx, globalQid)) {
+            // Flip even parity flag
+            evenParity = !evenParity;
+          }
+        } else {
+          bitString.emplace_back(0);
+        }
+      }
+      std::vector<TNQVM_COMPLEX_TYPE> waveFuncSlice = computeWaveFuncSlice(
+          m_tensorNetwork, bitString, exatn::getDefaultProcessGroup());
+      const double exp_val_z = calcExpValueZ(m_measureQbIdx, waveFuncSlice);
+      partialExpectationValues[i] = evenParity ? exp_val_z : -exp_val_z;
+    }
+    const auto finalExpVal = std::accumulate(
+        partialExpectationValues.begin(), partialExpectationValues.end(), 0.0);
+    return finalExpVal;
+  } else {
+    // Multiple MPI processes:
+    // Note: if the number of MPI processes > total number of paths,
+    // just use enough processes (each process handles 1 path), the rest is
+    // unused.
+    const auto nbMpiProcsToUse = (nbProjectedPaths > getNumMpiProcs())
+                                     ? getNumMpiProcs()
+                                     : nbProjectedPaths;
+    const auto processRank = exatn::getProcessRank();
+    const auto nbProjectedPathsPerProcess = nbProjectedPaths / nbMpiProcsToUse;
+    // If not evenly divided, process 0 to get the remain.
+    // i.e. process 0 always has the largest partial exp-val vectors.
+    const auto nbProjectedPathsProcess0 =
+        nbProjectedPathsPerProcess + nbProjectedPaths % nbMpiProcsToUse;
+    assert((nbProjectedPathsProcess0 +
+            (nbMpiProcsToUse - 1) * nbProjectedPathsPerProcess) ==
+           nbProjectedPaths);
+    std::vector<double> partialExpectationValues(nbProjectedPathsPerProcess);
+    if (processRank == 0) {
+      partialExpectationValues.resize(nbProjectedPathsProcess0);
+    }
+    // Name of the tensor to hold the accumulated exp-value of the process.
+    const std::string accumulatedTensorName = "ExpVal";
+
+    // These processes need to do work:
+    if (processRank < nbMpiProcsToUse) {
+      const int64_t processStartIdx =
+          (processRank == 0) ? 0
+                             : (nbProjectedPathsProcess0 +
+                                (processRank - 1) * nbProjectedPathsPerProcess);
+      const int64_t processEndIdx =
+          (processRank == 0) ? nbProjectedPathsProcess0
+                             : (processStartIdx + nbProjectedPathsPerProcess);
+      std::cout << "Process [" << processRank
+                << "]: Start = " << processStartIdx
+                << "; End = " << processEndIdx << "\n";
+      bool evenParity = true;
+      int64_t vectorIdx = 0;
+      for (int64_t i = processStartIdx; i < processEndIdx; ++i) {
+        // Open legs: 0-m_maxQubit
+        std::vector<int> bitString(m_maxQubit, -1);
+        for (int64_t bitIdx = 0; bitIdx < nbProjectedQubits; ++bitIdx) {
+          const int globalQid = bitIdx + m_maxQubit;
+          const int64_t bitMask = 1ULL << bitIdx;
+          if ((i & bitMask) == bitMask) {
+            bitString.emplace_back(1);
+            if (xacc::container::contains(m_measureQbIdx, globalQid)) {
+              // Flip even parity flag
+              evenParity = !evenParity;
+            }
+          } else {
+            bitString.emplace_back(0);
+          }
+        }
+        std::vector<TNQVM_COMPLEX_TYPE> waveFuncSlice = computeWaveFuncSlice(
+            m_tensorNetwork, bitString, exatn::getCurrentProcessGroup());
+        const double exp_val_z = calcExpValueZ(m_measureQbIdx, waveFuncSlice);
+        assert(vectorIdx < partialExpectationValues.size());
+        partialExpectationValues[vectorIdx] =
+            evenParity ? exp_val_z : -exp_val_z;
+        ++vectorIdx;
+      }
+
+      // Compute local accumulate:
+      const double localAccumulateExpVal =
+          std::accumulate(partialExpectationValues.begin(),
+                          partialExpectationValues.end(), 0.0);
+
+      // MPI Reduce: We don't want to explicitly use MPI API here,
+      // hence using exatn::allreduceTensor API.
+      // Each process will just construct an one-element tensor which
+      // contains the local accumulated exp-val.
+      const bool created = exatn::createTensor(accumulatedTensorName,
+                                               exatn::TensorElementType::REAL64,
+                                               exatn::TensorShape{1});
+      assert(created);
+      std::cout << "Process [" << processRank
+                << "]: Local accumulated exp-val = "
+                << localAccumulateExpVal << "\n";
+      // Init tensor body data
+      exatn::initTensorData(accumulatedTensorName,
+                            std::vector<double>{localAccumulateExpVal});
+    } else {
+      // These processes are excess (in case there are too many processes)
+      const bool created = exatn::createTensor(accumulatedTensorName,
+                                               exatn::TensorElementType::REAL64,
+                                               exatn::TensorShape{1});
+      assert(created);
+      // Init zero tensor body data
+      exatn::initTensorData(accumulatedTensorName, std::vector<double>{0.0});
+    }
+
+    // All-reduce the accumulated tensor across all processes in the group.
+    const bool allReduced = exatn::allreduceTensorSync(
+        exatn::getDefaultProcessGroup(), accumulatedTensorName);
+    assert(allReduced);
+
+    // Done:
+    auto talsh_tensor = exatn::getLocalTensor(accumulatedTensorName);
+    assert(talsh_tensor->getVolume() == 1);
+    const double *body_ptr;
+    // Invalid value to detect any problems.
+    double finalExpVal = -9999.99;
+    if (talsh_tensor->getDataAccessHostConst(&body_ptr)) {
+      finalExpVal = *body_ptr;
+    }
+    const bool destroyed = exatn::destroyTensorSync(accumulatedTensorName);
+    assert(destroyed);
+    return finalExpVal;
+  }
 }
 
 template<typename TNQVM_COMPLEX_TYPE>
