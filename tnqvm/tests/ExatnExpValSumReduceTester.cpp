@@ -32,6 +32,17 @@
 #include <gtest/gtest.h>
 #include "xacc.hpp"
 #include "xacc_service.hpp"
+#include <random>
+namespace {
+inline double generateRandomProbability() {
+  auto randFunc =
+      std::bind(std::uniform_real_distribution<double>(0, 1),
+                std::mt19937(std::chrono::high_resolution_clock::now()
+                                 .time_since_epoch()
+                                 .count()));
+  return randFunc();
+}
+} // namespace
 
 TEST(ExatnExpValSumReduceTester, testDeuteron) {
   auto accelerator = xacc::getAccelerator(
@@ -180,15 +191,20 @@ TEST(ExatnExpValSumReduceTester, testDeuteronH3) {
   int testCaseId = 0;
   for (const auto &t0 : t0Angles) {
     for (const auto &t1 : t1Angles) {
-      auto buffer = xacc::qalloc(3);
-      auto evaled = program->operator()({t0, t1});
-      evaled->addInstructions({h0, h1, m0, m1});
-      accelerator->execute(buffer, evaled);
-      const auto expectedResult = expectedResults[testCaseId];
+      // To keep test time reasonable, we only run a few test cases.
+      // Only run 5% (20 cases) of all test cases.
+      const double PROBABILITY_TO_RUN = 0.05;
+      if (generateRandomProbability() < PROBABILITY_TO_RUN) {
+        auto buffer = xacc::qalloc(3);
+        auto evaled = program->operator()({t0, t1});
+        evaled->addInstructions({h0, h1, m0, m1});
+        accelerator->execute(buffer, evaled);
+        const auto expectedResult = expectedResults[testCaseId];
+        std::cout << "Result = " << buffer->getExpectationValueZ() << " vs "
+                  << expectedResult << "\n";
+        EXPECT_NEAR(buffer->getExpectationValueZ(), expectedResult, 1e-6);
+      }
       ++testCaseId;
-      std::cout << "Result = " << buffer->getExpectationValueZ() << " vs "
-                << expectedResult << "\n";
-      EXPECT_NEAR(buffer->getExpectationValueZ(), expectedResult, 1e-6);
     }
   }
 }

@@ -489,9 +489,17 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::initialize(std::shared_ptr<AcceleratorBuf
   m_shots = nbShots;
   // Generic kernel name:
   m_kernelName = "Quantum Circuit";
-  // TEMP CODE:
-  // TODO: set this based on memory buffer or user inputs
-  m_maxQubit = 30;
+ 
+  const int64_t exatnBufferSize = exatn::getMemoryBufferSize();
+  const int64_t maxVectorSize = exatnBufferSize / sizeof(TNQVM_COMPLEX_TYPE);
+  const int64_t maxNbQubit = static_cast<int64_t>(log2(maxVectorSize));
+  // Limit the number of qubits based on the host buffer size.
+  // (minus 1 for safety)
+  m_maxQubit = maxNbQubit - 1;
+
+  // Note: this option is for *INTERNAL* use only.
+  // e.g. purposely constraint the number of qubits to test all-reduce
+  // wavefunction slices.
   if (options.keyExists<int>("max-qubit")) 
   {
     m_maxQubit = options.get<int>("max-qubit");
