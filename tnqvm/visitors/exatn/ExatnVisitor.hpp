@@ -328,47 +328,57 @@ namespace tnqvm {
         // Returns the number of MPI processes in the process group if using MPI.
         // (returns 1 if not using MPI)
         size_t getNumMpiProcs() const;
-        // Compute the wave-function slice or amplitude (if all bits are set): 
-        std::vector<TNQVM_COMPLEX_TYPE> computeWaveFuncSlice(const TensorNetwork& in_tensorNetwork, const std::vector<int>& in_bitString) const;
-    private:
-       TensorNetwork m_tensorNetwork;
-       unsigned int m_tensorIdCounter;
-       bool m_hasEvaluated;
-       // The AcceleratorBuffer shared_ptr, null if not initialized.
-       std::shared_ptr<AcceleratorBuffer> m_buffer; 
-       
-       // List of listeners
-       std::vector<IExatnListener<TNQVM_COMPLEX_TYPE>*> m_listeners;
+        // Compute the wave-function slice or amplitude (if all bits are set):
+        std::vector<TNQVM_COMPLEX_TYPE>
+        computeWaveFuncSlice(const TensorNetwork &in_tensorNetwork,
+                             const std::vector<int> &in_bitString,
+                             const exatn::ProcessGroup &in_processGroup) const;
 
-       // Bit-string of the measurement result, the bit order of this 
-       // is the order in which the measure gates are specified:
-       // e.g. Measure(q[2]); Measure (q[1]); Measure (q[0]); => q2q1q0, etc.
-       std::string m_resultBitString;
-       // Count of the number of shots that was requested.
-       int m_shots; 
-       std::vector<int> m_measureQbIdx;
+      private:
+        TensorNetwork m_tensorNetwork;
+        unsigned int m_tensorIdCounter;
+        bool m_hasEvaluated;
+        // The AcceleratorBuffer shared_ptr, null if not initialized.
+        std::shared_ptr<AcceleratorBuffer> m_buffer;
 
-       // Map of gate tensors that we've initialized with ExaTN.
-       // The list is indexed by Tensor Name.
-       // Note: the tensor name is unique for each gate tensor, hence, for parameterized gate, 
-       // the name is a full/expanded name, e.g. Rx(1.234), Ry(2.3456), etc.
-       // This map is lazily constructed while we traverse the gate sequence,
-       // i.e. if we encounter a new gate whose tensor has not been initialized, 
-       // then we initialize before append the gate tensor (referencing the tensor by name) to the network.  
-       std::unordered_map<std::string, std::vector<TNQVM_COMPLEX_TYPE>> m_gateTensorBodies; 
-       
-       // List of gate tensors (name and leg pairing) that we have appended to the network.
-       // We use this list to construct the inverse tensor sequence (e.g. isometric collapse)
-       std::vector<std::pair<std::string, std::vector<unsigned int>>> m_appendedGateTensors;
-       bool m_isAppendingCircuitGates;
-       // Tensor network of the qubit register (to close the tensor network for expectation calculation)
-       TensorNetwork m_qubitRegTensor;
-       std::string m_kernelName;
-       std::vector<TNQVM_COMPLEX_TYPE> m_cacheStateVec;
-       // Max number of qubits that we allow full wave function contraction.
-       size_t m_maxQubit;
-       // Make the debug logger friend, e.g. retrieve internal states for logging purposes.
-       friend class ExatnDebugLogger<TNQVM_COMPLEX_TYPE>;
+        // List of listeners
+        std::vector<IExatnListener<TNQVM_COMPLEX_TYPE> *> m_listeners;
+
+        // Bit-string of the measurement result, the bit order of this
+        // is the order in which the measure gates are specified:
+        // e.g. Measure(q[2]); Measure (q[1]); Measure (q[0]); => q2q1q0, etc.
+        std::string m_resultBitString;
+        // Count of the number of shots that was requested.
+        int m_shots;
+        std::vector<int> m_measureQbIdx;
+
+        // Map of gate tensors that we've initialized with ExaTN.
+        // The list is indexed by Tensor Name.
+        // Note: the tensor name is unique for each gate tensor, hence, for
+        // parameterized gate, the name is a full/expanded name, e.g. Rx(1.234),
+        // Ry(2.3456), etc. This map is lazily constructed while we traverse the
+        // gate sequence, i.e. if we encounter a new gate whose tensor has not
+        // been initialized, then we initialize before append the gate tensor
+        // (referencing the tensor by name) to the network.
+        std::unordered_map<std::string, std::vector<TNQVM_COMPLEX_TYPE>>
+            m_gateTensorBodies;
+
+        // List of gate tensors (name and leg pairing) that we have appended to
+        // the network. We use this list to construct the inverse tensor
+        // sequence (e.g. isometric collapse)
+        std::vector<std::pair<std::string, std::vector<unsigned int>>>
+            m_appendedGateTensors;
+        bool m_isAppendingCircuitGates;
+        // Tensor network of the qubit register (to close the tensor network for
+        // expectation calculation)
+        TensorNetwork m_qubitRegTensor;
+        std::string m_kernelName;
+        std::vector<TNQVM_COMPLEX_TYPE> m_cacheStateVec;
+        // Max number of qubits that we allow full wave function contraction.
+        size_t m_maxQubit;
+        // Make the debug logger friend, e.g. retrieve internal states for
+        // logging purposes.
+        friend class ExatnDebugLogger<TNQVM_COMPLEX_TYPE>;
     };
 
     template class ExatnVisitor<std::complex<double>>;
