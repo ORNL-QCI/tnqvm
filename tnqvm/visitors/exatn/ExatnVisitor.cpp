@@ -1491,6 +1491,7 @@ const double ExatnVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZ(
   // hence we cannot cache the wavefunction.
   if (m_buffer->size() > m_maxQubit) {
     // Need to slice.
+    m_kernelName = in_function->name();
     return getExpectationValueZBySlicing(in_function);
   }
 
@@ -2098,6 +2099,8 @@ ExatnVisitor<TNQVM_COMPLEX_TYPE>::computeWaveFuncSlice(
   {
     TNQVM_TELEMETRY_ZONE("exatn::evaluateSync", __FILE__, __LINE__);
     // std::cout << "SUBMIT TENSOR NETWORK FOR EVALUATION\n";
+    // combinedTensorNetwork.printIt();
+    combinedTensorNetwork.rename(m_kernelName);
     if (exatn::evaluateSync(in_processGroup, combinedTensorNetwork)) {
       exatn::sync();
       auto talsh_tensor =
