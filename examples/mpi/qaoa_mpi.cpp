@@ -3,13 +3,8 @@
 
 int main(int argc, char **argv) {
   xacc::Initialize();
-  xacc::logToFile(true);
-  xacc::set_verbose(true);
   auto acc = xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn"},
-                                            {"exatn-buffer-size-gb", 16},
-                                            // Note: fixes a low number here for debugging memory leak,
-                                            // i.e. bypassing the estimate based on memory buffer size.
-                                            {"max-qubit", 20}});
+                                            {"exatn-buffer-size-gb", 1}});
   const size_t nbNodes = 28;
   const int nbSteps = 1;
   auto buffer = xacc::qalloc(nbNodes);

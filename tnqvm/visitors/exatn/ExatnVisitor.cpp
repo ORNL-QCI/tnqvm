@@ -1665,9 +1665,11 @@ double ExatnVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZBySlicing() {
       const int64_t processEndIdx =
           (processRank == 0) ? nbProjectedPathsProcess0
                              : (processStartIdx + nbProjectedPathsPerProcess);
-      std::cout << "Process [" << processRank
+      std::stringstream ss;
+      ss << "Process [" << processRank
                 << "]: Start = " << processStartIdx
                 << "; End = " << processEndIdx << "\n";
+      xacc::info(ss.str());
       bool evenParity = true;
       int64_t vectorIdx = 0;
       for (int64_t i = processStartIdx; i < processEndIdx; ++i) {
@@ -1708,9 +1710,11 @@ double ExatnVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZBySlicing() {
                                                exatn::TensorElementType::REAL64,
                                                exatn::TensorShape{1});
       assert(created);
-      std::cout << "Process [" << processRank
+      std::stringstream ssLog;
+      ssLog << "Process [" << processRank
                 << "]: Local accumulated exp-val = "
                 << localAccumulateExpVal << "\n";
+      xacc::info(ssLog.str());
       // Init tensor body data
       exatn::initTensorData(accumulatedTensorName,
                             std::vector<double>{localAccumulateExpVal});
