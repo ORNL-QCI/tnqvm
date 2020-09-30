@@ -384,6 +384,7 @@ ExatnVisitor<TNQVM_COMPLEX_TYPE>::ExatnVisitor()
 template<typename TNQVM_COMPLEX_TYPE>
 void ExatnVisitor<TNQVM_COMPLEX_TYPE>::initialize(std::shared_ptr<AcceleratorBuffer> buffer,
                               int nbShots) {
+  int64_t talshHostBufferSizeInBytes = MAX_TALSH_MEMORY_BUFFER_SIZE_BYTES;
   if (!exatn::isInitialized()) {
 #ifdef TNQVM_EXATN_USES_MKL_BLAS
     // Fix for TNQVM bug #30
@@ -419,6 +420,8 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::initialize(std::shared_ptr<AcceleratorBuf
       std::cout << "Set ExaTN host memory buffer to " << memorySizeBytes << " bytes.\n";
       const bool success = exatnParams.setParameter("host_memory_buffer_size", memorySizeBytes);
       assert(success);
+      // Update buffer size.
+      talshHostBufferSizeInBytes = memorySizeBytes;
     }
     else
     {
@@ -489,8 +492,11 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::initialize(std::shared_ptr<AcceleratorBuf
   m_shots = nbShots;
   // Generic kernel name:
   m_kernelName = "Quantum Circuit";
- 
-  const int64_t exatnBufferSize = exatn::getMemoryBufferSize();
+
+  // const int64_t exatnBufferSize = exatn::getMemoryBufferSize();
+  // Note: exatn::getMemoryBufferSize() can cause potential deadlock if the
+  // tensor runtime has not yet been created.
+  const int64_t exatnBufferSize = talshHostBufferSizeInBytes;
   const int64_t maxVectorSize = exatnBufferSize / sizeof(TNQVM_COMPLEX_TYPE);
   const int64_t maxNbQubit = static_cast<int64_t>(log2(maxVectorSize));
   // Limit the number of qubits based on the host buffer size.
