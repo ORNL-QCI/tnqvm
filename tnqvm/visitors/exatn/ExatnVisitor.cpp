@@ -500,8 +500,9 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::initialize(std::shared_ptr<AcceleratorBuf
   const int64_t maxVectorSize = exatnBufferSize / sizeof(TNQVM_COMPLEX_TYPE);
   const int64_t maxNbQubit = static_cast<int64_t>(log2(maxVectorSize));
   // Limit the number of qubits based on the host buffer size.
-  // (minus 1 for safety)
-  m_maxQubit = maxNbQubit - 1;
+  // Note: there are other tensors (e.g. gate tensors, intermediate tensors),
+  // hence we need to take those into account here.
+  m_maxQubit = maxNbQubit - 4;
 
   // Note: this option is for *INTERNAL* use only.
   // e.g. purposely constraint the number of qubits to test all-reduce
