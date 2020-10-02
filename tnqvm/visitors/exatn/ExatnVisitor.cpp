@@ -732,7 +732,7 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
     if (waveFuncSlice.size() == 1)
     {
       m_buffer->addExtraInfo("amplitude-real", waveFuncSlice[0].real());
-      m_buffer->addExtraInfo("amplitude-imag", waveFuncSlice[1].imag());
+      m_buffer->addExtraInfo("amplitude-imag", waveFuncSlice[0].imag());
     }
     else
     {
