@@ -631,6 +631,8 @@ void ExatnMpsVisitor::finalize()
         // Update the tensor network to take into
         // account the updated tensors.
         rebuildTensorNetwork();
+
+        const auto stateVecNorm = computeStateVectorNorm(*m_tensorNetwork, *m_selfProcessGroup);
         // Small-circuit case: just reconstruct the full wavefunction
         if (m_buffer->size() < MAX_NUMBER_QUBITS_FOR_STATE_VEC) 
         {
@@ -1098,7 +1100,6 @@ void ExatnMpsVisitor::onFlush(const AggregatedGroup& in_group)
 
 void ExatnMpsVisitor::applyGate(xacc::Instruction& in_gateInstruction)
 {
-    exatn::sync();
     const auto gateStart = std::chrono::system_clock::now();
     if (in_gateInstruction.bits().size() == 2)
     {
@@ -1295,7 +1296,6 @@ void ExatnMpsVisitor::applyGate(xacc::Instruction& in_gateInstruction)
 
         const bool destroyed = exatn::destroyTensor(uniqueGateTensorName);
         assert(destroyed);
-        exatn::sync();
     }
 #endif
 }
@@ -1647,7 +1647,6 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
     // MPI
     // !! The two qubit tensors must exist in this process group !!
     const auto processTwoQubitGate = [&](){
-        exatn::sync();            
         const int q1 = in_gateInstruction.bits()[0];
         const int q2 = in_gateInstruction.bits()[1];
         // Neighbors only
@@ -1851,7 +1850,6 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
         assert(q1Destroyed);
         const bool q2Destroyed = exatn::destroyTensor(q2TensorName);
         assert(q2Destroyed);
-        exatn::sync();
         exatn::sync(mergedTensor->getName());
 
         // Create two new tensors:
@@ -1864,8 +1862,6 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
         exatn::sync(q2TensorName);
         exatn::sync(mergedTensor->getName());
         
-        exatn::sync();
-
         {
             // SVD decomposition using the same pattern that was used to merge two tensors
             // xacc::info("SVD: " + mergeContractionPattern);
@@ -1968,7 +1964,10 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
 
         const bool mergedTensorDestroyed = exatn::destroyTensor(mergedTensor->getName());
         assert(mergedTensorDestroyed);
-        exatn::sync();
+
+        // Validate norm:
+        // const auto normVec = computeStateVectorNorm(*m_tensorNetwork, *m_selfProcessGroup);
+        // xacc::info("Norm = " + std::to_string(normVec));
     };
 
     const int q1 = in_gateInstruction.bits()[0];
@@ -1994,8 +1993,6 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
 
         const bool qMaxDestroyed = exatn::destroyTensor(qubitTensorName);
         assert(qMaxDestroyed);
-        exatn::sync();
-
         // Must have right shared group
         assert(m_rightSharedProcessGroup);
         {
@@ -2012,7 +2009,6 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
         // Now, the *remote* tensor has been initialized, process gate as normal:
         // Apply gate
         processTwoQubitGate();
-        exatn::sync();
         // Done: Send tensor to the neighbor process
         // Send tensor forward
         auto updatedTensor = exatn::getTensor(qubitTensorName);
@@ -2043,7 +2039,6 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
         // Update tensor data in this process
         const bool qMaxDestroyed = exatn::destroyTensor(qubitTensorName);
         assert(qMaxDestroyed);
-        exatn::sync();
 
         // Wait to receive tensor back (sync)
         {
@@ -2056,7 +2051,6 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
         
         // Update the tensor network to take into
         // account the updated tensor.
-        exatn::sync();
         rebuildTensorNetwork();
     }
     else 
@@ -2089,7 +2083,6 @@ void ExatnMpsVisitor::evaluateTensorNetwork(exatn::numerics::TensorNetwork& io_t
     auto functor = std::make_shared<ExatnMpsVisitor::ExaTnTensorFunctor>(accessFunc);
 
     exatn::numericalServer->transformTensorSync(io_tensorNetwork.getTensor(0)->getName(), functor);
-    exatn::sync();
     // DEBUG: 
     // for (const auto& elem : out_stateVec)
     // {
@@ -2429,10 +2422,12 @@ void ExatnMpsVisitor::truncateSvdTensors(const std::string& in_leftTensorName, c
 
         renameNumericTensor(newLhsTensorName, in_leftTensorName);
         renameNumericTensor(newRhsTensorName, in_rightTensorName);
-        exatn::sync();
 
         // Debug: 
         // std::cout << "[DEBUG] Bond dim (" << in_leftTensorName << ", " << in_rightTensorName << "): " << bondDim << " -> " << newBondDim << "\n";
+        std::stringstream logSs;
+        logSs << "[SVD] Bond dim (" << in_leftTensorName << ", " << in_rightTensorName << "): " << bondDim << " -> " << newBondDim;
+        xacc::info(logSs.str());
     }
 }
 
@@ -2551,12 +2546,11 @@ std::vector<std::complex<double>> ExatnMpsVisitor::computeWaveFuncSlice(
   auto combinedTensorNetwork = in_tensorNetwork;
   assert(pairings.size() == m_buffer->size());
   combinedTensorNetwork.appendTensorNetwork(std::move(braTensors), pairings);
-  combinedTensorNetwork.collapseIsometries();
-  combinedTensorNetwork.printIt();
+  // combinedTensorNetwork.printIt();
   std::vector<std::complex<double>> waveFnSlice;
   {
-    std::cout << "SUBMIT TENSOR NETWORK FOR EVALUATION\n";
-    combinedTensorNetwork.printIt();
+    // std::cout << "SUBMIT TENSOR NETWORK FOR EVALUATION\n";
+    // combinedTensorNetwork.printIt();
     if (exatn::evaluateSync(in_processGroup, combinedTensorNetwork)) {
       exatn::sync();
       auto talsh_tensor =
@@ -2574,5 +2568,32 @@ std::vector<std::complex<double>> ExatnMpsVisitor::computeWaveFuncSlice(
     assert(destroyed);
   }
   return waveFnSlice;
+}
+
+double ExatnMpsVisitor::computeStateVectorNorm(const exatn::numerics::TensorNetwork& in_tensorNetwork, const exatn::ProcessGroup& in_processGroup) const
+{
+    auto braTensors = in_tensorNetwork;
+    braTensors.rename("Bra_MPS");
+    braTensors.conjugate();
+    auto combinedTensorNetwork = in_tensorNetwork;
+    std::vector<std::pair<unsigned int, unsigned int>> pairings;
+    for (unsigned int i = 0; i < m_buffer->size(); ++i)
+    {
+        pairings.emplace_back(std::make_pair(i, i));
+    }
+    combinedTensorNetwork.appendTensorNetwork(std::move(braTensors), pairings);
+    std::complex<double> norm;
+    if (exatn::evaluateSync(in_processGroup, combinedTensorNetwork)) {
+      exatn::sync();
+      auto talsh_tensor =
+          exatn::getLocalTensor(combinedTensorNetwork.getTensor(0)->getName());
+      assert(talsh_tensor->getVolume() ==  1);  
+      const std::complex<double> *body_ptr;
+      if (talsh_tensor->getDataAccessHostConst(&body_ptr)) {
+        norm = *body_ptr;
+      }
+    }
+    // std::cout << "Norm: " << norm.real() << " , " << norm.imag() << "\n";
+    return norm.real();
 }
 }
