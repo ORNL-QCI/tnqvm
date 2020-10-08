@@ -154,22 +154,37 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
 // w/ MPI enabled.
     #ifdef MPI_ENABLED
     {
-        if (options.keyExists<void*>("mpi-communicator"))
-        {
-            xacc::info("Setting ExaTN MPI_COMMUNICATOR...");
-            auto communicator = options.get<void*>("mpi-communicator");
-            exatn::MPICommProxy commProxy(communicator);
-            exatn::initialize(commProxy);
+      exatn::ParamConf exatnParams;
+      if (options.keyExists<int>("exatn-buffer-size-gb")) {
+        int bufferSizeGb = options.get<int>("exatn-buffer-size-gb");
+        if (bufferSizeGb < 1) {
+          std::cout << "Minimum buffer size is 1 GB.\n";
+          bufferSizeGb = 1;
         }
-        else
-        {
-            // No specific communicator is specified,
-            // exaTN will automatically use MPI_COMM_WORLD.
-            exatn::initialize();
-        }
-        exatn::activateContrSeqCaching();
+        // Set the memory buffer size:
+        const int64_t memorySizeBytes = bufferSizeGb * (1ULL << 30);
+        const bool success = exatnParams.setParameter("host_memory_buffer_size",
+                                                      memorySizeBytes);
+      } else {
+        // Use default buffer size
+        const int64_t memorySizeBytes = 8 * (1ULL << 30);
+
+        const bool success = exatnParams.setParameter("host_memory_buffer_size",
+                                                      memorySizeBytes);
+        assert(success);
+      }
+      if (options.keyExists<void *>("mpi-communicator")) {
+        xacc::info("Setting ExaTN MPI_COMMUNICATOR...");
+        auto communicator = options.get<void *>("mpi-communicator");
+        exatn::MPICommProxy commProxy(communicator);
+        exatn::initialize(commProxy, exatnParams);
+      } else {
+        // No specific communicator is specified,
+        // exaTN will automatically use MPI_COMM_WORLD.
+        exatn::initialize(exatnParams);
+      }
     }
-    #else
+#else
     {
         exatn::initialize();
         exatn::activateContrSeqCaching();
@@ -632,7 +647,7 @@ void ExatnMpsVisitor::finalize()
         // account the updated tensors.
         rebuildTensorNetwork();
 
-        const auto stateVecNorm = computeStateVectorNorm(*m_tensorNetwork, *m_selfProcessGroup);
+        // const auto stateVecNorm = computeStateVectorNorm(*m_tensorNetwork, exatn::getCurrentProcessGroup());
         // Small-circuit case: just reconstruct the full wavefunction
         if (m_buffer->size() < MAX_NUMBER_QUBITS_FOR_STATE_VEC) 
         {
@@ -699,7 +714,7 @@ void ExatnMpsVisitor::finalize()
         else
         {
             // Large circuit
-
+            // std::cout << "Final norm: " << stateVecNorm << "\n";
             // Calculates the amplitude of a specific bitstring
             // or the partial (slice) wave function.
             // The open indices are denoted by "-1" value.
@@ -770,7 +785,20 @@ void ExatnMpsVisitor::finalize()
             }
         }
     }
-    
+
+    for (const auto& [qubitIdx, rank] : m_qubitIdxToRank)
+    {
+        const std::string qubitTensorName = "Q" + std::to_string(qubitIdx); 
+        if (rank != m_rank)
+        {
+            const bool qTensorDestroyed = exatn::destroyTensor(qubitTensorName);
+            assert(qTensorDestroyed);
+        }
+
+        const bool broadcastOk = exatn::replicateTensorSync(exatn::getDefaultProcessGroup(), qubitTensorName, rank);
+        assert(broadcastOk);
+    }
+
     for (int i = 0; i < m_buffer->size(); ++i)
     {
         const bool qTensorDestroyed = exatn::destroyTensor("Q" + std::to_string(i));
