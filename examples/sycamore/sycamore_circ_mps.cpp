@@ -14,8 +14,10 @@ std::string bitStringVecToString(const std::vector<int> &in_vec) {
 int main(int argc, char **argv) {
   xacc::Initialize();
   xacc::set_verbose(true);
+  xacc::setLoggingLevel(2);
+
   // Options: 1, 2, 4, 5, 6, 8, 10, 12, 14, 16, 18, 20
-  const int CIRCUIT_DEPTH = 1;
+  const int CIRCUIT_DEPTH = 2;
 
   // Construct the full path to the XASM source file
   const std::string XASM_SRC_FILE = std::string(RESOURCE_DIR) +
@@ -71,7 +73,7 @@ int main(int argc, char **argv) {
     std::cout << "Bit-string probability: "
               << sqrt(realAmpl * realAmpl + imagAmpl * imagAmpl) << "\n";
   }
-  
+
   xacc::Finalize();
   return 0;
 }
