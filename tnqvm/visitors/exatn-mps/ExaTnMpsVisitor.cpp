@@ -191,10 +191,10 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
     }
     #endif
         // ExaTN and XACC logging levels are always in-synced.
-        exatn::resetClientLoggingLevel(xacc::verbose ? 1 : 0);
+        exatn::resetClientLoggingLevel(xacc::verbose ? xacc::getLoggingLevel() : 0);
         exatn::resetRuntimeLoggingLevel(xacc::verbose ? xacc::getLoggingLevel() : 0);
         xacc::subscribeLoggingLevel([](int level) {
-            exatn::resetClientLoggingLevel(xacc::verbose ? 1 : 0);
+            exatn::resetClientLoggingLevel(xacc::verbose ? level : 0);
             exatn::resetRuntimeLoggingLevel(xacc::verbose ? level : 0);
         });
     }
@@ -639,15 +639,15 @@ void ExatnMpsVisitor::finalize()
         const bool broadcastOk = exatn::replicateTensorSync(exatn::getDefaultProcessGroup(), qubitTensorName, rank);
         assert(broadcastOk);
     }
-
+    
+    // Update the tensor network to take into
+    // account the updated tensors.
+    rebuildTensorNetwork();
+    const auto stateVecNorm = computeStateVectorNorm(*m_tensorNetwork, exatn::getDefaultProcessGroup());
+    
     // Only run bitstring sampling on root
     if (m_rank == 0)
     {
-        // Update the tensor network to take into
-        // account the updated tensors.
-        rebuildTensorNetwork();
-
-        // const auto stateVecNorm = computeStateVectorNorm(*m_tensorNetwork, exatn::getCurrentProcessGroup());
         // Small-circuit case: just reconstruct the full wavefunction
         if (m_buffer->size() < MAX_NUMBER_QUBITS_FOR_STATE_VEC) 
         {
@@ -714,7 +714,7 @@ void ExatnMpsVisitor::finalize()
         else
         {
             // Large circuit
-            // std::cout << "Final norm: " << stateVecNorm << "\n";
+            std::cout << "Final norm: " << stateVecNorm << "\n";
             // Calculates the amplitude of a specific bitstring
             // or the partial (slice) wave function.
             // The open indices are denoted by "-1" value.
