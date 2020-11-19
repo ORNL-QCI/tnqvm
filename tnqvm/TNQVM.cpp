@@ -56,7 +56,7 @@ void TNQVM::execute(
     visitor->setOptions(options);
 
     // Initialize the visitor
-    visitor->initialize(buffer, getShotCountOption(options));
+    visitor->initialize(buffer, getShotCountOption(options), comm, mem_limit_bytes);
     visitor->setKernelName(kernelDecomposed.getBase()->name());
     // Walk the base IR tree, and visit each node
     InstructionIterator it(kernelDecomposed.getBase());
@@ -100,7 +100,7 @@ void TNQVM::execute(std::shared_ptr<xacc::AcceleratorBuffer> buffer,
   visitor->setOptions(options);
 
   // Initialize the visitor
-  visitor->initialize(buffer, getShotCountOption(options));
+  visitor->initialize(buffer, getShotCountOption(options), comm, mem_limit_bytes);
   visitor->setKernelName(kernel->name());
   // If this is an Exatn-MPS visitor, transform the kernel to nearest-neighbor
   // Note: currently, we don't support MPS aggregated blocks (multiple qubit MPS
@@ -152,7 +152,7 @@ TNQVM::getAcceleratorState(std::shared_ptr<CompositeInstruction> program) {
   auto buffer = std::make_shared<xacc::AcceleratorBuffer>("q", maxBit + 1);
 
   // Initialize the visitor
-  visitor->initialize(buffer, getShotCountOption(options));
+  visitor->initialize(buffer, getShotCountOption(options), comm, mem_limit_bytes);
 
   // Walk the IR tree, and visit each node
   InstructionIterator it(program);
