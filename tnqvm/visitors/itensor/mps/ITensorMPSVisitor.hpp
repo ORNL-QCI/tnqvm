@@ -53,7 +53,11 @@ public:
 
   virtual const double getExpectationValueZ(std::shared_ptr<CompositeInstruction> function);
 
-  virtual void initialize(std::shared_ptr<AcceleratorBuffer> buffer, int nbShots = 1) override;
+  virtual void
+  initialize(std::shared_ptr<AcceleratorBuffer> buffer, int nbShots = 1,
+             void *comm = nullptr,
+             std::optional<uint64_t> memLimit = std::nullopt) override;
+
   virtual void finalize() {}
 
   virtual const std::vector<std::complex<double>> getState();

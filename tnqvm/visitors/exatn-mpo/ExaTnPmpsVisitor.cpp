@@ -431,7 +431,8 @@ ExaTnPmpsVisitor::ExaTnPmpsVisitor()
     // TODO
 }
 
-void ExaTnPmpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int nbShots) 
+void ExaTnPmpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int nbShots, void *comm,
+    std::optional<uint64_t> memLimit) 
 { 
     // Initialize ExaTN (if not already initialized)
     if (!exatn::isInitialized()) 

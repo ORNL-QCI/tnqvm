@@ -381,9 +381,10 @@ ExatnVisitor<TNQVM_COMPLEX_TYPE>::ExatnVisitor()
     : m_tensorNetwork("Quantum Circuit"), m_tensorIdCounter(0),
       m_hasEvaluated(false), m_isAppendingCircuitGates(true) {}
 
-template<typename TNQVM_COMPLEX_TYPE>
-void ExatnVisitor<TNQVM_COMPLEX_TYPE>::initialize(std::shared_ptr<AcceleratorBuffer> buffer,
-                              int nbShots) {
+template <typename TNQVM_COMPLEX_TYPE>
+void ExatnVisitor<TNQVM_COMPLEX_TYPE>::initialize(
+    std::shared_ptr<AcceleratorBuffer> buffer, int nbShots, void *comm,
+    std::optional<uint64_t> memLimit) {
   int64_t talshHostBufferSizeInBytes = MAX_TALSH_MEMORY_BUFFER_SIZE_BYTES;
   if (!exatn::isInitialized()) {
 #ifdef TNQVM_EXATN_USES_MKL_BLAS
@@ -407,7 +408,14 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::initialize(std::shared_ptr<AcceleratorBuf
 
     // If exaTN has not been initialized, do it now.
     exatn::ParamConf exatnParams;
-    if (options.keyExists<int>("exatn-buffer-size-gb"))
+    if (memLimit.has_value()) {
+      std::cout << "Set ExaTN host memory buffer to " << memLimit.value() << " bytes.\n";
+      const bool success = exatnParams.setParameter("host_memory_buffer_size", (int64_t)memLimit.value());
+      assert(success);
+      // Update buffer size.
+      talshHostBufferSizeInBytes = memLimit.value();
+    }
+    else if (options.keyExists<int>("exatn-buffer-size-gb"))
     {
       int bufferSizeGb = options.get<int>("exatn-buffer-size-gb");
       if (bufferSizeGb < 1)
@@ -433,11 +441,10 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::initialize(std::shared_ptr<AcceleratorBuf
 // w/ MPI enabled.
 #ifdef MPI_ENABLED
   {
-    if (options.keyExists<void*>("mpi-communicator"))
+    if (comm)
     {
       xacc::info("Setting ExaTN MPI_COMMUNICATOR...");
-      auto communicator = options.get<void*>("mpi-communicator");
-      exatn::MPICommProxy commProxy(communicator);
+      exatn::MPICommProxy commProxy(comm);
       exatn::initialize(commProxy, exatnParams);
     }
     else

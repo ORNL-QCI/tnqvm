@@ -25,8 +25,10 @@ public:
     // Constructor
     ExatnMpsVisitor();
 
-    // Virtual function impls:        
-    virtual void initialize(std::shared_ptr<AcceleratorBuffer> buffer, int nbShots) override;
+    // Virtual function impls:
+    virtual void initialize(std::shared_ptr<AcceleratorBuffer> buffer,
+                            int nbShots, void *comm,
+                            std::optional<uint64_t> memLimit) override;
     virtual void finalize() override;
 
     // Service name as defined in manifest.json
