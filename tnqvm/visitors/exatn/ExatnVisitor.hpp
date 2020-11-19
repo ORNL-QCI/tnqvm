@@ -233,10 +233,13 @@ namespace tnqvm {
         ExatnVisitor();
         typedef typename TNQVM_COMPLEX_TYPE::value_type TNQVM_FLOAT_TYPE;
         virtual exatn::TensorElementType getExatnElementType() const = 0;
-        // Virtual function impls:        
-        virtual void initialize(std::shared_ptr<AcceleratorBuffer> buffer, int nbShots) override;
+        // Virtual function impls:
+        virtual void
+        initialize(std::shared_ptr<AcceleratorBuffer> buffer, int nbShots = 1,
+                   void *comm = nullptr,
+                   std::optional<uint64_t> memLimit = std::nullopt) override;
         virtual void finalize() override;
-        
+
         // Service name as defined in manifest.json
         virtual const std::string name() const override { return "exatn"; }
 

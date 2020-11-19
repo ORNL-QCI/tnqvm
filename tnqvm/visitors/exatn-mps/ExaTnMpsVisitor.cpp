@@ -116,21 +116,21 @@ ExatnMpsVisitor::ExatnMpsVisitor():
     // TODO
 }
 
-void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int nbShots) 
-{ 
-    const auto initializeStart = std::chrono::system_clock::now();
+void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer,
+                                 int nbShots, void *comm,
+                                 std::optional<uint64_t> memLimit) {
+  const auto initializeStart = std::chrono::system_clock::now();
 
-    // Check if we have any specific config for the gate aggregator
-    if (m_aggregateEnabled && options.keyExists<int>("agg-width"))
-    {
-        const int aggregatorWidth = options.get<int>("agg-width");
-        AggregatorConfigs configs(aggregatorWidth);
-        TensorAggregator newAggr(configs, this);
-        m_aggregator = newAggr;
-    }
+  // Check if we have any specific config for the gate aggregator
+  if (m_aggregateEnabled && options.keyExists<int>("agg-width")) {
+    const int aggregatorWidth = options.get<int>("agg-width");
+    AggregatorConfigs configs(aggregatorWidth);
+    TensorAggregator newAggr(configs, this);
+    m_aggregator = newAggr;
+  }
 
-    // Initialize ExaTN
-    if (!exatn::isInitialized()) {
+  // Initialize ExaTN
+  if (!exatn::isInitialized()) {
 #ifdef TNQVM_EXATN_USES_MKL_BLAS
         // Fix for TNQVM bug #30
         void *core_handle =

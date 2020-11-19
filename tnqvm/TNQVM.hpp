@@ -103,6 +103,9 @@ public:
   const std::vector<std::string> configurationKeys() override { return {}; }
 //   const std::string getSignature() override {return name()+":";}
 
+  virtual void setVirtualComm(void *in_comm) { comm = in_comm; };
+  virtual void setMemoryLimit(uint64_t bytes) { mem_limit_bytes = bytes; };
+  
   void
   execute(std::shared_ptr<AcceleratorBuffer> buffer,
           const std::shared_ptr<xacc::CompositeInstruction> kernel) override;
@@ -150,6 +153,8 @@ private:
   int nbShots = -1;
   // Cache of the TNQVM options (to send on to the visitor)
   HeterogeneousMap options;
+  void* comm = nullptr;
+  std::optional<uint64_t> mem_limit_bytes;
 };
 } // namespace tnqvm
 
