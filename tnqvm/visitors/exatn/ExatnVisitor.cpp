@@ -802,7 +802,7 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
   else
   {
     if (m_buffer->size() > m_maxQubit) {
-      m_buffer->addExtraInfo("exp-val-z", getExpectationValueZBySlicing());
+      m_buffer->addExtraInfo("exp-val-z", internalComputeExpectationValueZ());
     } else {
       if (!m_hasEvaluated) {
         // If we haven't evaluated the network, do it now (end of circuit).
@@ -1499,7 +1499,7 @@ const double ExatnVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZ(
   if (m_buffer->size() > m_maxQubit) {
     // Need to slice.
     m_kernelName = in_function->name();
-    return getExpectationValueZBySlicing(in_function);
+    return internalComputeExpectationValueZ(in_function);
   }
 
   // The new qubit register tensor name will have name "RESET_"
@@ -1753,6 +1753,51 @@ double ExatnVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZBySlicing() {
     assert(destroyed);
     return finalExpVal;
   }
+}
+
+template <typename TNQVM_COMPLEX_TYPE>
+double
+ExatnVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZByAppendingConjugate(
+    std::shared_ptr<CompositeInstruction> in_function) {
+  // Cache the current tensor network:
+  exatn::TensorNetwork cacheTensorNet = m_tensorNetwork;
+  InstructionIterator it(in_function);
+  // Add remaining instructions:
+  while (it.hasNext()) {
+    auto nextInst = it.next();
+    if (nextInst->isEnabled() && !nextInst->isComposite()) {
+      nextInst->accept(this);
+    }
+  }
+  assert(!m_measureQbIdx.empty());
+  const double result = getExpectationValueZByAppendingConjugate();
+  m_measureQbIdx.clear();
+  // Restore the base tensor network
+  m_tensorNetwork = cacheTensorNet;
+  return result;
+}
+
+template <typename TNQVM_COMPLEX_TYPE>
+double
+ExatnVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZByAppendingConjugate() {
+  // Inject Z tensors to measure location.
+  //////////////////////////////////////////////////////
+  // o------|---------|-------------|---------|------o
+  // o------| Quantum |-------------| Inverse |------o
+  // o------| Circuit |----o Z o----| Quantum |------o
+  // o------|         |----o Z o----| Circuit |------o
+  // o------|---------|-------------|---------|------o
+  /////////////////////////////////////////////////////
+
+  static auto gateRegistry = xacc::getIRProvider("quantum");
+  std::vector<InstPtr> measureOps;
+  for (const auto &bit : m_measureQbIdx) {
+    measureOps.emplace_back(gateRegistry->createInstruction("Z", bit));
+  }
+
+  const auto result = evaluateTerm(measureOps);
+  
+  return static_cast<double>(result.real());
 }
 
 template<typename TNQVM_COMPLEX_TYPE>

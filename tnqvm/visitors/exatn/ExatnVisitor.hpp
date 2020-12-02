@@ -79,6 +79,9 @@ using TensorFunctor = talsh::TensorFunctor<exatn::Identifiable>;
 // | mpi-communicator            | The MPI communicator to initialize ExaTN runtime with.                 |    void*    | <unused>                 |
 // |                             | If not provided, by default, ExaTN will use `MPI_COMM_WORLD`.          |             |                          |
 // +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
+// | exp-val-by-conjugate        | If true, expectation value of *large* circuits (exceed memory limit)   |    bool     | false                    |
+// |                             | is computed by closing the tensor network with its conjugate.          |             |                          |
+// +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
 
 namespace tnqvm {
     // Simple struct to identify a concrete quantum gate instance,
@@ -333,10 +336,39 @@ namespace tnqvm {
         computeWaveFuncSlice(const TensorNetwork &in_tensorNetwork,
                              const std::vector<int> &in_bitString,
                              const exatn::ProcessGroup &in_processGroup) const;
+        
+        // Compute exp-val-z for large circuits:
+        // Select the appropriate method based on user config:
+        double internalComputeExpectationValueZ(
+            std::shared_ptr<CompositeInstruction> in_function) {
+          // key 'exp-val-by-conjugate' is present and set to true
+          const bool useDoubleDepth =
+              options.keyExists<bool>("exp-val-by-conjugate") &&
+              options.get<bool>("exp-val-by-conjugate");
+          return useDoubleDepth
+                     ? getExpectationValueZByAppendingConjugate(in_function)
+                     : getExpectationValueZBySlicing(in_function);
+        }
+
+        double internalComputeExpectationValueZ() {
+          const bool useDoubleDepth =
+              options.keyExists<bool>("exp-val-by-conjugate") &&
+              options.get<bool>("exp-val-by-conjugate");
+          return useDoubleDepth ? getExpectationValueZByAppendingConjugate()
+                                : getExpectationValueZBySlicing();
+        }
+
+        // Exp-val-z calculation implementations:
+        // Exp-val-z calculation by slicing:
         double getExpectationValueZBySlicing(
             std::shared_ptr<CompositeInstruction> in_function);
 
         double getExpectationValueZBySlicing();
+
+        // Exp-val-z calculation by appending conjugate (double-depth)
+        double getExpectationValueZByAppendingConjugate(
+            std::shared_ptr<CompositeInstruction> in_function);
+        double getExpectationValueZByAppendingConjugate();
 
       private:
         TensorNetwork m_tensorNetwork;
