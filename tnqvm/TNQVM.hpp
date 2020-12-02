@@ -48,10 +48,15 @@ public:
     } else {
       __verbose = 0;
     }    
-
-    // Force a configuration update.
+    // Clear the cached configs on TNQVM initialize.
+    options.clear();
+    // Force a configuration update,
+    // which will update the cache appropriately.
     updateConfiguration(params);
   }
+
+  // Update TNQVM configurations:
+  // This is called post-initialize to add/update configurations.
   void updateConfiguration(const HeterogeneousMap &config) override {
     if (config.keyExists<bool>("verbose") && config.get<bool>("verbose")) {
       __verbose = 1;
@@ -97,8 +102,13 @@ public:
         xacc::warning("Multi-shot simulation is not available for 'itensor-mps' backend. This option will be ignored. \nPlease use 'exatn' backend if you want to run multi-shot simulation.");
       }
     }
-    // Cache the configuration options.
-    options = config;    
+
+    // Updated the cached configurations (to be sent on to visitor)
+    // Note: Accelerator-level configs (visitor name, shots, vqe mode, etc.)
+    // have been handled here, i.e. retrieving from the new config map. The rest
+    // of the configs are visitor-specific and will be forwarded to them
+    // accordingly.
+    options.merge(config);
   }
   const std::vector<std::string> configurationKeys() override { return {}; }
 //   const std::string getSignature() override {return name()+":";}
