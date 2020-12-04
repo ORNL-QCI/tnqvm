@@ -32,8 +32,8 @@ set(CMAKE_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 
-option(TNQVM_BUILD_TESTS "Build test programs" OFF)
-option(TNQVM_BUILD_EXAMPLES "Build example programs" OFF)
+option(TNQVM_BUILD_TESTS "Build test programs" ON)
+option(TNQVM_BUILD_EXAMPLES "Build example programs" ON)
 
 if (NOT CMAKE_BUILD_TYPE)
   # Default build type is "Release" if not specified
