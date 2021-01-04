@@ -643,6 +643,12 @@ void ExaTnPmpsVisitor::finalize()
     }
 }
 
+std::vector<KrausOp> ExaTnPmpsVisitor::convertNoiseChannel(const std::vector<NoiseChannelKraus>& in_channels) const 
+{
+    // TODO: 
+    return {};
+}
+
 void ExaTnPmpsVisitor::applySingleQubitGate(xacc::quantum::Gate& in_gateInstruction)
 {
     assert(in_gateInstruction.bits().size() == 1);
@@ -665,7 +671,7 @@ void ExaTnPmpsVisitor::applySingleQubitGate(xacc::quantum::Gate& in_gateInstruct
     // Apply noise (Kraus) Op
     if (m_noiseConfig) 
     {
-        const auto noiseOps = m_noiseConfig->gateError(in_gateInstruction);
+        const auto noiseOps = convertNoiseChannel(m_noiseConfig->getNoiseChannels(in_gateInstruction));
         for (const auto& op : noiseOps)
         {
             applyKrausOp(op);
@@ -701,14 +707,14 @@ void ExaTnPmpsVisitor::applyTwoQubitGate(xacc::quantum::Gate& in_gateInstruction
     // Apply noise (Kraus) Op
     if (m_noiseConfig) 
     {
-        const auto noiseOps = m_noiseConfig->gateError(in_gateInstruction);
+        const auto noiseOps = convertNoiseChannel(m_noiseConfig->getNoiseChannels(in_gateInstruction));
         for (const auto& op : noiseOps)
         {
             applyKrausOp(op);
         }
     }
 }
-void ExaTnPmpsVisitor::applyKrausOp(const xacc::KrausOp& in_op) 
+void ExaTnPmpsVisitor::applyKrausOp(const KrausOp& in_op) 
 {
     static size_t krausTensorCounter = 0;
     ++krausTensorCounter;

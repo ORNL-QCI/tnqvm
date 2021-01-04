@@ -19,9 +19,16 @@
 namespace xacc {
 // Forward declaration
 class NoiseModel;
-struct KrausOp;
+struct NoiseChannelKraus;
 } // namespace xacc
 namespace tnqvm {
+// Single-site Kraus Op (this Accelerator can only model this)
+struct KrausOp {
+  size_t qubit;
+  // Choi matrix
+  std::vector<std::vector<std::complex<double>>> mats;
+};
+
 class ExaTnPmpsVisitor : public TNQVMVisitor
 {
 public:
@@ -79,10 +86,11 @@ public:
     [[nodiscard]] exatn::TensorNetwork buildInitialNetwork(size_t in_nbQubits, bool in_createQubitTensors) const;
     void applySingleQubitGate(xacc::quantum::Gate& in_gateInstruction);
     void applyTwoQubitGate(xacc::quantum::Gate& in_gateInstruction);
-    void applyKrausOp(const xacc::KrausOp& in_op);
+    void applyKrausOp(const KrausOp& in_op);
     // Apply a local (single-site) Kraus operator
     void applyLocalKrausOp(size_t in_siteId, const std::string& in_opTensorName);
     void truncateSvdTensors(const std::string& in_leftTensorName, const std::string& in_rightTensorName, double in_eps = 1e-9);
+    std::vector<KrausOp> convertNoiseChannel(const std::vector<NoiseChannelKraus>& in_channels) const;
 private:
     exatn::TensorNetwork m_pmpsTensorNetwork;
     std::shared_ptr<AcceleratorBuffer> m_buffer;
@@ -90,4 +98,4 @@ private:
     std::vector<size_t> m_measuredBits;
     int m_nbShots;
 };
-} 
+} // namespace tnqvm
