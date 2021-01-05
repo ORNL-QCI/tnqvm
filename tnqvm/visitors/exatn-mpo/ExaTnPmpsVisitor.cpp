@@ -466,18 +466,22 @@ void ExaTnPmpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int
     m_buffer = buffer;
     m_pmpsTensorNetwork = buildInitialNetwork(buffer->size(), true);
     m_noiseConfig.reset();
-    // Backend JSON was provided as a full string
-    if (options.stringExists("backend-json"))
-    {
+    if (options.pointerLikeExists<xacc::NoiseModel>("noise-model")) {
+      m_noiseConfig = xacc::as_shared_ptr(
+          options.getPointerLike<xacc::NoiseModel>("noise-model"));
+    } else {
+      // Backend JSON was provided as a full string
+      if (options.stringExists("backend-json")) {
         m_noiseConfig = xacc::getService<xacc::NoiseModel>("IBM");
-        m_noiseConfig->initialize({{"backend-json", options.getString("backend-json")}});        
-    }
-    // Backend was referred to by name
-    // e.g. ibmq_ourense
-    if (options.stringExists("backend"))
-    {
+        m_noiseConfig->initialize(
+            {{"backend-json", options.getString("backend-json")}});
+      }
+      // Backend was referred to by name
+      // e.g. ibmq_ourense
+      if (options.stringExists("backend")) {
         m_noiseConfig = xacc::getService<xacc::NoiseModel>("IBM");
-        m_noiseConfig->initialize({{"backend", options.getString("backend")}});        
+        m_noiseConfig->initialize({{"backend", options.getString("backend")}});
+      }
     }
     // DEBUG
     // printDensityMatrix(m_pmpsTensorNetwork, m_buffer->size());
@@ -618,6 +622,11 @@ void ExaTnPmpsVisitor::finalize()
             return result;
         }();
 
+        std::vector<std::pair<double, double>> flattenDmPairs;
+        for (const auto &elem : flattenedDm) {
+          flattenDmPairs.emplace_back(std::make_pair(elem.real(), elem.imag()));
+        }
+        m_buffer->addExtraInfo("density_matrix", flattenDmPairs);
         const auto sumDiag = [](const std::vector<std::complex<double>>& in_diag){
             double sum = 0.0;
             for (const auto& x : in_diag)

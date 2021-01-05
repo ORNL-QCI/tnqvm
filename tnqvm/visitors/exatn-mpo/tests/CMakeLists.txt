@@ -15,3 +15,8 @@ add_test(NAME NoiseModelTester COMMAND NoiseModelTester)
 # target_link_libraries(VqeTester PRIVATE ${XACC_ROOT}/lib/libgtest.so ${XACC_ROOT}/lib/libgtest_main.so tnqvm-exatn)
 # target_compile_definitions(VqeTester PRIVATE BACKEND_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/resources")
 # add_test(NAME VqeTester COMMAND VqeTester)
+
+add_executable(JsonNoiseModelTester JsonNoiseModelTester.cpp)
+target_link_libraries(JsonNoiseModelTester PRIVATE ${XACC_ROOT}/lib/libgtest.so ${XACC_ROOT}/lib/libgtest_main.so tnqvm-exatn)
+target_compile_definitions(JsonNoiseModelTester PRIVATE BACKEND_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/resources")
+add_test(NAME JsonNoiseModelTester COMMAND JsonNoiseModelTester)
