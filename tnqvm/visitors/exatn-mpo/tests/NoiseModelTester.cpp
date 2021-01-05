@@ -21,8 +21,8 @@ TEST(NoiseModelTester, checkReadout)
     auto qreg = xacc::qalloc(1);
     accelerator->execute(qreg, program);
     qreg->print();
-    // Expected error: prob_meas1_prep0 = 0.06499999999999995
-    EXPECT_NEAR(qreg->computeMeasurementProbability("1"), 0.06499999999999995, 0.01);
+    // Expected error: prob_meas1_prep0 = 0.01539999999999997
+    EXPECT_NEAR(qreg->computeMeasurementProbability("1"), 0.01539999999999997, 0.01);
 } 
 
 TEST(NoiseModelTester, checkGateTime)
@@ -69,8 +69,6 @@ TEST(NoiseModelTester, checkGateError)
     std::stringstream strStream;
     strStream << inFile.rdbuf();
     const std::string json = strStream.str();  
-    const double gateError = 0.004494703673832201;
-    // With the gate error of 0.004494703673832201 (from randomized benchmarking)
     // we can compute the number of gates that results in a completely mixed state.
     auto xasmCompiler = xacc::getCompiler("xasm");
     auto program1 = xasmCompiler->compile(R"(__qpu__ void testRb(qbit q) {
@@ -84,9 +82,9 @@ TEST(NoiseModelTester, checkGateError)
     auto qreg1 = xacc::qalloc(1);
     accelerator->execute(qreg1, program1);
     qreg1->print();
-    // The error should be very high (>25%) at this point.
+    // The error should be very high at this point.
     // Note: due to relaxation, we won't be able to get a perfect 50-50 completely mixed state.
-    EXPECT_GT(qreg1->computeMeasurementProbability("1"), 0.25);
+    EXPECT_GT(qreg1->computeMeasurementProbability("1"), 0.1);
 } 
 
 int main(int argc, char **argv) 

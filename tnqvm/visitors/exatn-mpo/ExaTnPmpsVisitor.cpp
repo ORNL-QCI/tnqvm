@@ -466,18 +466,22 @@ void ExaTnPmpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int
     m_buffer = buffer;
     m_pmpsTensorNetwork = buildInitialNetwork(buffer->size(), true);
     m_noiseConfig.reset();
-    // Backend JSON was provided as a full string
-    if (options.stringExists("backend-json"))
-    {
+    if (options.pointerLikeExists<xacc::NoiseModel>("noise-model")) {
+      m_noiseConfig = xacc::as_shared_ptr(
+          options.getPointerLike<xacc::NoiseModel>("noise-model"));
+    } else {
+      // Backend JSON was provided as a full string
+      if (options.stringExists("backend-json")) {
         m_noiseConfig = xacc::getService<xacc::NoiseModel>("IBM");
-        m_noiseConfig->initialize({{"backend-json", options.getString("backend-json")}});        
-    }
-    // Backend was referred to by name
-    // e.g. ibmq_ourense
-    if (options.stringExists("backend"))
-    {
+        m_noiseConfig->initialize(
+            {{"backend-json", options.getString("backend-json")}});
+      }
+      // Backend was referred to by name
+      // e.g. ibmq_ourense
+      if (options.stringExists("backend")) {
         m_noiseConfig = xacc::getService<xacc::NoiseModel>("IBM");
-        m_noiseConfig->initialize({{"backend", options.getString("backend")}});        
+        m_noiseConfig->initialize({{"backend", options.getString("backend")}});
+      }
     }
     // DEBUG
     // printDensityMatrix(m_pmpsTensorNetwork, m_buffer->size());
@@ -618,6 +622,11 @@ void ExaTnPmpsVisitor::finalize()
             return result;
         }();
 
+        std::vector<std::pair<double, double>> flattenDmPairs;
+        for (const auto &elem : flattenedDm) {
+          flattenDmPairs.emplace_back(std::make_pair(elem.real(), elem.imag()));
+        }
+        m_buffer->addExtraInfo("density_matrix", flattenDmPairs);
         const auto sumDiag = [](const std::vector<std::complex<double>>& in_diag){
             double sum = 0.0;
             for (const auto& x : in_diag)
@@ -627,7 +636,7 @@ void ExaTnPmpsVisitor::finalize()
             return sum;
         }(diagElems);
         // Validate trace = 1.0
-        assert(std::abs(sumDiag - 1.0) < 1e-9);
+        assert(std::abs(sumDiag - 1.0) < 1e-3);
         for (int i = 0; i < m_nbShots; ++i)
         {
             m_buffer->appendMeasurement(generateResultBitString(diagElems, m_measuredBits, m_buffer->size(), m_noiseConfig.get()));
@@ -641,6 +650,29 @@ void ExaTnPmpsVisitor::finalize()
         const bool destroyed = exatn::destroyTensorSync("Q" + std::to_string(i));
         assert(destroyed);
     }
+}
+
+std::vector<KrausOp> ExaTnPmpsVisitor::convertNoiseChannel(
+    const std::vector<NoiseChannelKraus> &in_channels) const {
+  std::vector<KrausOp> result;
+  const auto noiseUtils = xacc::getService<NoiseModelUtils>("default");
+  for (const auto &channel : in_channels) {
+    // Note: we don't support multi-qubit channels in the PMPS simulator.
+    // Hence, just ignore it.
+    if (channel.noise_qubits.size() == 1) {
+      KrausOp newOp;
+      newOp.qubit = channel.noise_qubits[0];
+      newOp.mats = noiseUtils->krausToChoi(channel.mats);
+      result.emplace_back(newOp);
+    } else {
+      static bool warnOnce = false;
+      if (!warnOnce) {
+        std::cout << "Multi-qubit channels are not supported. Ignoring.\n";
+        warnOnce = true;
+      }
+    }
+  }
+  return result;
 }
 
 void ExaTnPmpsVisitor::applySingleQubitGate(xacc::quantum::Gate& in_gateInstruction)
@@ -665,7 +697,7 @@ void ExaTnPmpsVisitor::applySingleQubitGate(xacc::quantum::Gate& in_gateInstruct
     // Apply noise (Kraus) Op
     if (m_noiseConfig) 
     {
-        const auto noiseOps = m_noiseConfig->gateError(in_gateInstruction);
+        const auto noiseOps = convertNoiseChannel(m_noiseConfig->getNoiseChannels(in_gateInstruction));
         for (const auto& op : noiseOps)
         {
             applyKrausOp(op);
@@ -701,14 +733,14 @@ void ExaTnPmpsVisitor::applyTwoQubitGate(xacc::quantum::Gate& in_gateInstruction
     // Apply noise (Kraus) Op
     if (m_noiseConfig) 
     {
-        const auto noiseOps = m_noiseConfig->gateError(in_gateInstruction);
+        const auto noiseOps = convertNoiseChannel(m_noiseConfig->getNoiseChannels(in_gateInstruction));
         for (const auto& op : noiseOps)
         {
             applyKrausOp(op);
         }
     }
 }
-void ExaTnPmpsVisitor::applyKrausOp(const xacc::KrausOp& in_op) 
+void ExaTnPmpsVisitor::applyKrausOp(const KrausOp& in_op) 
 {
     static size_t krausTensorCounter = 0;
     ++krausTensorCounter;
