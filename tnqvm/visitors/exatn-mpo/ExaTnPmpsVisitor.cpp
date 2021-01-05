@@ -627,7 +627,7 @@ void ExaTnPmpsVisitor::finalize()
             return sum;
         }(diagElems);
         // Validate trace = 1.0
-        assert(std::abs(sumDiag - 1.0) < 1e-9);
+        assert(std::abs(sumDiag - 1.0) < 1e-3);
         for (int i = 0; i < m_nbShots; ++i)
         {
             m_buffer->appendMeasurement(generateResultBitString(diagElems, m_measuredBits, m_buffer->size(), m_noiseConfig.get()));
@@ -643,10 +643,27 @@ void ExaTnPmpsVisitor::finalize()
     }
 }
 
-std::vector<KrausOp> ExaTnPmpsVisitor::convertNoiseChannel(const std::vector<NoiseChannelKraus>& in_channels) const 
-{
-    // TODO: 
-    return {};
+std::vector<KrausOp> ExaTnPmpsVisitor::convertNoiseChannel(
+    const std::vector<NoiseChannelKraus> &in_channels) const {
+  std::vector<KrausOp> result;
+  const auto noiseUtils = xacc::getService<NoiseModelUtils>("default");
+  for (const auto &channel : in_channels) {
+    // Note: we don't support multi-qubit channels in the PMPS simulator.
+    // Hence, just ignore it.
+    if (channel.noise_qubits.size() == 1) {
+      KrausOp newOp;
+      newOp.qubit = channel.noise_qubits[0];
+      newOp.mats = noiseUtils->krausToChoi(channel.mats);
+      result.emplace_back(newOp);
+    } else {
+      static bool warnOnce = false;
+      if (!warnOnce) {
+        std::cout << "Multi-qubit channels are not supported. Ignoring.\n";
+        warnOnce = true;
+      }
+    }
+  }
+  return result;
 }
 
 void ExaTnPmpsVisitor::applySingleQubitGate(xacc::quantum::Gate& in_gateInstruction)
