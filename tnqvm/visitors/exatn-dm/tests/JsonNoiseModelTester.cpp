@@ -23,14 +23,10 @@ const std::string ro_error_noise_model =
     R"({"gate_noise": [], "bit_order": "MSB", "readout_errors": [{"register_location": "0", "prob_meas0_prep1": 0.2, "prob_meas1_prep0": 0.1}]})";
 } // namespace
 
-TEST(JsonNoiseModelTester, checkSimple) {
-  // Check depolarizing channels
+TEST(JsonNoiseModelTester, checkNoNoise) {
   {
-    auto noiseModel = xacc::getService<xacc::NoiseModel>("json");
-    noiseModel->initialize({{"noise-model", depol_json}});
     auto accelerator =
-        xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-dm"},
-                                       {"noise-model", noiseModel}});
+        xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-dm"}});
     auto xasmCompiler = xacc::getCompiler("xasm");
     auto program = xasmCompiler
                        ->compile(R"(__qpu__ void testX(qbit q) {
@@ -41,84 +37,47 @@ TEST(JsonNoiseModelTester, checkSimple) {
                        ->getComposite("testX");
     auto buffer = xacc::qalloc(1);
     accelerator->execute(buffer, program);
-    buffer->print();
-    auto densityMatrix = (*buffer)["density_matrix"]
-                             .as<std::vector<std::pair<double, double>>>();
-    EXPECT_EQ(densityMatrix.size(), 4);
-    // Check trace
-    EXPECT_NEAR(densityMatrix[0].first + densityMatrix[3].first, 1.0, 1e-6);
-    // Expected result:
-    // 0.00666667+0.j 0.        +0.j
-    // 0.        +0.j 0.99333333+0.j
-    // Check real part
-    EXPECT_NEAR(densityMatrix[0].first, 0.00666667, 1e-6);
-    EXPECT_NEAR(densityMatrix[1].first, 0.0, 1e-6);
-    EXPECT_NEAR(densityMatrix[2].first, 0.0, 1e-6);
-    EXPECT_NEAR(densityMatrix[3].first, 0.99333333, 1e-6);
-    // Check imag part
-    for (const auto &[real, imag] : densityMatrix) {
-      EXPECT_NEAR(imag, 0.0, 1e-6);
+    auto exeInfo = accelerator->getExecutionInfo();
+    auto dm = accelerator
+                  ->getExecutionInfo<xacc::ExecutionInfo::DensityMatrixPtrType>(
+                      xacc::ExecutionInfo::DmKey);
+    std::cout << "Density matrix\n";
+    for (const auto &row : *dm) {
+      for (const auto &elem : row) {
+        std::cout << elem << " ";
+      }
+      std::cout << "\n";
     }
+    EXPECT_EQ(dm->size(), 2);
   }
 
-  // Check amplitude damping channels
   {
-    auto noiseModel = xacc::getService<xacc::NoiseModel>("json");
-    noiseModel->initialize({{"noise-model", ad_json}});
     auto accelerator =
-        xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-dm"},
-                                       {"noise-model", noiseModel}});
+        xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-dm"}});
     auto xasmCompiler = xacc::getCompiler("xasm");
     auto program = xasmCompiler
-                       ->compile(R"(__qpu__ void testX_ad(qbit q) {
-        X(q[0]);
+                       ->compile(R"(__qpu__ void testT(qbit q) {
+        H(q[0]);
+        CX(q[0], q[1]);
         Measure(q[0]);
       })",
                                  accelerator)
-                       ->getComposites()[0];
-    auto buffer = xacc::qalloc(1);
+                       ->getComposite("testT");
+    auto buffer = xacc::qalloc(2);
     accelerator->execute(buffer, program);
     buffer->print();
-    // Verify the distribution (25% amplitude damping)
-    EXPECT_NEAR(buffer->computeMeasurementProbability("0"), 0.25, 0.1);
-    EXPECT_NEAR(buffer->computeMeasurementProbability("1"), 0.75, 0.1);
-  }
-}
-
-TEST(JsonNoiseModelTester, checkRoError) {
-  auto xasmCompiler = xacc::getCompiler("xasm");
-  auto noiseModel = xacc::getService<xacc::NoiseModel>("json");
-  noiseModel->initialize({{"noise-model", ro_error_noise_model}});
-  auto accelerator = xacc::getAccelerator(
-      "tnqvm", {{"tnqvm-visitor", "exatn-dm"}, {"noise-model", noiseModel}});
-  {
-    auto program = xasmCompiler
-                       ->compile(R"(__qpu__ void testId(qbit q) {
-        Measure(q[0]);
-      })",
-                                 nullptr)
-                       ->getComposites()[0];
-
-    auto buffer = xacc::qalloc(1);
-    accelerator->execute(buffer, program);
-    buffer->print();
-    // P(1|0) = 0.1
-    EXPECT_NEAR(buffer->computeMeasurementProbability("1"), 0.1, 0.05);
-  }
-  {
-    auto program = xasmCompiler
-                       ->compile(R"(__qpu__ void testFlip(qbit q) {
-        X(q[0]);
-        Measure(q[0]);
-      })",
-                                 nullptr)
-                       ->getComposites()[0];
-
-    auto buffer = xacc::qalloc(1);
-    accelerator->execute(buffer, program);
-    buffer->print();
-    // P(0|1) = 0.2
-    EXPECT_NEAR(buffer->computeMeasurementProbability("0"), 0.2, 0.05);
+    auto exeInfo = accelerator->getExecutionInfo();
+    auto dm = accelerator
+                  ->getExecutionInfo<xacc::ExecutionInfo::DensityMatrixPtrType>(
+                      xacc::ExecutionInfo::DmKey);
+    std::cout << "Density matrix\n";
+    for (const auto &row : *dm) {
+      for (const auto &elem : row) {
+        std::cout << elem << " ";
+      }
+      std::cout << "\n";
+    }
+    EXPECT_EQ(dm->size(), 4);
   }
 }
 
