@@ -284,6 +284,51 @@ ExaTnDmVisitor::buildInitialNetwork(size_t in_nbQubits) const {
 }
 
 void ExaTnDmVisitor::finalize() {
+  executionInfo.clear();
+  // Max number of qubits that we allow for a full density matrix retrieval.
+  // For more qubits, only expectation contraction is supported.
+  constexpr size_t MAX_SIZE_TO_COLLAPSE_DM = 10; 
+  
+  if (m_buffer->size() <= MAX_SIZE_TO_COLLAPSE_DM) {
+    xacc::ExecutionInfo::DensityMatrixType densityMatrix;
+    const auto nbRows = 1ULL << m_buffer->size();
+    densityMatrix.reserve(1 << m_buffer->size());
+    exatn::TensorNetwork tempNetwork(m_tensorNetwork);
+    tempNetwork.rename("__TEMP__" + m_tensorNetwork.getName());
+    const bool evaledOk = exatn::evaluateSync(tempNetwork);
+    assert(evaledOk);
+    auto talsh_tensor =
+        exatn::getLocalTensor(tempNetwork.getTensor(0)->getName());
+    const auto expectedDensityMatrixVolume = nbRows * nbRows;
+    if (talsh_tensor) {
+      const std::complex<double> *body_ptr;
+      const bool access_granted =
+          talsh_tensor->getDataAccessHostConst(&body_ptr);
+      if (!access_granted) {
+        std::cout << "Failed to retrieve tensor data!!!\n";
+      } else {
+        assert(expectedDensityMatrixVolume == talsh_tensor->getVolume());
+        xacc::ExecutionInfo::WaveFuncType dmRow;
+        dmRow.reserve(nbRows);
+        for (int i = 0; i < talsh_tensor->getVolume(); ++i) {
+          if ((i != 0) && (i % nbRows == 0)) {
+            assert(dmRow.size() == nbRows);
+            densityMatrix.emplace_back(std::move(dmRow));
+            dmRow.clear();
+            dmRow.reserve(nbRows);
+          }
+          const auto &elem = body_ptr[i];
+          dmRow.emplace_back(elem);
+        }
+        assert(dmRow.size() == nbRows);
+        densityMatrix.emplace_back(std::move(dmRow));
+        assert(densityMatrix.size() == nbRows);
+      }
+    }
+    
+    executionInfo.insert(ExecutionInfo::DmKey, std::make_shared<ExecutionInfo::DensityMatrixType>(std::move(densityMatrix)));
+  }
+
   std::unordered_set<std::string> tensorList;
   for (auto iter = m_tensorNetwork.cbegin(); iter != m_tensorNetwork.cend();
        ++iter) {
