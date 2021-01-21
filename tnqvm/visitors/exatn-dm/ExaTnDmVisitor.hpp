@@ -87,7 +87,8 @@ public:
     void applySingleQubitGate(xacc::quantum::Gate& in_gateInstruction);
     void applyTwoQubitGate(xacc::quantum::Gate& in_gateInstruction);
     void applyNoise(xacc::quantum::Gate &in_gateInstruction);
-private:
+    
+  private:
     exatn::TensorNetwork m_tensorNetwork;
     std::shared_ptr<AcceleratorBuffer> m_buffer;
     std::vector<size_t> m_measuredBits;

@@ -449,6 +449,8 @@ void ExaTnDmVisitor::applyNoise(xacc::quantum::Gate &in_gateInstruction) {
   if (!m_noiseConfig) {
     return;
   }
+  std::cout << "Before noise:\n";
+  printDensityMatrix(m_tensorNetwork, m_buffer->size());
 
   const auto noiseChannels =
       m_noiseConfig->getNoiseChannels(in_gateInstruction);
@@ -456,28 +458,68 @@ void ExaTnDmVisitor::applyNoise(xacc::quantum::Gate &in_gateInstruction) {
 
   for (auto &channel : noiseChannels) {
     auto noiseMat = noiseUtils->krausToChoi(channel.mats);
+
+    for (const auto &row : noiseMat) {
+      for (const auto &el : row) {
+        std::cout << el << " ";
+      }
+      std::cout << "\n";
+    }
+
     m_tensorIdCounter++;
     const std::string noiseTensorName = in_gateInstruction.name() + "_Noise_" +
                                         std::to_string(m_tensorIdCounter);
-    // Create the tensor
-    const bool created = exatn::createTensorSync(
-        noiseTensorName, exatn::TensorElementType::COMPLEX64,
-        exatn::TensorShape{2, 2, 2, 2});
-    assert(created);
-    // Init tensor body data
-    const bool initialized =
-        exatn::initTensorDataSync(noiseTensorName, flattenGateMatrix(noiseMat));
-    assert(initialized);
+    if (channel.noise_qubits.size() == 1) {
+      // Create the tensor
+      const bool created = exatn::createTensorSync(
+          noiseTensorName, exatn::TensorElementType::COMPLEX64,
+          exatn::TensorShape{2, 2, 2, 2});
+      assert(created);
+      // Init tensor body data
+      const bool initialized = exatn::initTensorDataSync(
+          noiseTensorName, flattenGateMatrix(noiseMat));
+      assert(initialized);
 
-    const std::vector<unsigned int> noisePairing{
-        static_cast<unsigned int>(channel.noise_qubits[0]),
-        static_cast<unsigned int>(channel.noise_qubits[0] + m_buffer->size())};
-    // Append the tensor for this gate to the network
-    const bool appended = m_tensorNetwork.appendTensorGate(
-        m_tensorIdCounter, exatn::getTensor(noiseTensorName),
-        // which qubits that the gate is acting on
-        noisePairing);
-    assert(appended);
+      const std::vector<std::pair<unsigned int, unsigned int>> noisePairing{
+          {static_cast<unsigned int>(channel.noise_qubits[0]), 1},
+          {static_cast<unsigned int>(channel.noise_qubits[0] +
+                                     m_buffer->size()),
+           3}};
+      // Append the tensor for this gate to the network
+      const bool appended = m_tensorNetwork.appendTensor(
+          m_tensorIdCounter, exatn::getTensor(noiseTensorName),
+          // which qubits that the gate is acting on
+          noisePairing);
+      assert(appended);
+    } else if (channel.noise_qubits.size() == 2) {
+      // Create the tensor
+      const bool created = exatn::createTensorSync(
+          noiseTensorName, exatn::TensorElementType::COMPLEX64,
+          exatn::TensorShape{2, 2, 2, 2, 2, 2, 2, 2});
+      assert(created);
+      // Init tensor body data
+      const bool initialized = exatn::initTensorDataSync(
+          noiseTensorName, flattenGateMatrix(noiseMat));
+      assert(initialized);
+
+      const std::vector<std::pair<unsigned int, unsigned int>> noisePairing{
+          {static_cast<unsigned int>(channel.noise_qubits[0]), 0},
+          {static_cast<unsigned int>(channel.noise_qubits[0] +
+                                     m_buffer->size()),
+           2},
+          {static_cast<unsigned int>(channel.noise_qubits[1]), 4},
+          {static_cast<unsigned int>(channel.noise_qubits[1] +
+                                     m_buffer->size()),
+           6}};
+      // Append the tensor for this gate to the network
+      const bool appended = m_tensorNetwork.appendTensor(
+          m_tensorIdCounter, exatn::getTensor(noiseTensorName),
+          // which qubits that the gate is acting on
+          noisePairing);
+      assert(appended);
+    } else {
+      xacc::error("Unsupported noise data.");
+    }
   }
 
   // DEBUG:
