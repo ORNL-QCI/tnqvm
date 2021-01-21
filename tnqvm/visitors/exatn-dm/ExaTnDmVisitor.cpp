@@ -63,6 +63,20 @@ void printDensityMatrix(const exatn::TensorNetwork &in_tensorNet,
     std::cout << "Failed to retrieve tensor data!!!\n";
   }
 }
+
+std::vector<std::complex<double>> flattenGateMatrix(
+    const std::vector<std::vector<std::complex<double>>> &in_gateMatrix) {
+  std::vector<std::complex<double>> resultVector;
+  resultVector.reserve(in_gateMatrix.size() * in_gateMatrix.size());
+  for (const auto &row : in_gateMatrix) {
+    for (const auto &entry : row) {
+      resultVector.emplace_back(entry);
+    }
+  }
+
+  return resultVector;
+}
+
 std::vector<std::complex<double>>
 getGateMatrix(const xacc::Instruction &in_gate) {
   using namespace tnqvm;
@@ -107,19 +121,6 @@ getGateMatrix(const xacc::Instruction &in_gate) {
     }
   };
 
-  const auto flattenGateMatrix =
-      [](const std::vector<std::vector<std::complex<double>>> &in_gateMatrix) {
-        std::vector<std::complex<double>> resultVector;
-        resultVector.reserve(in_gateMatrix.size() * in_gateMatrix.size());
-        for (const auto &row : in_gateMatrix) {
-          for (const auto &entry : row) {
-            resultVector.emplace_back(entry);
-          }
-        }
-
-        return resultVector;
-      };
-
   return flattenGateMatrix(getMatrix());
 }
 } // namespace
@@ -163,6 +164,10 @@ void ExaTnDmVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer,
   m_buffer = buffer;
   m_tensorNetwork = buildInitialNetwork(buffer->size());
   m_tensorIdCounter = m_tensorNetwork.getMaxTensorId();
+  if (options.pointerLikeExists<xacc::NoiseModel>("noise-model")) {
+    m_noiseConfig = xacc::as_shared_ptr(
+        options.getPointerLike<xacc::NoiseModel>("noise-model"));
+  }
 }
 
 exatn::TensorNetwork
@@ -345,6 +350,7 @@ void ExaTnDmVisitor::finalize() {
   }
 
   m_buffer.reset();
+  m_noiseConfig.reset();
 }
 
 void ExaTnDmVisitor::applySingleQubitGate(
@@ -388,6 +394,8 @@ void ExaTnDmVisitor::applySingleQubitGate(
       // conjugate
       true);
   assert(conjAppended);
+  // Adding noise tensors.
+  applyNoise(in_gateInstruction);
 }
 
 void ExaTnDmVisitor::applyTwoQubitGate(
@@ -437,8 +445,45 @@ void ExaTnDmVisitor::applyTwoQubitGate(
   assert(conjAppended);
 }
 
-void ExaTnDmVisitor::applyKrausOp(const KrausOp &in_op) {
-  // TODO
+void ExaTnDmVisitor::applyNoise(xacc::quantum::Gate &in_gateInstruction) {
+  if (!m_noiseConfig) {
+    return;
+  }
+
+  const auto noiseChannels =
+      m_noiseConfig->getNoiseChannels(in_gateInstruction);
+  auto noiseUtils = xacc::getService<NoiseModelUtils>("default");
+
+  for (auto &channel : noiseChannels) {
+    auto noiseMat = noiseUtils->krausToChoi(channel.mats);
+    m_tensorIdCounter++;
+    const std::string noiseTensorName = in_gateInstruction.name() + "_Noise_" +
+                                        std::to_string(m_tensorIdCounter);
+    // Create the tensor
+    const bool created = exatn::createTensorSync(
+        noiseTensorName, exatn::TensorElementType::COMPLEX64,
+        exatn::TensorShape{2, 2, 2, 2});
+    assert(created);
+    // Init tensor body data
+    const bool initialized =
+        exatn::initTensorDataSync(noiseTensorName, flattenGateMatrix(noiseMat));
+    assert(initialized);
+
+    const std::vector<unsigned int> noisePairing{
+        static_cast<unsigned int>(channel.noise_qubits[0]),
+        static_cast<unsigned int>(channel.noise_qubits[0] + m_buffer->size())};
+    // Append the tensor for this gate to the network
+    const bool appended = m_tensorNetwork.appendTensorGate(
+        m_tensorIdCounter, exatn::getTensor(noiseTensorName),
+        // which qubits that the gate is acting on
+        noisePairing);
+    assert(appended);
+  }
+
+  // DEBUG:
+  std::cout << "Apply Noise: " << in_gateInstruction.toString() << "\n";
+  m_tensorNetwork.printIt();
+  printDensityMatrix(m_tensorNetwork, m_buffer->size());
 }
 
 void ExaTnDmVisitor::visit(Identity &in_IdentityGate) {

@@ -86,12 +86,13 @@ public:
     [[nodiscard]] exatn::TensorNetwork buildInitialNetwork(size_t in_nbQubits) const;
     void applySingleQubitGate(xacc::quantum::Gate& in_gateInstruction);
     void applyTwoQubitGate(xacc::quantum::Gate& in_gateInstruction);
-    void applyKrausOp(const KrausOp& in_op);
+    void applyNoise(xacc::quantum::Gate &in_gateInstruction);
 private:
     exatn::TensorNetwork m_tensorNetwork;
     std::shared_ptr<AcceleratorBuffer> m_buffer;
     std::vector<size_t> m_measuredBits;
     int m_nbShots;
     int m_tensorIdCounter;
+    std::shared_ptr<xacc::NoiseModel> m_noiseConfig;
 };
 } // namespace tnqvm
