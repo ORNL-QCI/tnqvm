@@ -284,7 +284,22 @@ ExaTnDmVisitor::buildInitialNetwork(size_t in_nbQubits) const {
 }
 
 void ExaTnDmVisitor::finalize() {
-  // TODO
+  std::unordered_set<std::string> tensorList;
+  for (auto iter = m_tensorNetwork.cbegin(); iter != m_tensorNetwork.cend();
+       ++iter) {
+    const auto &tensorName = iter->second.getTensor()->getName();
+    // Not a root tensor
+    if (!tensorName.empty() && tensorName[0] != '_') {
+      tensorList.emplace(iter->second.getTensor()->getName());
+    }
+  }
+
+  for (const auto &tensorName : tensorList) {
+    const bool destroyed = exatn::destroyTensor(tensorName);
+    assert(destroyed);
+  }
+
+  m_buffer.reset();
 }
 
 void ExaTnDmVisitor::applySingleQubitGate(
@@ -332,8 +347,51 @@ void ExaTnDmVisitor::applySingleQubitGate(
 
 void ExaTnDmVisitor::applyTwoQubitGate(
     xacc::quantum::Gate &in_gateInstruction) {
-  // TODO
+  m_tensorIdCounter++;
+  assert(in_gateInstruction.bits().size() == 2);
+  const auto gateMatrix = getGateMatrix(in_gateInstruction);
+  assert(gateMatrix.size() == 16);
+  const std::string uniqueGateName =
+      in_gateInstruction.name() + std::to_string(m_tensorIdCounter);
+  // Create the tensor
+  const bool created = exatn::createTensorSync(
+      uniqueGateName, exatn::TensorElementType::COMPLEX64,
+      exatn::TensorShape{2, 2, 2, 2});
+  assert(created);
+  // Init tensor body data
+  const bool initialized =
+      exatn::initTensorDataSync(uniqueGateName, gateMatrix);
+  assert(initialized);
+
+  const std::vector<unsigned int> gatePairing{
+      static_cast<unsigned int>(in_gateInstruction.bits()[1]),
+      static_cast<unsigned int>(in_gateInstruction.bits()[0])};
+  // Append the tensor for this gate to the network
+  const bool appended = m_tensorNetwork.appendTensorGate(
+      m_tensorIdCounter,
+      // Get the gate tensor data which must have been initialized.
+      exatn::getTensor(uniqueGateName),
+      // which qubits that the gate is acting on
+      gatePairing);
+  assert(appended);
+
+  m_tensorIdCounter++;
+  const std::vector<unsigned int> gatePairingConj{
+      static_cast<unsigned int>(m_buffer->size() +
+                                in_gateInstruction.bits()[1]),
+      static_cast<unsigned int>(m_buffer->size() +
+                                in_gateInstruction.bits()[0])};
+  const bool conjAppended = m_tensorNetwork.appendTensorGate(
+      m_tensorIdCounter,
+      // Get the gate tensor data which must have been initialized.
+      exatn::getTensor(uniqueGateName),
+      // which qubits that the gate is acting on
+      gatePairingConj,
+      // conjugate
+      true);
+  assert(conjAppended);
 }
+
 void ExaTnDmVisitor::applyKrausOp(const KrausOp &in_op) {
   // TODO
 }
@@ -391,25 +449,26 @@ void ExaTnDmVisitor::visit(CNOT &in_CNOTGate) {
   applyTwoQubitGate(in_CNOTGate);
   // DEBUG:
   // std::cout << "Apply: " << in_CNOTGate.toString() << "\n";
-  // printDensityMatrix(m_tensorNetwork, m_buffer->size());
+  m_tensorNetwork.printIt();
+  printDensityMatrix(m_tensorNetwork, m_buffer->size());
 }
 
 void ExaTnDmVisitor::visit(Swap &in_SwapGate) {
-  applySingleQubitGate(in_SwapGate);
+  applyTwoQubitGate(in_SwapGate);
 }
 
-void ExaTnDmVisitor::visit(CZ &in_CZGate) { applySingleQubitGate(in_CZGate); }
+void ExaTnDmVisitor::visit(CZ &in_CZGate) { applyTwoQubitGate(in_CZGate); }
 
 void ExaTnDmVisitor::visit(CPhase &in_CPhaseGate) {
-  applySingleQubitGate(in_CPhaseGate);
+  applyTwoQubitGate(in_CPhaseGate);
 }
 
 void ExaTnDmVisitor::visit(iSwap &in_iSwapGate) {
-  applySingleQubitGate(in_iSwapGate);
+  applyTwoQubitGate(in_iSwapGate);
 }
 
 void ExaTnDmVisitor::visit(fSim &in_fsimGate) {
-  applySingleQubitGate(in_fsimGate);
+  applyTwoQubitGate(in_fsimGate);
 }
 
 const double ExaTnDmVisitor::getExpectationValueZ(

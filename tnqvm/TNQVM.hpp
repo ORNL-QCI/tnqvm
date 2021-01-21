@@ -133,7 +133,13 @@ public:
   const std::string& getVisitorName() const { return backendName; }
   
   virtual ~TNQVM() {}
-
+  
+  virtual HeterogeneousMap getExecutionInfo() const override { 
+    auto result = visitor->getExecutionInfo();
+    result.insert("visitor", visitor->name());
+    return result; 
+  }
+  
   int verbose() const { return __verbose; }
   void verbose(int level) { __verbose = level; }
   void set_verbose(int level) { __verbose = level; }

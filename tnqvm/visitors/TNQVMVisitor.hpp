@@ -71,9 +71,14 @@ public:
   // Does this visitor implementation support VQE mode execution?
   // i.e. ability to cache the state vector after simulating the ansatz.
   virtual bool supportVqeMode() const { return false; }
+  // Execution information that visitor wants to persist.
+  HeterogeneousMap getExecutionInfo() const { return executionInfo; }
+
 protected:
   std::shared_ptr<AcceleratorBuffer> buffer;
   HeterogeneousMap options;
+  // Visitor impl to set if need be.
+  HeterogeneousMap executionInfo;
 };
 
 } // namespace tnqvm
