@@ -83,15 +83,15 @@ public:
         std::function<int(talsh::Tensor& in_tensor)> m_func;
     }; 
 
-    [[nodiscard]] exatn::TensorNetwork buildInitialNetwork(size_t in_nbQubits, bool in_createQubitTensors) const;
+    [[nodiscard]] exatn::TensorNetwork buildInitialNetwork(size_t in_nbQubits) const;
     void applySingleQubitGate(xacc::quantum::Gate& in_gateInstruction);
     void applyTwoQubitGate(xacc::quantum::Gate& in_gateInstruction);
     void applyKrausOp(const KrausOp& in_op);
 private:
     exatn::TensorNetwork m_tensorNetwork;
     std::shared_ptr<AcceleratorBuffer> m_buffer;
-    std::shared_ptr<xacc::NoiseModel> m_noiseConfig;
     std::vector<size_t> m_measuredBits;
     int m_nbShots;
+    int m_tensorIdCounter;
 };
 } // namespace tnqvm
