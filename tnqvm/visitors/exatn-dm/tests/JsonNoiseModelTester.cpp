@@ -169,6 +169,13 @@ TEST(JsonNoiseModelTester, checkBitOrdering) {
             ->getExecutionInfo<xacc::ExecutionInfo::DensityMatrixPtrType>(
                 xacc::ExecutionInfo::DmKey);
     densityMatrix_msb = *dmPtr;
+    std::cout << "Density matrix MSB\n";
+    for (const auto &row : densityMatrix_msb) {
+      for (const auto &elem : row) {
+        std::cout << elem << " ";
+      }
+      std::cout << "\n";
+    }
   }
 
   // Check LSB:
@@ -184,6 +191,22 @@ TEST(JsonNoiseModelTester, checkBitOrdering) {
             ->getExecutionInfo<xacc::ExecutionInfo::DensityMatrixPtrType>(
                 xacc::ExecutionInfo::DmKey);
     densityMatrix_lsb = *dmPtr;
+    std::cout << "Density matrix LSB\n";
+    for (const auto &row : densityMatrix_lsb) {
+      for (const auto &elem : row) {
+        std::cout << elem << " ";
+      }
+      std::cout << "\n";
+    }
+  }
+
+  for (int row = 0; row < 4; ++row) {
+    for (int col = 0; col < 4; ++col) {
+      EXPECT_NEAR(densityMatrix_msb[row][col].real(),
+                  densityMatrix_lsb[row][col].real(), 1e-9);
+      EXPECT_NEAR(densityMatrix_msb[row][col].imag(),
+                  densityMatrix_lsb[row][col].imag(), 1e-9);
+    }
   }
 }
 

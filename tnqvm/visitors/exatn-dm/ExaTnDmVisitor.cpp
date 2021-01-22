@@ -443,6 +443,8 @@ void ExaTnDmVisitor::applyTwoQubitGate(
       // conjugate
       true);
   assert(conjAppended);
+  // Adding noise tensors.
+  applyNoise(in_gateInstruction);
 }
 
 void ExaTnDmVisitor::applyNoise(xacc::quantum::Gate &in_gateInstruction) {
@@ -502,15 +504,28 @@ void ExaTnDmVisitor::applyNoise(xacc::quantum::Gate &in_gateInstruction) {
           noiseTensorName, flattenGateMatrix(noiseMat));
       assert(initialized);
 
-      const std::vector<std::pair<unsigned int, unsigned int>> noisePairing{
+      const std::vector<std::pair<unsigned int, unsigned int>> noisePairingMsb{
           {static_cast<unsigned int>(channel.noise_qubits[0]), 0},
           {static_cast<unsigned int>(channel.noise_qubits[0] +
                                      m_buffer->size()),
-           2},
+           1},
           {static_cast<unsigned int>(channel.noise_qubits[1]), 4},
           {static_cast<unsigned int>(channel.noise_qubits[1] +
                                      m_buffer->size()),
-           6}};
+           5}};
+
+      const std::vector<std::pair<unsigned int, unsigned int>> noisePairingLsb{
+          {static_cast<unsigned int>(channel.noise_qubits[1]), 0},
+          {static_cast<unsigned int>(channel.noise_qubits[1] +
+                                     m_buffer->size()),
+           3},
+          {static_cast<unsigned int>(channel.noise_qubits[0]), 4},
+          {static_cast<unsigned int>(channel.noise_qubits[0] +
+                                     m_buffer->size()),
+           7}};
+      const std::vector<std::pair<unsigned int, unsigned int>> noisePairing =
+          (channel.bit_order == KrausMatBitOrder::MSB) ? noisePairingMsb
+                                                       : noisePairingLsb;
       // Append the tensor for this gate to the network
       const bool appended = m_tensorNetwork.appendTensor(
           m_tensorIdCounter, exatn::getTensor(noiseTensorName),
