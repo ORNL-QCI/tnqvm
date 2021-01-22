@@ -21,6 +21,27 @@ const std::string lsb_noise_model =
 // P(1|0) = 0.1; P(0|1) = 0.2
 const std::string ro_error_noise_model =
     R"({"gate_noise": [], "bit_order": "MSB", "readout_errors": [{"register_location": "0", "prob_meas0_prep1": 0.2, "prob_meas1_prep0": 0.1}]})";
+
+// Multiple qubit depolarizing:
+const std::string noise_model_multi_depol = R"({"gate_noise": [{"gate_name": "CNOT", "register_location": ["0", "1"], "noise_channels": [{"matrix": [[[[0.99498743710662, 0.0], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0]], [[0.0, 0.0], [0.99498743710662, 0.0], [0.0, 0.0], [0.0, 0.0]], [[0.0, 0.0], [0.0, 0.0], [0.99498743710662, 0.0], [0.0, 0.0]], [[0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [0.99498743710662, 0.0]]], [[[0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [0.05773502691896258, 0.0]], [[0.0, 0.0], [0.0, 0.0], [0.05773502691896258, 0.0], [0.0, 0.0]], [[0.0, 0.0], [0.05773502691896258, 0.0], [0.0, 0.0], [0.0, 0.0]], [[0.05773502691896258, 0.0], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0]]], [[[0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [-0.05773502691896258, 0.0]], [[0.0, 0.0], [0.0, 0.0], [0.05773502691896258, 0.0], [0.0, 0.0]], [[0.0, 0.0], [0.05773502691896258, 0.0], [0.0, 0.0], [0.0, 0.0]], [[-0.05773502691896258, 0.0], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0]]], [[[0.05773502691896258, 0.0], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0]], [[0.0, 0.0], [-0.05773502691896258, 0.0], [0.0, 0.0], [0.0, 0.0]], [[0.0, 0.0], [0.0, 0.0], [-0.05773502691896258, 0.0], [0.0, 0.0]], [[0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [0.05773502691896258, 0.0]]]]}]}], "bit_order": "MSB"})";
+
+bool validateDensityMatrix(
+    const std::vector<std::vector<std::complex<double>>> &in_dm) {
+  double sum_diag = 0.0;
+  const auto nbRows = in_dm.size();
+  for (size_t i = 0; i < nbRows; ++i) {
+    if (in_dm[i].size() != nbRows) {
+      return false;
+    }
+    const auto diag_elem = in_dm[i][i];
+    if (std::abs(diag_elem.imag()) > 1e-3) {
+      return false;
+    }
+    sum_diag += diag_elem.real();
+  }
+  return std::abs(1.0 - sum_diag) < 1e-3;
+}
+
 } // namespace
 
 TEST(JsonNoiseModelTester, checkNoNoise) {
@@ -49,6 +70,7 @@ TEST(JsonNoiseModelTester, checkNoNoise) {
       std::cout << "\n";
     }
     EXPECT_EQ(dm->size(), 2);
+    EXPECT_TRUE(validateDensityMatrix(*dm));
   }
 
   {
@@ -70,14 +92,15 @@ TEST(JsonNoiseModelTester, checkNoNoise) {
     auto dm = accelerator
                   ->getExecutionInfo<xacc::ExecutionInfo::DensityMatrixPtrType>(
                       xacc::ExecutionInfo::DmKey);
-    std::cout << "Density matrix\n";
-    for (const auto &row : *dm) {
-      for (const auto &elem : row) {
-        std::cout << elem << " ";
-      }
-      std::cout << "\n";
-    }
+    // std::cout << "Density matrix\n";
+    // for (const auto &row : *dm) {
+    //   for (const auto &elem : row) {
+    //     std::cout << elem << " ";
+    //   }
+    //   std::cout << "\n";
+    // }
     EXPECT_EQ(dm->size(), 4);
+    EXPECT_TRUE(validateDensityMatrix(*dm));
   }
 }
 
@@ -104,6 +127,7 @@ TEST(JsonNoiseModelTester, checkSimple) {
             ->getExecutionInfo<xacc::ExecutionInfo::DensityMatrixPtrType>(
                 xacc::ExecutionInfo::DmKey);
     auto densityMatrix = *dmPtr;
+    EXPECT_TRUE(validateDensityMatrix(densityMatrix));
     EXPECT_EQ(densityMatrix.size(), 2);
     // Check trace
     EXPECT_NEAR(densityMatrix[0][0].real() + densityMatrix[1][1].real(), 1.0, 1e-6);
@@ -137,6 +161,7 @@ TEST(JsonNoiseModelTester, checkSimple) {
                   ->getExecutionInfo<xacc::ExecutionInfo::DensityMatrixPtrType>(
                       xacc::ExecutionInfo::DmKey);
     auto densityMatrix = *dmPtr;
+    EXPECT_TRUE(validateDensityMatrix(densityMatrix));
     // Verify the distribution (25% amplitude damping)
     EXPECT_NEAR(densityMatrix[0][0].real(), 0.25, 1e-6);
     EXPECT_NEAR(densityMatrix[1][1].real(), 0.75, 1e-6);
@@ -169,6 +194,7 @@ TEST(JsonNoiseModelTester, checkBitOrdering) {
             ->getExecutionInfo<xacc::ExecutionInfo::DensityMatrixPtrType>(
                 xacc::ExecutionInfo::DmKey);
     densityMatrix_msb = *dmPtr;
+    EXPECT_TRUE(validateDensityMatrix(densityMatrix_msb));
     std::cout << "Density matrix MSB\n";
     for (const auto &row : densityMatrix_msb) {
       for (const auto &elem : row) {
@@ -191,6 +217,7 @@ TEST(JsonNoiseModelTester, checkBitOrdering) {
             ->getExecutionInfo<xacc::ExecutionInfo::DensityMatrixPtrType>(
                 xacc::ExecutionInfo::DmKey);
     densityMatrix_lsb = *dmPtr;
+    EXPECT_TRUE(validateDensityMatrix(densityMatrix_lsb));
     std::cout << "Density matrix LSB\n";
     for (const auto &row : densityMatrix_lsb) {
       for (const auto &elem : row) {
@@ -208,6 +235,38 @@ TEST(JsonNoiseModelTester, checkBitOrdering) {
                   densityMatrix_lsb[row][col].imag(), 1e-9);
     }
   }
+}
+
+TEST(JsonNoiseModelTester, checkMultiDepol) {
+  auto xasmCompiler = xacc::getCompiler("xasm");
+  auto program = xasmCompiler
+                     ->compile(R"(__qpu__ void testCX2(qbit q) {
+        CX(q[0], q[1]);
+        Measure(q[0]);
+        Measure(q[1]);
+      })",
+                               nullptr)
+                     ->getComposites()[0];
+
+  auto noiseModel = xacc::getService<xacc::NoiseModel>("json");
+  noiseModel->initialize({{"noise-model", noise_model_multi_depol}});
+  auto accelerator = xacc::getAccelerator(
+      "tnqvm", {{"tnqvm-visitor", "exatn-dm"}, {"noise-model", noiseModel}});
+
+  auto buffer = xacc::qalloc(2);
+  accelerator->execute(buffer, program);
+  auto dmPtr =
+      accelerator->getExecutionInfo<xacc::ExecutionInfo::DensityMatrixPtrType>(
+          xacc::ExecutionInfo::DmKey);
+  auto densityMatrix = *dmPtr;
+  EXPECT_TRUE(validateDensityMatrix(densityMatrix));
+  std::cout << "Density matrix:\n";
+  // for (const auto &row : densityMatrix) {
+  //   for (const auto &elem : row) {
+  //     std::cout << elem << " ";
+  //   }
+  //   std::cout << "\n";
+  // }
 }
 
 int main(int argc, char **argv) {
