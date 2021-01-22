@@ -461,12 +461,12 @@ void ExaTnDmVisitor::applyNoise(xacc::quantum::Gate &in_gateInstruction) {
   for (auto &channel : noiseChannels) {
     auto noiseMat = noiseUtils->krausToChoi(channel.mats);
 
-    for (const auto &row : noiseMat) {
-      for (const auto &el : row) {
-        std::cout << el << " ";
-      }
-      std::cout << "\n";
-    }
+    // for (const auto &row : noiseMat) {
+    //   for (const auto &el : row) {
+    //     std::cout << el << " ";
+    //   }
+    //   std::cout << "\n";
+    // }
 
     m_tensorIdCounter++;
     const std::string noiseTensorName = in_gateInstruction.name() + "_Noise_" +
