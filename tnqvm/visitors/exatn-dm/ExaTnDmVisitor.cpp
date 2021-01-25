@@ -394,6 +394,10 @@ void ExaTnDmVisitor::applySingleQubitGate(
       // conjugate
       true);
   assert(conjAppended);
+  // DEBUG
+  std::cout << "Before noise:\n";
+  m_tensorNetwork.printIt();
+
   // Adding noise tensors.
   applyNoise(in_gateInstruction);
 }
