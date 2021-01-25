@@ -108,6 +108,30 @@ TEST(JsonNoiseModelTester, checkNoNoise) {
     EXPECT_EQ(dm->size(), 4);
     EXPECT_TRUE(validateDensityMatrix(*dm));
   }
+
+  {
+    // Check exp-val by trace (direct tensor network contraction)
+    auto accelerator =
+        xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-dm"}});
+    auto xasmCompiler = xacc::getCompiler("xasm");
+    auto program = xasmCompiler
+                       ->compile(R"(__qpu__ void testRX(qbit q, double t) {
+        Rx(q[0], t);
+        Measure(q[0]);
+      })",
+                                 accelerator)
+                       ->getComposite("testRX");
+    const auto angles = xacc::linspace(-M_PI, M_PI, 20);
+    for (const auto& angle: angles) {
+      auto evaled = program->operator()({angle});
+      const double expResult = -1.0 + 2.0*std::cos(angle/2.0)*std::cos(angle/2.0);
+      std::cout << "Angle = " << angle << ": " << expResult << "\n";
+      auto buffer = xacc::qalloc(1);
+      accelerator->execute(buffer, evaled);
+      buffer->print();
+      EXPECT_NEAR(buffer->getExpectationValueZ(), expResult, 1e-3);
+    }
+  }
 }
 
 TEST(JsonNoiseModelTester, checkSimple) {

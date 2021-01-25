@@ -24,7 +24,7 @@ std::vector<std::complex<double>> Q_ZERO_TENSOR_BODY(size_t in_volume) {
 const std::string ROOT_TENSOR_NAME = "Root";
 
 void printDensityMatrix(const exatn::TensorNetwork &in_tensorNet,
-                        size_t in_nbQubit) {
+                        size_t in_nbQubit, bool in_checkTrace = true) {
   exatn::TensorNetwork tempNetwork(in_tensorNet);
   tempNetwork.rename("__TEMP__" + in_tensorNet.getName());
   const bool evaledOk = exatn::evaluateSync(tempNetwork);
@@ -55,9 +55,11 @@ void printDensityMatrix(const exatn::TensorNetwork &in_tensorNet,
         std::cout << elem << " ";
       }
       std::cout << "\n";
-      // Verify trace(density matrix) == 1.0
-      assert(std::abs(traceVal.real() - 1.0) < 1e-12);
-      assert(std::abs(traceVal.imag()) < 1e-12);
+      if (in_checkTrace) {
+        // Verify trace(density matrix) == 1.0
+        assert(std::abs(traceVal.real() - 1.0) < 1e-12);
+        assert(std::abs(traceVal.imag()) < 1e-12);
+      }
     }
   } else {
     std::cout << "Failed to retrieve tensor data!!!\n";
@@ -332,6 +334,96 @@ void ExaTnDmVisitor::finalize() {
     }
     
     executionInfo.insert(ExecutionInfo::DmKey, std::make_shared<ExecutionInfo::DensityMatrixType>(std::move(densityMatrix)));
+  }
+
+  // Expectation value calculation:
+  // Exp = Trace(rho * Op)
+  if (!m_measuredBits.empty()) {
+    auto tensorIdCounter = m_tensorIdCounter;
+    auto expValTensorNet = m_tensorNetwork;
+    const std::string measZTensorName = "MEAS_Z";
+    {
+      xacc::quantum::Z zGate(0);
+      const auto gateMatrix = getGateMatrix(zGate);
+      assert(gateMatrix.size() == 4);
+      // Create the tensor
+      const bool created = exatn::createTensorSync(
+          measZTensorName, exatn::TensorElementType::COMPLEX64,
+          exatn::TensorShape{2, 2});
+      assert(created);
+      // Init tensor body data
+      const bool initialized =
+          exatn::initTensorDataSync(measZTensorName, gateMatrix);
+      assert(initialized);
+    }
+    // Add Z tensors for measurement
+    for (const auto &measBit : m_measuredBits) {
+      tensorIdCounter++;
+      const std::vector<unsigned int> gatePairing{
+          static_cast<unsigned int>(measBit)};
+      // Append the tensor for this gate to the network
+      const bool appended = expValTensorNet.appendTensorGate(
+          tensorIdCounter,
+          // Get the gate tensor data which must have been initialized.
+          exatn::getTensor(measZTensorName),
+          // which qubits that the gate is acting on
+          gatePairing);
+      assert(appended);
+    }
+    // DEBUG:
+    std::cout << "TENSOR NETWORK TO COMPUTE THE TRACE:\n";
+    printDensityMatrix(expValTensorNet, m_buffer->size(), false);
+    // Compute the trace, closing the tensor network:
+    const std::string idTensor = "ID_TRACE";
+    {
+      xacc::quantum::Identity idGate(0);
+      const auto idGateMatrix = getGateMatrix(idGate);
+      // Create the tensor
+      const bool created =
+          exatn::createTensorSync(idTensor, exatn::TensorElementType::COMPLEX64,
+                                  exatn::TensorShape{2, 2});
+      assert(created);
+      // Init tensor body data
+      const bool initialized =
+          exatn::initTensorDataSync(idTensor, idGateMatrix);
+      assert(initialized);
+    }
+
+    for (size_t qId = 0; qId < m_buffer->size(); ++qId) {
+      tensorIdCounter++;
+      const std::vector<std::pair<unsigned int, unsigned int>> tracePairing{
+          {static_cast<unsigned int>(qId), 0},
+          {static_cast<unsigned int>(qId + m_buffer->size()), 1}};
+      const bool appended = expValTensorNet.appendTensor(
+          tensorIdCounter, exatn::getTensor(idTensor), tracePairing);
+      assert(appended);
+    }
+
+    // Evaluate the trace by contraction:
+    const bool evaledOk = exatn::evaluateSync(expValTensorNet);
+    assert(evaledOk);
+    auto talsh_tensor =
+        exatn::getLocalTensor(expValTensorNet.getTensor(0)->getName());
+    if (talsh_tensor) {
+      const std::complex<double> *body_ptr;
+      const bool access_granted =
+          talsh_tensor->getDataAccessHostConst(&body_ptr);
+      if (!access_granted) {
+        xacc::error("Failed to retrieve tensor data!");
+      } else {
+        // Should only have 1 element:
+        assert(talsh_tensor->getVolume() == 1);
+        const std::complex<double> traceVal = *body_ptr;
+        assert(traceVal.imag() < 1e-3);
+        const double expValZ = traceVal.real();
+        std::cout << "Exp-val Z = " << expValZ << "\n";
+        m_buffer->addExtraInfo("exp-val-z", expValZ);
+      }
+    }
+    bool destroyed = exatn::destroyTensor(measZTensorName);
+    assert(destroyed);
+    destroyed = exatn::destroyTensor(idTensor);
+    assert(destroyed);
   }
 
   std::unordered_set<std::string> tensorList;
