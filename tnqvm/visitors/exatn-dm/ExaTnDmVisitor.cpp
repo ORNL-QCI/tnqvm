@@ -540,13 +540,15 @@ void ExaTnDmVisitor::applyNoise(xacc::quantum::Gate &in_gateInstruction) {
           noiseTensorName, flattenGateMatrix(noiseMat));
       assert(initialized);
 
-      const std::vector<std::pair<unsigned int, unsigned int>> noisePairing{
-          {static_cast<unsigned int>(channel.noise_qubits[0]), 1},
-          {static_cast<unsigned int>(channel.noise_qubits[0] +
-                                     m_buffer->size()),
-           3}};
+      const std::vector<
+          std::pair<unsigned int, std::pair<unsigned int, unsigned int>>>
+          noisePairing{
+              {static_cast<unsigned int>(channel.noise_qubits[0]), {1, 0}},
+              {static_cast<unsigned int>(channel.noise_qubits[0] +
+                                         m_buffer->size()),
+               {3, 2}}};
       // Append the tensor for this gate to the network
-      const bool appended = m_tensorNetwork.appendTensor(
+      const bool appended = m_tensorNetwork.appendTensorGateGeneral(
           m_tensorIdCounter, exatn::getTensor(noiseTensorName),
           // which qubits that the gate is acting on
           noisePairing);
@@ -562,30 +564,34 @@ void ExaTnDmVisitor::applyNoise(xacc::quantum::Gate &in_gateInstruction) {
           noiseTensorName, flattenGateMatrix(noiseMat));
       assert(initialized);
 
-      const std::vector<std::pair<unsigned int, unsigned int>> noisePairingMsb{
-          {static_cast<unsigned int>(channel.noise_qubits[0]), 0},
-          {static_cast<unsigned int>(channel.noise_qubits[0] +
-                                     m_buffer->size()),
-           1},
-          {static_cast<unsigned int>(channel.noise_qubits[1]), 4},
-          {static_cast<unsigned int>(channel.noise_qubits[1] +
-                                     m_buffer->size()),
-           5}};
+      const std::vector<
+          std::pair<unsigned int, std::pair<unsigned int, unsigned int>>>
+          noisePairingMsb{
+              {static_cast<unsigned int>(channel.noise_qubits[0]), {0, 2}},
+              {static_cast<unsigned int>(channel.noise_qubits[0] +
+                                         m_buffer->size()),
+               {1, 6}},
+              {static_cast<unsigned int>(channel.noise_qubits[1]), {4, 3}},
+              {static_cast<unsigned int>(channel.noise_qubits[1] +
+                                         m_buffer->size()),
+               {5, 7}}};
 
-      const std::vector<std::pair<unsigned int, unsigned int>> noisePairingLsb{
-          {static_cast<unsigned int>(channel.noise_qubits[1]), 0},
-          {static_cast<unsigned int>(channel.noise_qubits[1] +
-                                     m_buffer->size()),
-           3},
-          {static_cast<unsigned int>(channel.noise_qubits[0]), 4},
-          {static_cast<unsigned int>(channel.noise_qubits[0] +
-                                     m_buffer->size()),
-           7}};
-      const std::vector<std::pair<unsigned int, unsigned int>> noisePairing =
-          (channel.bit_order == KrausMatBitOrder::MSB) ? noisePairingMsb
-                                                       : noisePairingLsb;
+      const std::vector<
+          std::pair<unsigned int, std::pair<unsigned int, unsigned int>>>
+          noisePairingLsb{
+              {static_cast<unsigned int>(channel.noise_qubits[1]), {0, 2}},
+              {static_cast<unsigned int>(channel.noise_qubits[1] +
+                                         m_buffer->size()),
+               {1, 6}},
+              {static_cast<unsigned int>(channel.noise_qubits[0]), {4, 3}},
+              {static_cast<unsigned int>(channel.noise_qubits[0] +
+                                         m_buffer->size()),
+               {5, 7}}};
+      const auto noisePairing = (channel.bit_order == KrausMatBitOrder::MSB)
+                                    ? noisePairingMsb
+                                    : noisePairingLsb;
       // Append the tensor for this gate to the network
-      const bool appended = m_tensorNetwork.appendTensor(
+      const bool appended = m_tensorNetwork.appendTensorGateGeneral(
           m_tensorIdCounter, exatn::getTensor(noiseTensorName),
           // which qubits that the gate is acting on
           noisePairing);

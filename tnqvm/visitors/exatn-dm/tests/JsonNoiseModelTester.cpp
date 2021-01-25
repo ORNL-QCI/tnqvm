@@ -406,8 +406,7 @@ TEST(JsonNoiseModelTester, checkOutputLegOrder) {
             ->getExecutionInfo<xacc::ExecutionInfo::DensityMatrixPtrType>(
                 xacc::ExecutionInfo::DmKey);
     densityMatrix_weak_noise = *dmPtr;
-    // This is failing atm b/c of leg ordering issue.
-    // EXPECT_TRUE(validateDensityMatrix(densityMatrix_weak_noise));
+    EXPECT_TRUE(validateDensityMatrix(densityMatrix_weak_noise));
     std::cout << "Density matrix:\n";
     for (const auto &row : densityMatrix_weak_noise) {
       for (const auto &elem : row) {
@@ -418,16 +417,15 @@ TEST(JsonNoiseModelTester, checkOutputLegOrder) {
   }
 
   // 4 qubits
-  // TODO: enable this once ExaTN fix is added...
-  // const auto nbRows = 1ULL << 4;
-  // for (int row = 0; row < nbRows; ++row) {
-  //   for (int col = 0; col < nbRows; ++col) {
-  //     EXPECT_NEAR(densityMatrix_no_noise[row][col].real(),
-  //                 densityMatrix_weak_noise[row][col].real(), 1e-3);
-  //     EXPECT_NEAR(densityMatrix_no_noise[row][col].imag(),
-  //                 densityMatrix_weak_noise[row][col].imag(), 1e-3);
-  //   }
-  // }
+  const auto nbRows = 1ULL << 4;
+  for (int row = 0; row < nbRows; ++row) {
+    for (int col = 0; col < nbRows; ++col) {
+      EXPECT_NEAR(densityMatrix_no_noise[row][col].real(),
+                  densityMatrix_weak_noise[row][col].real(), 1e-3);
+      EXPECT_NEAR(densityMatrix_no_noise[row][col].imag(),
+                  densityMatrix_weak_noise[row][col].imag(), 1e-3);
+    }
+  }
 }
 
 // This test doesn't work, pending ExaTN updates.
