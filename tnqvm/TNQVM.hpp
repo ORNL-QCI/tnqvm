@@ -65,9 +65,16 @@ public:
       vqeMode = config.get<bool>("vqe-mode");
     }
 
-    if (config.stringExists("tnqvm-visitor")) {
-      const auto requestedBackend = config.getString("tnqvm-visitor");
-      const auto& allVisitorServices = xacc::getServices<TNQVMVisitor>();
+    if (config.stringExists("tnqvm-visitor") ||
+        config.stringExists("backend")) {
+      // Get the specific TNQVM visitor, either using the `tnqvm-visitor` key
+      // or the `backend` key.
+      // e.g., when users use the convention "tnqvm::exatn", "exatn" will be
+      // parsed and passed in the "backend" field.
+      const auto requestedBackend = config.stringExists("tnqvm-visitor")
+                                        ? config.getString("tnqvm-visitor")
+                                        : config.getString("backend");
+      const auto &allVisitorServices = xacc::getServices<TNQVMVisitor>();
       // We must have at least one TNQVM service registered.
       assert(!allVisitorServices.empty());
       bool foundRequestedBackend = false;
