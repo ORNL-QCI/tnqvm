@@ -358,8 +358,8 @@ ExaTnDmVisitor::buildInitialNetwork(size_t in_nbQubits) const {
         tensorIdCounter, exatn::getTensor(tensorName),
         std::vector<std::pair<unsigned int, unsigned int>>{});
   }
-  std::cout << "Qubit Tensor network:\n";
-  qubitTensorNet.printIt();
+  // std::cout << "Qubit Tensor network:\n";
+  // qubitTensorNet.printIt();
   return qubitTensorNet;
 }
 
@@ -444,8 +444,8 @@ void ExaTnDmVisitor::finalize() {
       assert(appended);
     }
     // DEBUG:
-    std::cout << "TENSOR NETWORK TO COMPUTE THE TRACE:\n";
-    printDensityMatrix(expValTensorNet, m_buffer->size(), false);
+    // std::cout << "TENSOR NETWORK TO COMPUTE THE TRACE:\n";
+    // printDensityMatrix(expValTensorNet, m_buffer->size(), false);
     // Compute the trace, closing the tensor network:
     const std::string idTensor = "ID_TRACE";
     {
@@ -489,7 +489,7 @@ void ExaTnDmVisitor::finalize() {
         const std::complex<double> traceVal = *body_ptr;
         assert(traceVal.imag() < 1e-3);
         const double expValZ = traceVal.real();
-        std::cout << "Exp-val Z = " << expValZ << "\n";
+        // std::cout << "Exp-val Z = " << expValZ << "\n";
         m_buffer->addExtraInfo("exp-val-z", expValZ);
       }
     }
@@ -585,8 +585,8 @@ void ExaTnDmVisitor::applySingleQubitGate(
   }
 
   // DEBUG
-  std::cout << "Before noise:\n";
-  m_tensorNetwork.printIt();
+  // std::cout << "Before noise:\n";
+  // m_tensorNetwork.printIt();
 
   // Adding noise tensors.
   applyNoise(in_gateInstruction);
@@ -660,8 +660,8 @@ void ExaTnDmVisitor::applyNoise(xacc::quantum::Gate &in_gateInstruction) {
   if (!m_noiseConfig) {
     return;
   }
-  std::cout << "Before noise:\n";
-  printDensityMatrix(m_tensorNetwork, m_buffer->size());
+  // std::cout << "Before noise:\n";
+  // printDensityMatrix(m_tensorNetwork, m_buffer->size());
 
   const auto noiseChannels =
       m_noiseConfig->getNoiseChannels(in_gateInstruction);
@@ -758,9 +758,9 @@ void ExaTnDmVisitor::applyNoise(xacc::quantum::Gate &in_gateInstruction) {
   }
 
   // DEBUG:
-  std::cout << "Apply Noise: " << in_gateInstruction.toString() << "\n";
-  m_tensorNetwork.printIt();
-  printDensityMatrix(m_tensorNetwork, m_buffer->size());
+  // std::cout << "Apply Noise: " << in_gateInstruction.toString() << "\n";
+  // m_tensorNetwork.printIt();
+  // printDensityMatrix(m_tensorNetwork, m_buffer->size());
 }
 
 void ExaTnDmVisitor::visit(Identity &in_IdentityGate) {
@@ -777,9 +777,9 @@ void ExaTnDmVisitor::visit(Hadamard &in_HadamardGate) {
 void ExaTnDmVisitor::visit(X &in_XGate) {
   applySingleQubitGate(in_XGate);
   // DEBUG:
-  std::cout << "Apply: " << in_XGate.toString() << "\n";
-  m_tensorNetwork.printIt();
-  printDensityMatrix(m_tensorNetwork, m_buffer->size());
+  // std::cout << "Apply: " << in_XGate.toString() << "\n";
+  // m_tensorNetwork.printIt();
+  // printDensityMatrix(m_tensorNetwork, m_buffer->size());
 }
 
 void ExaTnDmVisitor::visit(Y &in_YGate) { applySingleQubitGate(in_YGate); }
@@ -788,16 +788,16 @@ void ExaTnDmVisitor::visit(Z &in_ZGate) { applySingleQubitGate(in_ZGate); }
 
 void ExaTnDmVisitor::visit(Rx &in_RxGate) { 
   applySingleQubitGate(in_RxGate); 
-  std::cout << "Apply: " << in_RxGate.toString() << "\n";
-  m_tensorNetwork.printIt();
-  printDensityMatrix(m_tensorNetwork, m_buffer->size());
+  // std::cout << "Apply: " << in_RxGate.toString() << "\n";
+  // m_tensorNetwork.printIt();
+  // printDensityMatrix(m_tensorNetwork, m_buffer->size());
 }
 
 void ExaTnDmVisitor::visit(Ry &in_RyGate) { 
   applySingleQubitGate(in_RyGate); 
-  std::cout << "Apply: " << in_RyGate.toString() << "\n";
-  m_tensorNetwork.printIt();
-  printDensityMatrix(m_tensorNetwork, m_buffer->size());
+  // std::cout << "Apply: " << in_RyGate.toString() << "\n";
+  // m_tensorNetwork.printIt();
+  // printDensityMatrix(m_tensorNetwork, m_buffer->size());
 }
 
 void ExaTnDmVisitor::visit(Rz &in_RzGate) { applySingleQubitGate(in_RzGate); }
@@ -805,9 +805,9 @@ void ExaTnDmVisitor::visit(Rz &in_RzGate) { applySingleQubitGate(in_RzGate); }
 void ExaTnDmVisitor::visit(T &in_TGate) { 
   applySingleQubitGate(in_TGate); 
   // DEBUG:
-  std::cout << "Apply: " << in_TGate.toString() << "\n";
-  m_tensorNetwork.printIt();
-  printDensityMatrix(m_tensorNetwork, m_buffer->size());
+  // std::cout << "Apply: " << in_TGate.toString() << "\n";
+  // m_tensorNetwork.printIt();
+  // printDensityMatrix(m_tensorNetwork, m_buffer->size());
 }
 
 void ExaTnDmVisitor::visit(Tdg &in_TdgGate) {
@@ -826,8 +826,8 @@ void ExaTnDmVisitor::visit(CNOT &in_CNOTGate) {
   applyTwoQubitGate(in_CNOTGate);
   // DEBUG:
   // std::cout << "Apply: " << in_CNOTGate.toString() << "\n";
-  m_tensorNetwork.printIt();
-  printDensityMatrix(m_tensorNetwork, m_buffer->size());
+  // m_tensorNetwork.printIt();
+  // printDensityMatrix(m_tensorNetwork, m_buffer->size());
 }
 
 void ExaTnDmVisitor::visit(Swap &in_SwapGate) {
