@@ -65,6 +65,44 @@ void printDensityMatrix(const exatn::TensorNetwork &in_tensorNet,
   }
 }
 
+bool checkDmTensorNetwork(const exatn::TensorNetwork &in_tensorNet,
+                          size_t in_nbQubit) {
+  exatn::TensorNetwork tempNetwork(in_tensorNet);
+  tempNetwork.rename("__TEMP__" + in_tensorNet.getName());
+  const bool evaledOk = exatn::evaluateSync(tempNetwork);
+  assert(evaledOk);
+  auto talsh_tensor =
+      exatn::getLocalTensor(tempNetwork.getTensor(0)->getName());
+  const auto expectedDensityMatrixVolume =
+      (1ULL << in_nbQubit) * (1ULL << in_nbQubit);
+  const auto nbRows = 1ULL << in_nbQubit;
+  if (talsh_tensor) {
+    const std::complex<double> *body_ptr;
+    const bool access_granted = talsh_tensor->getDataAccessHostConst(&body_ptr);
+    if (!access_granted) {
+      std::cout << "Failed to retrieve tensor data!!!\n";
+    } else {
+      assert(expectedDensityMatrixVolume == talsh_tensor->getVolume());
+      std::complex<double> traceVal{0.0, 0.0};
+      int rowId = -1;
+      for (int i = 0; i < talsh_tensor->getVolume(); ++i) {
+        if (i % nbRows == 0) {
+          rowId++;
+        }
+        if (i == (rowId + rowId * nbRows)) {
+          traceVal += body_ptr[i];
+        }
+        const auto &elem = body_ptr[i];
+      }
+      return (std::abs(traceVal.real() - 1.0) < 1e-12) &&
+             (std::abs(traceVal.imag()) < 1e-12);
+    }
+  } else {
+    std::cout << "Failed to retrieve tensor data!!!\n";
+  }
+  return false;
+}
+
 std::vector<std::complex<double>> flattenGateMatrix(
     const std::vector<std::vector<std::complex<double>>> &in_gateMatrix) {
   std::vector<std::complex<double>> resultVector;
@@ -217,6 +255,38 @@ findAllGateTensorPairings(int in_tensorRank) {
   }
 
   return result;
+}
+
+void checkKrausTensorConfig(const exatn::TensorNetwork &in_tensorNet,
+                            unsigned int in_q0, unsigned int in_q1,
+                            unsigned int in_numQubits,
+                            const std::string &in_krausTensorName) {
+  auto noiseTensor = exatn::getTensor(in_krausTensorName);
+  std::cout << "Checking Kraus tensor connections:\n";
+  auto test = findAllGateTensorPairings(noiseTensor->getDimExtents().size());
+  for (const auto &config : test) {
+    const std::vector<
+        std::pair<unsigned int, std::pair<unsigned int, unsigned int>>>
+        noisePairing{{in_q0, config[0]},
+                     {in_q0 + in_numQubits, config[1]},
+                     {in_q1, config[2]},
+                     {in_q1 + in_numQubits, config[3]}};
+
+    // Append the tensor for this gate to the network
+    auto temp = in_tensorNet;
+    const auto tensorIdCounter = temp.getMaxTensorId() + 1;
+    const bool appended = temp.appendTensorGateGeneral(
+        tensorIdCounter, noiseTensor, noisePairing);
+    assert(appended);
+    if (checkDmTensorNetwork(temp, in_numQubits)) {
+      std::cout << "============================== \n Valid: ";
+      for (const auto &[iLeg, oLeg] : config) {
+        std::cout << "(" << iLeg << "-->" << oLeg << ")";
+      }
+      printDensityMatrix(temp, in_numQubits);
+      std::cout << "==============================\n";
+    }
+  }
 }
 } // namespace
 
@@ -645,29 +715,34 @@ void ExaTnDmVisitor::applyNoise(xacc::quantum::Gate &in_gateInstruction) {
           noiseTensorName, flattenGateMatrix(noiseMat));
       assert(initialized);
 
+      // DEBUG: Using this to check all possible permutations.
+      // checkKrausTensorConfig(m_tensorNetwork, channel.noise_qubits[0],
+      //                        channel.noise_qubits[1], m_buffer->size(),
+      //                        noiseTensorName);
+
       const std::vector<
           std::pair<unsigned int, std::pair<unsigned int, unsigned int>>>
           noisePairingMsb{
-              {static_cast<unsigned int>(channel.noise_qubits[0]), {0, 2}},
+              {static_cast<unsigned int>(channel.noise_qubits[0]), {5, 6}},
               {static_cast<unsigned int>(channel.noise_qubits[0] +
                                          m_buffer->size()),
-               {1, 6}},
-              {static_cast<unsigned int>(channel.noise_qubits[1]), {4, 3}},
+               {1, 2}},
+              {static_cast<unsigned int>(channel.noise_qubits[1]), {4, 7}},
               {static_cast<unsigned int>(channel.noise_qubits[1] +
                                          m_buffer->size()),
-               {5, 7}}};
+               {0, 3}}};
 
       const std::vector<
           std::pair<unsigned int, std::pair<unsigned int, unsigned int>>>
           noisePairingLsb{
-              {static_cast<unsigned int>(channel.noise_qubits[1]), {0, 2}},
+              {static_cast<unsigned int>(channel.noise_qubits[1]), {5, 6}},
               {static_cast<unsigned int>(channel.noise_qubits[1] +
                                          m_buffer->size()),
-               {1, 6}},
-              {static_cast<unsigned int>(channel.noise_qubits[0]), {4, 3}},
+               {1, 2}},
+              {static_cast<unsigned int>(channel.noise_qubits[0]), {4, 7}},
               {static_cast<unsigned int>(channel.noise_qubits[0] +
                                          m_buffer->size()),
-               {5, 7}}};
+               {0, 3}}};
       const auto noisePairing = (channel.bit_order == KrausMatBitOrder::MSB)
                                     ? noisePairingMsb
                                     : noisePairingLsb;
