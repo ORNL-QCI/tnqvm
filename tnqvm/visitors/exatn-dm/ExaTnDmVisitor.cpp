@@ -9,6 +9,7 @@
 #ifdef TNQVM_EXATN_USES_MKL_BLAS
 #include <dlfcn.h>
 #endif
+#include <bits/stdc++.h> 
 
 #define QUBIT_DIM 2
 
@@ -136,6 +137,86 @@ getGateMatrix(const xacc::Instruction &in_gate, bool in_dagger = false) {
   const auto gateMatrix = getMatrix();
   return in_dagger ? flattenGateMatrix(conjugateMatrix(gateMatrix))
                    : flattenGateMatrix(gateMatrix);
+}
+
+void recursiveFindAllCombinations(std::vector<std::vector<unsigned int>>& io_result,
+const std::vector<unsigned int> &arr,
+                std::vector<unsigned int> &data, int start, int end, int index,
+                int r) {
+  // Current combination is ready
+  if (index == r) {
+    std::vector<unsigned int> combination;
+    for (int j = 0; j < r; j++) {
+      combination.emplace_back(data[j]);
+    }
+    io_result.emplace_back(combination);
+    return;
+  }
+  for (int i = start; i <= end && end - i + 1 >= r - index; i++) {
+    data[index] = arr[i];
+    recursiveFindAllCombinations(io_result, arr, data, i + 1, end, index + 1, r);
+  }
+}
+
+std::vector<std::vector<unsigned int>>
+findAllPermutations(const std::vector<unsigned int> &in_elements) {
+  auto a = in_elements;
+  std::sort(a.begin(), a.end());
+  std::vector<std::vector<unsigned int>> result;
+  do {
+    result.emplace_back(a);
+
+  } while (std::next_permutation(a.begin(), a.end()));
+  return result;
+}
+
+std::vector<unsigned int>
+filterList(const std::vector<unsigned int> &in_totalList,
+           const std::vector<unsigned int> &in_filter) {
+  std::vector<unsigned int> result;
+  for (const auto &el : in_totalList) {
+    if (!xacc::container::contains(in_filter, el)) {
+      result.emplace_back(el);
+    }
+  }
+  return result;
+}
+
+// Helper to find all input->output leg connection permutation.
+// This is *only* used for development purposes to figure out the
+// correct connection configs to preseve the order of the root density matrix
+// tensor.
+std::vector<std::vector<std::pair<unsigned int, unsigned int>>>
+findAllGateTensorPairings(int in_tensorRank) {
+  assert(in_tensorRank % 2 == 0);
+  std::vector<unsigned int> legIds;
+  std::vector<unsigned int> tempVec(in_tensorRank / 2);
+  for (unsigned int i = 0; i < in_tensorRank; ++i) {
+    legIds.emplace_back(i);
+  }
+  // Find all possible input leg combination:
+  std::vector<std::vector<unsigned int>> inputCombinations;
+  recursiveFindAllCombinations(inputCombinations, legIds, tempVec, 0,
+                               in_tensorRank - 1, 0, in_tensorRank / 2);
+
+  std::vector<std::vector<std::pair<unsigned int, unsigned int>>> result;
+  for (const auto &inputLegs : inputCombinations) {
+    const auto inputLegPerm = findAllPermutations(inputLegs);
+    const auto outputLegPerm =
+        findAllPermutations(filterList(legIds, inputLegs));
+    for (const auto &inputPerm : inputLegPerm) {
+      for (const auto &outputPerm : outputLegPerm) {
+        assert(inputPerm.size() == outputPerm.size());
+        std::vector<std::pair<unsigned int, unsigned int>> combo;
+        for (size_t i = 0; i < inputPerm.size(); ++i) {
+          combo.emplace_back(std::make_pair(inputPerm[i], outputPerm[i]));
+        }
+        result.emplace_back(combo);
+      }
+    }
+  }
+
+  return result;
 }
 } // namespace
 
