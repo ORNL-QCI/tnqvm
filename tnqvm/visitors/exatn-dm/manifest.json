@@ -1,0 +1,6 @@
+{
+  "bundle.symbolic_name" : "tnqvm_exatn_dm",
+  "bundle.activator" : true,
+  "bundle.name" : "XACC ExaTN Density Matrix Contract backend",
+  "bundle.description" : "This bundle provides a full density matrix tensor network Accelerator for Gate Model QC."
+}
