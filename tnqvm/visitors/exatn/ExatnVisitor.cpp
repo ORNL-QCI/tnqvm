@@ -924,7 +924,11 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::visit(CPhase &in_CPhaseGate) {
 template<typename TNQVM_COMPLEX_TYPE>
 void ExatnVisitor<TNQVM_COMPLEX_TYPE>::visit(U &in_UGate) {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
-  appendGateTensor<CommonGates::U>(in_UGate);
+  assert(in_UGate.nParameters() == 3);
+  const double theta = in_UGate.getParameter(0).as<double>();
+  const double phi = in_UGate.getParameter(1).as<double>();
+  const double lambda = in_UGate.getParameter(2).as<double>();
+  appendGateTensor<CommonGates::U>(in_UGate, theta, phi, lambda);
 }
 
 template<typename TNQVM_COMPLEX_TYPE>

@@ -143,6 +143,11 @@ getGateMatrix(const xacc::Instruction &in_gate, bool in_dagger = false) {
     case CommonGates::Rz:
       return GetGateMatrix<CommonGates::Rz>(
           in_gate.getParameter(0).as<double>());
+    case CommonGates::U:
+      return GetGateMatrix<CommonGates::U>(
+          in_gate.getParameter(0).as<double>(),
+          in_gate.getParameter(1).as<double>(),
+          in_gate.getParameter(2).as<double>());
     case CommonGates::I:
       return GetGateMatrix<CommonGates::I>();
     case CommonGates::H:

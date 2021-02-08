@@ -221,6 +221,19 @@ namespace tnqvm {
         };    
     }
 
+    template <>
+    std::vector<std::vector<std::complex<double>>>
+    GetGateMatrix<CommonGates::U>(double in_theta, double in_phi,
+                                  double in_lambda) {
+      return {
+          {std::cos(in_theta / 2.0),
+           -std::exp(std::complex<double>(0, in_lambda)) *
+               std::sin(in_theta / 2.0)},
+          {std::exp(std::complex<double>(0, in_phi)) * std::sin(in_theta / 2.0),
+           std::exp(std::complex<double>(0, in_phi + in_lambda)) *
+               std::cos(in_theta / 2.0)}};
+    }
+
     template <> 
     std::vector<std::vector<std::complex<double>>> GetGateMatrix<CommonGates::CNOT>() {
         return 

@@ -490,15 +490,27 @@ void ITensorMPSVisitor::visit(Rz &gate) {
   execTime += singleQubitTime;
 }
 
-void ITensorMPSVisitor::visit(U& u) {
-    Rz z1(u.bits()[0], ipToDouble(u.getParameter(0)));
-    Ry y(u.bits()[0], ipToDouble(u.getParameter(1)));
-    Rz z2(u.bits()[0], ipToDouble(u.getParameter(2)));
-
-    visit(z1);
-    visit(y);
-    visit(z2);
+void ITensorMPSVisitor::visit(U &u) {
+  auto iqbit_in = u.bits()[0];
+  if (verbose) {
+    std::cout << "applying " << u.name() << " @ " << iqbit_in << std::endl;
   }
+  const double theta = ipToDouble(u.getParameter(0));
+  const double phi = ipToDouble(u.getParameter(1));
+  const double lambda = ipToDouble(u.getParameter(2));
+  auto ind_in = ind_for_qbit(iqbit_in);
+  auto ind_out = itensor::Index(u.name(), 2);
+  auto tGate = itensor::ITensor(ind_in, ind_out);
+  tGate.set(ind_in(1), ind_out(1), std::cos(theta / 2.0));
+  tGate.set(ind_in(1), ind_out(2), -std::exp(std::complex<double>(0, lambda)) *
+               std::sin(theta / 2.0));
+  tGate.set(ind_in(2), ind_out(1), std::exp(std::complex<double>(0, phi)) * std::sin(theta / 2.0));
+  tGate.set(ind_in(2), ind_out(2), std::exp(std::complex<double>(0, phi + lambda)) *
+               std::cos(theta / 2.0));
+  legMats[iqbit_in] = tGate * legMats[iqbit_in];
+  printWavefunc();
+  execTime += singleQubitTime;
+}
 
 void ITensorMPSVisitor::visit(CPhase &cp) {
   xacc::error("ITensorMPS Visitor CPhase visit unimplemented.");
