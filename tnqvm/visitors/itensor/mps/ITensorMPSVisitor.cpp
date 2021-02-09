@@ -501,11 +501,11 @@ void ITensorMPSVisitor::visit(U &u) {
   auto ind_in = ind_for_qbit(iqbit_in);
   auto ind_out = itensor::Index(u.name(), 2);
   auto tGate = itensor::ITensor(ind_in, ind_out);
-  tGate.set(ind_in(1), ind_out(1), std::cos(theta / 2.0));
-  tGate.set(ind_in(1), ind_out(2), -std::exp(std::complex<double>(0, lambda)) *
+  tGate.set(ind_out(1), ind_in(1), std::cos(theta / 2.0));
+  tGate.set(ind_out(1), ind_in(2), -std::exp(std::complex<double>(0, lambda)) *
                std::sin(theta / 2.0));
-  tGate.set(ind_in(2), ind_out(1), std::exp(std::complex<double>(0, phi)) * std::sin(theta / 2.0));
-  tGate.set(ind_in(2), ind_out(2), std::exp(std::complex<double>(0, phi + lambda)) *
+  tGate.set(ind_out(2), ind_in(1), std::exp(std::complex<double>(0, phi)) * std::sin(theta / 2.0));
+  tGate.set(ind_out(2), ind_in(2), std::exp(std::complex<double>(0, phi + lambda)) *
                std::cos(theta / 2.0));
   legMats[iqbit_in] = tGate * legMats[iqbit_in];
   printWavefunc();
