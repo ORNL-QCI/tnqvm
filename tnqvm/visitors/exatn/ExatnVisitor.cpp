@@ -1618,8 +1618,8 @@ double ExatnVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZBySlicing() {
   // Loop to be parallelized
   if (getNumMpiProcs() <= 1) {
     std::vector<double> partialExpectationValues(nbProjectedPaths);
-    bool evenParity = true;
     for (int i = 0; i < nbProjectedPaths; ++i) {
+      bool evenParity = true;
       // Open legs: 0-m_maxQubit
       std::vector<int> bitString(m_maxQubit, -1);
       for (int64_t bitIdx = 0; bitIdx < nbProjectedQubits; ++bitIdx) {
@@ -1681,9 +1681,9 @@ double ExatnVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZBySlicing() {
                 << "]: Start = " << processStartIdx
                 << "; End = " << processEndIdx << "\n";
       xacc::info(ss.str());
-      bool evenParity = true;
       int64_t vectorIdx = 0;
       for (int64_t i = processStartIdx; i < processEndIdx; ++i) {
+        bool evenParity = true;
         // Open legs: 0-m_maxQubit
         std::vector<int> bitString(m_maxQubit, -1);
         for (int64_t bitIdx = 0; bitIdx < nbProjectedQubits; ++bitIdx) {
@@ -1765,6 +1765,8 @@ ExatnVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZByAppendingConjugate(
     std::shared_ptr<CompositeInstruction> in_function) {
   // Cache the current tensor network:
   exatn::TensorNetwork cacheTensorNet = m_tensorNetwork;
+  const auto cachedIdCounter = m_tensorIdCounter;
+  auto cachedTensorList = m_appendedGateTensors;
   InstructionIterator it(in_function);
   // Add remaining instructions:
   while (it.hasNext()) {
@@ -1778,6 +1780,8 @@ ExatnVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZByAppendingConjugate(
   m_measureQbIdx.clear();
   // Restore the base tensor network
   m_tensorNetwork = cacheTensorNet;
+  m_tensorIdCounter = cachedIdCounter;
+  m_appendedGateTensors = cachedTensorList;
   return result;
 }
 
