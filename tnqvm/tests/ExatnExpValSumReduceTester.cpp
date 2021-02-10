@@ -80,6 +80,43 @@ TEST(ExatnExpValSumReduceTester, testDeuteron) {
   }
 }
 
+TEST(ExatnExpValSumReduceTester, testSliceOfMultipleQubits) {
+  auto accelerator = xacc::getAccelerator(
+      "tnqvm", {{"tnqvm-visitor", "exatn"}, {"max-qubit", 2}});
+  xacc::qasm(R"(
+        .compiler xasm
+        .circuit test_circuit
+        .qbit q
+        U(q[1], 1.5708,0,3.14159);
+        U(q[0], 1.5708,1.5708,4.71239); 
+        CNOT(q[0], q[1]);
+        U(q[2], 1.5708,-3.14159,3.14159); 
+        U(q[3], 1.5708,0,3.14159); 
+        CNOT(q[2], q[3]);
+        Rz(q[3], 0.101476); 
+        CNOT(q[2], q[3]);
+        CNOT(q[1], q[2]);
+        CNOT(q[0], q[1]);
+        U(q[3], 1.5708,0,3.14159); 
+        U(q[2], 1.5708,0,3.14159); 
+        U(q[0], 1.5708,1.5708,4.71239); 
+        U(q[1], 1.5708,0,3.14159); 
+        H(q[0]);
+        H(q[1]);
+        H(q[2]);
+        H(q[3]);
+        Measure(q[0]);
+        Measure(q[1]);
+        Measure(q[2]);
+        Measure(q[3]);
+    )");
+
+  auto program = xacc::getCompiled("test_circuit");
+  auto buffer = xacc::qalloc(4);
+  accelerator->execute(buffer, program);
+  buffer->print();
+}
+
 TEST(ExatnExpValSumReduceTester, testDeuteronH3) {
   auto accelerator = xacc::getAccelerator(
       "tnqvm", {{"tnqvm-visitor", "exatn"}, {"max-qubit", 2}});
