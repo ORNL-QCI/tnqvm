@@ -1765,6 +1765,8 @@ ExatnVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZByAppendingConjugate(
     std::shared_ptr<CompositeInstruction> in_function) {
   // Cache the current tensor network:
   exatn::TensorNetwork cacheTensorNet = m_tensorNetwork;
+  const auto cachedIdCounter = m_tensorIdCounter;
+  auto cachedTensorList = m_appendedGateTensors;
   InstructionIterator it(in_function);
   // Add remaining instructions:
   while (it.hasNext()) {
@@ -1778,6 +1780,8 @@ ExatnVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZByAppendingConjugate(
   m_measureQbIdx.clear();
   // Restore the base tensor network
   m_tensorNetwork = cacheTensorNet;
+  m_tensorIdCounter = cachedIdCounter;
+  m_appendedGateTensors = cachedTensorList;
   return result;
 }
 
