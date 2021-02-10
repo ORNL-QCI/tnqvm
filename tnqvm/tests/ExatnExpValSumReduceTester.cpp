@@ -115,6 +115,11 @@ TEST(ExatnExpValSumReduceTester, testSliceOfMultipleQubits) {
   auto buffer = xacc::qalloc(4);
   accelerator->execute(buffer, program);
   buffer->print();
+  // Validate with QPP
+  auto qpp = xacc::getAccelerator("qpp");
+  auto buffer_qpp = xacc::qalloc(4);
+  qpp->execute(buffer_qpp, program);
+  EXPECT_NEAR(buffer->getExpectationValueZ(), buffer_qpp->getExpectationValueZ(), 1e-6);
 }
 
 TEST(ExatnExpValSumReduceTester, testDeuteronH3) {
