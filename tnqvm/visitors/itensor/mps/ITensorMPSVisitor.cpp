@@ -84,6 +84,12 @@ void ITensorMPSVisitor::initialize(
       xacc::error("ITensorMPSVisitor: invalid svd cutoff value " + cutoffStr);
     }
   }
+  // Also support setting 'svd-cutoff' from the initialize HetMap.
+  if (options.keyExists<double>("svd-cutoff")) {
+    svdCutoff = options.get<double>("svd-cutoff");
+    xacc::info("ITensorMPSVisitor setting SVD cut-off to " +
+               std::to_string(svdCutoff));
+  }
 }
 
 void ITensorMPSVisitor::visit(Hadamard &gate) {
