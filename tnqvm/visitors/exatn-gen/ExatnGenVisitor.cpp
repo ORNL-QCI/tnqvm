@@ -64,7 +64,7 @@ const int64_t MAX_TALSH_MEMORY_BUFFER_SIZE_BYTES = 8 * (1ULL << 30);
 template <typename TNQVM_COMPLEX_TYPE>
 std::vector<TNQVM_COMPLEX_TYPE> flattenGateMatrix(
     const std::vector<std::vector<TNQVM_COMPLEX_TYPE>> &in_gateMatrix) {
-  TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
+
   std::vector<TNQVM_COMPLEX_TYPE> resultVector;
   resultVector.reserve(in_gateMatrix.size() * in_gateMatrix.size());
   for (const auto &row : in_gateMatrix) {
@@ -78,7 +78,6 @@ std::vector<TNQVM_COMPLEX_TYPE> flattenGateMatrix(
 
 template <typename TNQVM_COMPLEX_TYPE>
 bool checkStateVectorNorm(const std::vector<TNQVM_COMPLEX_TYPE> &in_stateVec) {
-  TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
 
   const double norm =
       std::accumulate(in_stateVec.begin(), in_stateVec.end(), 0.0,
@@ -281,37 +280,31 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
 // === BEGIN: Gate Visitor Impls ===
 template <typename TNQVM_COMPLEX_TYPE>
 void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::visit(Identity &in_IdentityGate) {
-  TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   appendGateTensor<CommonGates::I>(in_IdentityGate);
 }
 
 template <typename TNQVM_COMPLEX_TYPE>
 void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::visit(Hadamard &in_HadamardGate) {
-  TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   appendGateTensor<CommonGates::H>(in_HadamardGate);
 }
 
 template <typename TNQVM_COMPLEX_TYPE>
 void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::visit(X &in_XGate) {
-  TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   appendGateTensor<CommonGates::X>(in_XGate);
 }
 
 template <typename TNQVM_COMPLEX_TYPE>
 void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::visit(Y &in_YGate) {
-  TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   appendGateTensor<CommonGates::Y>(in_YGate);
 }
 
 template <typename TNQVM_COMPLEX_TYPE>
 void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::visit(Z &in_ZGate) {
-  TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   appendGateTensor<CommonGates::Z>(in_ZGate);
 }
 
 template <typename TNQVM_COMPLEX_TYPE>
 void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::visit(Rx &in_RxGate) {
-  TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   assert(in_RxGate.nParameters() == 1);
   const double theta = in_RxGate.getParameter(0).as<double>();
   appendGateTensor<CommonGates::Rx>(in_RxGate, theta);
@@ -319,7 +312,6 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::visit(Rx &in_RxGate) {
 
 template <typename TNQVM_COMPLEX_TYPE>
 void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::visit(Ry &in_RyGate) {
-  TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   assert(in_RyGate.nParameters() == 1);
   const double theta = in_RyGate.getParameter(0).as<double>();
   appendGateTensor<CommonGates::Ry>(in_RyGate, theta);
@@ -327,7 +319,6 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::visit(Ry &in_RyGate) {
 
 template <typename TNQVM_COMPLEX_TYPE>
 void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::visit(Rz &in_RzGate) {
-  TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   assert(in_RzGate.nParameters() == 1);
   const double theta = in_RzGate.getParameter(0).as<double>();
   appendGateTensor<CommonGates::Rz>(in_RzGate, theta);
@@ -335,25 +326,21 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::visit(Rz &in_RzGate) {
 
 template <typename TNQVM_COMPLEX_TYPE>
 void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::visit(T &in_TGate) {
-  TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   appendGateTensor<CommonGates::T>(in_TGate);
 }
 
 template <typename TNQVM_COMPLEX_TYPE>
 void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::visit(Tdg &in_TdgGate) {
-  TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   appendGateTensor<CommonGates::Tdg>(in_TdgGate);
 }
 
 template <typename TNQVM_COMPLEX_TYPE>
 void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::visit(CPhase &in_CPhaseGate) {
-  TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   appendGateTensor<CommonGates::CPhase>(in_CPhaseGate);
 }
 
 template <typename TNQVM_COMPLEX_TYPE>
 void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::visit(U &in_UGate) {
-  TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   assert(in_UGate.nParameters() == 3);
   const double theta = in_UGate.getParameter(0).as<double>();
   const double phi = in_UGate.getParameter(1).as<double>();
@@ -363,31 +350,26 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::visit(U &in_UGate) {
 
 template <typename TNQVM_COMPLEX_TYPE>
 void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::visit(CNOT &in_CNOTGate) {
-  TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   appendGateTensor<CommonGates::CNOT>(in_CNOTGate);
 }
 
 template <typename TNQVM_COMPLEX_TYPE>
 void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::visit(Swap &in_SwapGate) {
-  TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   appendGateTensor<CommonGates::Swap>(in_SwapGate);
 }
 
 template <typename TNQVM_COMPLEX_TYPE>
 void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::visit(CZ &in_CZGate) {
-  TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   appendGateTensor<CommonGates::CZ>(in_CZGate);
 }
 
 template <typename TNQVM_COMPLEX_TYPE>
 void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::visit(iSwap &in_iSwapGate) {
-  TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   appendGateTensor<CommonGates::iSwap>(in_iSwapGate);
 }
 
 template <typename TNQVM_COMPLEX_TYPE>
 void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::visit(fSim &in_fsimGate) {
-  TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
   assert(in_fsimGate.nParameters() == 2);
   const double theta = in_fsimGate.getParameter(0).as<double>();
   const double phi = in_fsimGate.getParameter(1).as<double>();

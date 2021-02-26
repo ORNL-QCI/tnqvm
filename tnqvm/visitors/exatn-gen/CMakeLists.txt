@@ -91,9 +91,9 @@ if (ExaTN_FOUND)
 
    install(TARGETS ${LIBRARY_NAME} DESTINATION ${CMAKE_INSTALL_PREFIX}/plugins)
 
-   # if(TNQVM_BUILD_TESTS)
-	#    add_subdirectory(tests)
-   # endif()
+   if(TNQVM_BUILD_TESTS)
+      add_subdirectory(tests)
+   endif()
 else()
    message(STATUS "ExaTN not found, skipping ExaTNVisitor build")
 endif()
