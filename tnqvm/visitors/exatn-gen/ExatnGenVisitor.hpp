@@ -118,8 +118,12 @@ private:
                         GateParams &&... in_params);
 
 private:
-  exatn::TensorExpansion m_qubitNetwork;
+  std::shared_ptr<exatn::TensorNetwork> m_qubitNetwork;
+  exatn::TensorExpansion m_tensorExpansion;
   std::string m_kernelName;
+  std::shared_ptr<AcceleratorBuffer> m_buffer;
+  std::unordered_map<std::string, std::vector<TNQVM_COMPLEX_TYPE>>
+      m_gateTensorBodies;
 };
 
 template class ExatnGenVisitor<std::complex<double>>;

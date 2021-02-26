@@ -165,8 +165,7 @@ std::string GateInstanceIdentifier::toNameString() const {
 }
 
 template <typename TNQVM_COMPLEX_TYPE>
-ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::ExatnGenVisitor()
-    : m_qubitNetwork("Qubit Register") {}
+ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::ExatnGenVisitor() {}
 
 template <typename TNQVM_COMPLEX_TYPE>
 void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::initialize(
@@ -270,11 +269,39 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::initialize(
       exatn::resetRuntimeLoggingLevel(xacc::verbose ? level : 0);
     });
   }
+  m_buffer = buffer;
+  // Create the qubit register tensor
+  for (int i = 0; i < m_buffer->size(); ++i) {
+    const bool created = exatn::createTensor(
+        generateQubitTensorName(i), getExatnElementType(), exatn::TensorShape{2});
+    assert(created);
+  }
+
+  // Initialize the qubit register tensor to zero state
+  for (int i = 0; i < m_buffer->size(); ++i) {
+    // Define the tensor body for a zero-state qubit
+    const bool initialized = exatn::initTensorData(
+        generateQubitTensorName(i),
+        std::vector<TNQVM_COMPLEX_TYPE>{{1.0, 0.0}, {0.0, 0.0}});
+    assert(initialized);
+  }
+
+  m_qubitNetwork = std::make_shared<exatn::TensorNetwork>("QubitReg");
+  // Append the qubit tensors to the tensor network
+  for (int i = 0; i < m_buffer->size(); ++i) {
+    m_qubitNetwork->appendTensor(
+        i + 1, exatn::getTensor(generateQubitTensorName(i)),
+        std::vector<std::pair<unsigned int, unsigned int>>{});
+  }
+  exatn::TensorExpansion tensorEx("QuantumCircuit");
+  tensorEx.appendComponent(m_qubitNetwork, 1.0);
+  m_tensorExpansion = tensorEx;
+  m_tensorExpansion.printIt();
 }
 
 template <typename TNQVM_COMPLEX_TYPE>
 void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
-  // TODO:
+  m_tensorExpansion.printIt();
 }
 
 // === BEGIN: Gate Visitor Impls ===
@@ -385,7 +412,80 @@ template <typename TNQVM_COMPLEX_TYPE>
 template <tnqvm::CommonGates GateType, typename... GateParams>
 void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::appendGateTensor(
     const xacc::Instruction &in_gateInstruction, GateParams &&... in_params) {
-  // TODO
+  const auto gateName = GetGateName(GateType);
+  const GateInstanceIdentifier gateInstanceId(gateName, in_params...);
+  const std::string uniqueGateName = gateInstanceId.toNameString();
+  // If the tensor data for this gate hasn't been initialized before,
+  // then initialize it.
+  if (m_gateTensorBodies.find(uniqueGateName) == m_gateTensorBodies.end()) {
+    const auto gateMatrixRaw = GetGateMatrix<GateType>(in_params...);
+    std::vector<std::vector<TNQVM_COMPLEX_TYPE>> gateMatrix;
+    for (auto &row : gateMatrixRaw) {
+      std::vector<TNQVM_COMPLEX_TYPE> rowConverted(row.begin(), row.end());
+      gateMatrix.emplace_back(std::move(rowConverted));
+    }
+    m_gateTensorBodies[uniqueGateName] = flattenGateMatrix(gateMatrix);
+    // Currently, we only support 2-qubit gates.
+    assert(in_gateInstruction.nRequiredBits() > 0 &&
+           in_gateInstruction.nRequiredBits() <= 2);
+    const auto gateTensorShape =
+        (in_gateInstruction.nRequiredBits() == 1 ? exatn::TensorShape{2, 2}
+                                                 : exatn::TensorShape{2, 2, 2, 2});
+    // Create the tensor
+    const bool created = exatn::createTensor(
+        uniqueGateName, getExatnElementType(), gateTensorShape);
+    assert(created);
+    // Init tensor body data
+    exatn::initTensorData(uniqueGateName, flattenGateMatrix(gateMatrix));
+    // Register tensor isometry:
+    // For rank-2 gate isometric leg groups are: {0}, {1}.
+    // For rank-4 gate isometric leg groups are: {0,1}, {2,3}.
+    if (in_gateInstruction.nRequiredBits() == 1) {
+      const bool registered =
+          exatn::registerTensorIsometry(uniqueGateName, {0}, {1});
+      assert(registered);
+    } else if (in_gateInstruction.nRequiredBits() == 2) {
+      const bool registered =
+          exatn::registerTensorIsometry(uniqueGateName, {0, 1}, {2, 3});
+      assert(registered);
+    }
+  }
+
+  // Because the qubit location and gate pairing are of different integer types,
+  // we need to reconstruct the qubit vector.
+  std::vector<unsigned int> gatePairing;
+  for (const auto &qbitLoc :
+       const_cast<xacc::Instruction &>(in_gateInstruction).bits()) {
+    gatePairing.emplace_back(qbitLoc);
+  }
+
+  // For control gates (e.g. CNOT), we need to reverse the leg pairing because
+  // the (Control Index, Target Index) convention is the opposite of the
+  // MSB->LSB bit order when the CNOT matrix is specified. e.g. the state vector
+  // is indexed by q1q0.
+  if (IsControlGate(GateType)) {
+    std::reverse(gatePairing.begin(), gatePairing.end());
+  }
+
+  // Append the tensor for this gate to the network
+  const bool appended = m_tensorExpansion.appendTensorGate(
+      // Get the gate tensor data which must have been initialized.
+      exatn::getTensor(uniqueGateName),
+      // which qubits that the gate is acting on
+      gatePairing);
+  if (!appended) {
+    const std::string gatePairingString = [&gatePairing]() {
+      std::stringstream ss;
+      ss << "{";
+      for (const auto &pairIdx : gatePairing) {
+        ss << pairIdx << ",";
+      }
+      ss << "}";
+      return ss.str();
+    }();
+    xacc::error("Failed to append tensor for gate " +
+                in_gateInstruction.name() + ", pairing = " + gatePairingString);
+  }
 }
 
 template <typename TNQVM_COMPLEX_TYPE>
