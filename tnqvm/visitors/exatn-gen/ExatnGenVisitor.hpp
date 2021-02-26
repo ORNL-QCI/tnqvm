@@ -124,6 +124,7 @@ private:
   std::shared_ptr<AcceleratorBuffer> m_buffer;
   std::unordered_map<std::string, std::vector<TNQVM_COMPLEX_TYPE>>
       m_gateTensorBodies;
+  std::set<int> m_measuredBits;
 };
 
 template class ExatnGenVisitor<std::complex<double>>;

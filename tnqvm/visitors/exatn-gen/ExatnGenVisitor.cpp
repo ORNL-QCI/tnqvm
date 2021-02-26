@@ -297,11 +297,77 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::initialize(
   tensorEx.appendComponent(m_qubitNetwork, 1.0);
   m_tensorExpansion = tensorEx;
   m_tensorExpansion.printIt();
+  m_gateTensorBodies.clear();
+  m_measuredBits.clear();
 }
 
 template <typename TNQVM_COMPLEX_TYPE>
 void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
   m_tensorExpansion.printIt();
+  exatn::TensorExpansion ketvector(m_tensorExpansion);
+  auto obsTensorNetwork = std::make_shared<exatn::TensorNetwork>("Obs");
+  std::vector<std::pair<unsigned int, unsigned int>> ketPairings, braPairings;
+  for (int i = 0; i < m_buffer->size(); ++i) {
+    ketPairings.emplace_back(
+        std::make_pair((unsigned int)i, (unsigned int)(m_buffer->size() + i)));
+    braPairings.emplace_back(std::make_pair((unsigned int)i, (unsigned int)i));
+    if (xacc::container::contains(m_measuredBits, i)) {
+      const auto tensorName = "MeasZ_" + std::to_string(i);
+      const bool created = exatn::createTensor(
+          tensorName, getExatnElementType(), exatn::TensorShape{2, 2});
+      assert(created);
+      exatn::initTensorData(
+          tensorName, std::vector<TNQVM_COMPLEX_TYPE>{
+                          {1.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {-1.0, 0.0}});
+      obsTensorNetwork->appendTensor(
+          i + 1, exatn::getTensor(tensorName),
+          std::vector<std::pair<unsigned int, unsigned int>>{});
+    } else {
+      const auto tensorName = "MeasI_" + std::to_string(i);
+      const bool created = exatn::createTensor(
+          tensorName, getExatnElementType(), exatn::TensorShape{2, 2});
+      assert(created);
+      exatn::initTensorData(
+          tensorName, std::vector<TNQVM_COMPLEX_TYPE>{
+                          {1.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {1.0, 0.0}});
+      obsTensorNetwork->appendTensor(
+          i + 1, exatn::getTensor(tensorName),
+          std::vector<std::pair<unsigned int, unsigned int>>{});
+    }
+  }
+
+  exatn::TensorOperator zHamOp("Hamiltonian");
+  const bool appended = zHamOp.appendComponent(
+      obsTensorNetwork, ketPairings, braPairings, std::complex<double>{1.0});
+  assert(appended);
+  std::cout << "Observable Op:\n";
+  zHamOp.printIt();
+  exatn::TensorExpansion ketWithObs(ketvector, zHamOp);
+  std::cout << "Tensor Expansion:\n";
+  ketWithObs.printIt();
+  // Bra network:
+  exatn::TensorExpansion bravector(ketvector);
+  bravector.conjugate();
+  bravector.printIt();
+  exatn::TensorExpansion bratimesopertimesket(bravector, ketWithObs);
+  bratimesopertimesket.printIt();
+  const bool accumCreated =
+      exatn::createTensorSync("ExpVal", getExatnElementType(), exatn::TensorShape{});
+  assert(accumCreated);
+  auto accumulator = exatn::getTensor("ExpVal");
+  TNQVM_COMPLEX_TYPE result = 0.0;
+  if (exatn::evaluateSync(bratimesopertimesket, accumulator)) {
+    exatn::sync();
+    auto talsh_tensor =
+        exatn::getLocalTensor("ExpVal");
+    assert(talsh_tensor->getVolume() == 1);
+    const TNQVM_COMPLEX_TYPE *body_ptr;
+    if (talsh_tensor->getDataAccessHostConst(&body_ptr)) {
+      result = *body_ptr;
+      std::cout << "Exp-val = " << result << "\n";
+      m_buffer->addExtraInfo("exp-val-z", (double)(result.real()));
+    }
+  }
 }
 
 // === BEGIN: Gate Visitor Impls ===
@@ -405,7 +471,7 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::visit(fSim &in_fsimGate) {
 
 template <typename TNQVM_COMPLEX_TYPE>
 void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::visit(Measure &in_MeasureGate) {
-  // TODO:
+  m_measuredBits.emplace(in_MeasureGate.bits()[0]);
 }
 // === END: Gate Visitor Impls ===
 template <typename TNQVM_COMPLEX_TYPE>
