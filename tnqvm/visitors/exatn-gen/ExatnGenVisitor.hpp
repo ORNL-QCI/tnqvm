@@ -38,6 +38,8 @@
 #include "utils/GateMatrixAlgebra.hpp"
 
 namespace tnqvm {
+enum class ObsOpType { I, X, Y, Z, NA };
+
 // Simple struct to identify a concrete quantum gate instance,
 // For example, parametric gates, e.g. Rx(theta), will have an instance for each
 // value of theta that is used to instantiate the gate matrix.
@@ -116,6 +118,10 @@ private:
   template <tnqvm::CommonGates GateType, typename... GateParams>
   void appendGateTensor(const xacc::Instruction &in_gateInstruction,
                         GateParams &&... in_params);
+  std::vector<ObsOpType>
+  analyzeObsSubCircuit(std::shared_ptr<CompositeInstruction> in_function) const;
+  exatn::TensorOperator
+  constructObsTensorOperator(const std::vector<ObsOpType> &in_obsOps) const;
 
 private:
   std::shared_ptr<exatn::TensorNetwork> m_qubitNetwork;
