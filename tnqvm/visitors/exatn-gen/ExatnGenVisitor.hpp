@@ -131,6 +131,9 @@ private:
   std::unordered_map<std::string, std::vector<TNQVM_COMPLEX_TYPE>>
       m_gateTensorBodies;
   std::set<int> m_measuredBits;
+  std::shared_ptr<exatn::TensorOperator> m_obsTensorOperator;
+  std::unordered_map<std::string, size_t> m_compositeNameToComponentId;
+  std::shared_ptr<exatn::TensorExpansion> m_evaluatedExpansion;
 };
 
 template class ExatnGenVisitor<std::complex<double>>;

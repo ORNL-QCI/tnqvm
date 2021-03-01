@@ -53,6 +53,7 @@ void TNQVM::execute(
     auto kernelDecomposed = ObservedAnsatz::fromObservedComposites(functions);
     // Always validate kernel decomposition in DEBUG
     assert(kernelDecomposed.validate(functions));
+    options.insert("vqe-execution-context", kernelDecomposed);
     visitor->setOptions(options);
 
     // Initialize the visitor
