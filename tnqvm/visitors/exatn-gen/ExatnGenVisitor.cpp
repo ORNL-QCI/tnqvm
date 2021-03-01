@@ -309,27 +309,29 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
   std::vector<std::pair<unsigned int, unsigned int>> ketPairings, braPairings;
   for (int i = 0; i < m_buffer->size(); ++i) {
     ketPairings.emplace_back(
-        std::make_pair((unsigned int)i, (unsigned int)(m_buffer->size() + i)));
-    braPairings.emplace_back(std::make_pair((unsigned int)i, (unsigned int)i));
+        std::make_pair((unsigned int)i, (unsigned int)(2 * i)));
+    braPairings.emplace_back(std::make_pair((unsigned int)i, (unsigned int)(2*i + 1)));
     if (xacc::container::contains(m_measuredBits, i)) {
       const auto tensorName = "MeasZ_" + std::to_string(i);
+      const std::vector<TNQVM_COMPLEX_TYPE> tensorBody{
+          {1.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {-1.0, 0.0}};
+      m_gateTensorBodies[tensorName] = tensorBody;
       const bool created = exatn::createTensor(
           tensorName, getExatnElementType(), exatn::TensorShape{2, 2});
       assert(created);
-      exatn::initTensorData(
-          tensorName, std::vector<TNQVM_COMPLEX_TYPE>{
-                          {1.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {-1.0, 0.0}});
+      exatn::initTensorData(tensorName, tensorBody);
       obsTensorNetwork->appendTensor(
           i + 1, exatn::getTensor(tensorName),
           std::vector<std::pair<unsigned int, unsigned int>>{});
     } else {
       const auto tensorName = "MeasI_" + std::to_string(i);
+      const std::vector<TNQVM_COMPLEX_TYPE> tensorBody{
+          {1.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {1.0, 0.0}};
+      m_gateTensorBodies[tensorName] = tensorBody;
       const bool created = exatn::createTensor(
           tensorName, getExatnElementType(), exatn::TensorShape{2, 2});
       assert(created);
-      exatn::initTensorData(
-          tensorName, std::vector<TNQVM_COMPLEX_TYPE>{
-                          {1.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {1.0, 0.0}});
+      exatn::initTensorData(tensorName, tensorBody);
       obsTensorNetwork->appendTensor(
           i + 1, exatn::getTensor(tensorName),
           std::vector<std::pair<unsigned int, unsigned int>>{});
@@ -354,6 +356,9 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
   const bool accumCreated =
       exatn::createTensorSync("ExpVal", getExatnElementType(), exatn::TensorShape{});
   assert(accumCreated);
+  const bool accumInitialized = exatn::initTensorSync("ExpVal", 0.0);
+  assert(accumInitialized);
+
   auto accumulator = exatn::getTensor("ExpVal");
   TNQVM_COMPLEX_TYPE result = 0.0;
   if (exatn::evaluateSync(bratimesopertimesket, accumulator)) {
@@ -368,6 +373,18 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
       m_buffer->addExtraInfo("exp-val-z", (double)(result.real()));
     }
   }
+
+  const bool destroyed = exatn::destroyTensorSync("ExpVal");
+  assert(destroyed);
+  for (size_t i = 0; i < m_buffer->size(); ++i) {
+    const bool destroyed = exatn::destroyTensorSync(generateQubitTensorName(i));
+    assert(destroyed);
+  }
+  for (const auto &[tensorName, tensorBody] : m_gateTensorBodies) {
+    const bool destroyed = exatn::destroyTensorSync(tensorName);
+    assert(destroyed);
+  }
+  m_gateTensorBodies.clear();
 }
 
 // === BEGIN: Gate Visitor Impls ===
