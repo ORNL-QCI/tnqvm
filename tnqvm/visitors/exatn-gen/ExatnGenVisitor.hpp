@@ -25,10 +25,18 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Contributors:
- *   Initial sketch - Mengsu Chen 2017/07/17;
- *   Implementation - Dmitry Lyakh 2017/10/05 - active;
+ *   Implementation - Thien Nguyen
  *
  **********************************************************************************/
+// +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
+// |  Initialization Parameter   |                  Parameter Description                                 |    type     |         default          |
+// +=============================+========================================================================+=============+==========================+
+// | reconstruct-layers          | Perform reconstruction after this number of 2-q gates.                 |    int      | -1 (no reconstruct       |
+// +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
+// | reconstruct-tolerance       | Reconstruction convergence tolerance                                   |    double   | 1e-4                     |
+// +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
+// | max-bond-dim                | Reconstruction max MPS bond dimensi                                    |    int      | 512                      |
+// +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
 #pragma once
 
 #ifdef TNQVM_HAS_EXATN
@@ -122,10 +130,14 @@ private:
   analyzeObsSubCircuit(std::shared_ptr<CompositeInstruction> in_function) const;
   exatn::TensorOperator
   constructObsTensorOperator(const std::vector<ObsOpType> &in_obsOps) const;
-
+  void reconstructCircuitTensor();
 private:
   std::shared_ptr<exatn::TensorNetwork> m_qubitNetwork;
   exatn::TensorExpansion m_tensorExpansion;
+  int m_layersReconstruct;
+  double m_reconstructTol;
+  int m_layerCounter;
+  int m_maxBondDim;
   std::string m_kernelName;
   std::shared_ptr<AcceleratorBuffer> m_buffer;
   std::unordered_map<std::string, std::vector<TNQVM_COMPLEX_TYPE>>

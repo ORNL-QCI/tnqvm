@@ -287,6 +287,26 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::initialize(
     assert(initialized);
   }
 
+  // No reconstruct
+  m_layersReconstruct = -1;
+  if (options.keyExists<int>("reconstruct-layers")) {
+    m_layersReconstruct = options.get<int>("reconstruct-layers");
+    xacc::info("Reconstruct tensor network every " +
+               std::to_string(m_layersReconstruct) + " layers.");
+  }
+  m_reconstructTol = 1e-4;
+  m_maxBondDim = 512;
+  if (m_layersReconstruct > 0) {
+    if (options.keyExists<double>("reconstruct-tolerance")) {
+      m_reconstructTol = options.get<double>("reconstruct-tolerance");
+      xacc::info("Reconstruct tolerance = " + std::to_string(m_reconstructTol));
+    }
+    if (options.keyExists<int>("max-bond-dim")) {
+      m_maxBondDim = options.get<int>("max-bond-dim");
+      xacc::info("Reconstruct max bond dim = " + std::to_string(m_maxBondDim));
+    }
+  }
+
   m_qubitNetwork = std::make_shared<exatn::TensorNetwork>("QubitReg");
   // Append the qubit tensors to the tensor network
   for (int i = 0; i < m_buffer->size(); ++i) {
@@ -302,6 +322,7 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::initialize(
   m_obsTensorOperator.reset();
   m_compositeNameToComponentId.clear();
   m_evaluatedExpansion.reset();
+  m_layerCounter = 0;
   {
     const auto tensorName = "MeasX";
     const std::vector<TNQVM_COMPLEX_TYPE> tensorBody{
@@ -415,7 +436,7 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
     const bool destroyed = exatn::destroyTensorSync("ExpVal");
     assert(destroyed);
   }
-  
+
   // Clean-up tensors
   for (size_t i = 0; i < m_buffer->size(); ++i) {
     const bool destroyed = exatn::destroyTensorSync(generateQubitTensorName(i));
@@ -536,6 +557,10 @@ template <typename TNQVM_COMPLEX_TYPE>
 template <tnqvm::CommonGates GateType, typename... GateParams>
 void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::appendGateTensor(
     const xacc::Instruction &in_gateInstruction, GateParams &&... in_params) {
+  // Count gate layer if this is a multi-qubit gate.
+  if (in_gateInstruction.nRequiredBits() > 1) {
+    ++m_layerCounter;
+  }
   const auto gateName = GetGateName(GateType);
   const GateInstanceIdentifier gateInstanceId(gateName, in_params...);
   const std::string uniqueGateName = gateInstanceId.toNameString();
@@ -609,6 +634,86 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::appendGateTensor(
     }();
     xacc::error("Failed to append tensor for gate " +
                 in_gateInstruction.name() + ", pairing = " + gatePairingString);
+  }
+
+  reconstructCircuitTensor();
+}
+
+template <typename TNQVM_COMPLEX_TYPE>
+void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::reconstructCircuitTensor() {
+  if (m_layersReconstruct <= 0) {
+    return;
+  }
+  if (m_layerCounter > m_layersReconstruct) {
+    xacc::info("Reconstruct Tensor Expansion");
+    auto target = std::make_shared<exatn::TensorExpansion>(m_tensorExpansion);
+    // List of Approximate tensors to delete:
+    static std::vector<std::string> TENSORS_TO_DESTROY;
+    std::vector approxTensorsToDelete = TENSORS_TO_DESTROY;
+    TENSORS_TO_DESTROY.clear();
+
+    const std::vector<int> qubitTensorDim(m_buffer->size(), 2);
+    auto rootTensor = std::make_shared<exatn::Tensor>("ROOT", qubitTensorDim);
+    auto &networkBuildFactory = *(exatn::numerics::NetworkBuildFactory::get());
+    auto builder = networkBuildFactory.createNetworkBuilderShared("MPS");
+    builder->setParameter("max_bond_dim", 64);
+    auto approximantTensorNetwork =
+        exatn::makeSharedTensorNetwork("Approx", rootTensor, *builder);
+    for (auto iter = approximantTensorNetwork->cbegin();
+         iter != approximantTensorNetwork->cend(); ++iter) {
+      const auto &tensorName = iter->second.getTensor()->getName();
+      if (tensorName != "ROOT") {
+        auto tensor = iter->second.getTensor();
+        const bool created = exatn::createTensorSync(
+            tensor, exatn::TensorElementType::COMPLEX64);
+        assert(created);
+        const bool initialized = exatn::initTensorRnd(tensor->getName());
+        assert(initialized);
+        // Keeps track of these approximate tensors to delete the next round.
+        TENSORS_TO_DESTROY.emplace_back(tensor->getName());
+      }
+    }
+
+    approximantTensorNetwork->markOptimizableAllTensors();
+    auto approximant = std::make_shared<exatn::TensorExpansion>("Approx");
+    approximant->appendComponent(approximantTensorNetwork, {1.0, 0.0});
+    approximant->conjugate();
+    exatn::TensorNetworkReconstructor reconstructor(target, approximant,
+                                                    m_reconstructTol);
+    // std::cout << "Target: \n";
+    // target->printIt();
+    // std::cout << "approximant: \n";
+    // approximant->printIt();
+    // Run the reconstructor:
+    bool reconstructSuccess = exatn::sync();
+    assert(reconstructSuccess);
+    double residual_norm, fidelity;
+    bool reconstructed =
+        reconstructor.reconstruct(&residual_norm, &fidelity, true);
+    reconstructSuccess = exatn::sync();
+    assert(reconstructSuccess);
+    if (reconstructed) {
+      std::stringstream ss;
+      ss << "Reconstruction succeeded: Residual norm = " << residual_norm
+         << "; Fidelity = " << fidelity;
+      xacc::info(ss.str());
+    } else {
+      xacc::error("Reconstruction FAILED!");
+    }
+
+    approximant->conjugate();
+    // std::cout << "After Reconstruct: \n";
+    // approximant->printIt();
+
+    // Assign tensor expansion:
+    m_tensorExpansion = *approximant;
+
+    for (const auto &tensorName : approxTensorsToDelete) {
+      const bool destroyed = exatn::destroyTensorSync(tensorName);
+      assert(destroyed);
+    }
+    // Reset the counter
+    m_layerCounter = 0;
   }
 }
 
@@ -735,7 +840,8 @@ const double ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZ(
     m_evaluatedExpansion =
         std::make_shared<exatn::TensorExpansion>(bratimesopertimesket);
   }
-  // std::cout << "There are: " << m_evaluatedExpansion->getNumComponents() << " components in the expansion.\n";
+  // std::cout << "There are: " << m_evaluatedExpansion->getNumComponents() << "
+  // components in the expansion.\n";
   auto iter = m_compositeNameToComponentId.find(in_function->name());
   if (iter != m_compositeNameToComponentId.end()) {
     const auto componentId = iter->second;
