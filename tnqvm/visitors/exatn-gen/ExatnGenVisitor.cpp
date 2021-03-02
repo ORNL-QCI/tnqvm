@@ -256,6 +256,8 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::initialize(
   }
   m_reconstructTol = 1e-4;
   m_maxBondDim = 512;
+  // Default builder: MPS
+  m_reconstructBuilder = "MPS";
   if (m_layersReconstruct > 0) {
     if (options.keyExists<double>("reconstruct-tolerance")) {
       m_reconstructTol = options.get<double>("reconstruct-tolerance");
@@ -264,6 +266,10 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::initialize(
     if (options.keyExists<int>("max-bond-dim")) {
       m_maxBondDim = options.get<int>("max-bond-dim");
       xacc::info("Reconstruct max bond dim = " + std::to_string(m_maxBondDim));
+    }
+    if (options.stringExists("reconstruct-builder")) {
+      m_reconstructBuilder = options.getString("reconstruct-builder");
+      xacc::info("Reconstruct with: " + m_reconstructBuilder  + " builder.");
     }
   }
 
@@ -615,8 +621,8 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::reconstructCircuitTensor() {
     const std::vector<int> qubitTensorDim(m_buffer->size(), 2);
     auto rootTensor = std::make_shared<exatn::Tensor>("ROOT", qubitTensorDim);
     auto &networkBuildFactory = *(exatn::numerics::NetworkBuildFactory::get());
-    auto builder = networkBuildFactory.createNetworkBuilderShared("MPS");
-    builder->setParameter("max_bond_dim", 64);
+    auto builder = networkBuildFactory.createNetworkBuilderShared(m_reconstructBuilder);
+    builder->setParameter("max_bond_dim", m_maxBondDim);
     auto approximantTensorNetwork =
         exatn::makeSharedTensorNetwork("Approx", rootTensor, *builder);
     for (auto iter = approximantTensorNetwork->cbegin();

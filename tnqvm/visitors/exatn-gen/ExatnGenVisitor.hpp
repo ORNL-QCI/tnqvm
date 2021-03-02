@@ -35,7 +35,9 @@
 // +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
 // | reconstruct-tolerance       | Reconstruction convergence tolerance                                   |    double   | 1e-4                     |
 // +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
-// | max-bond-dim                | Reconstruction max MPS bond dimensi                                    |    int      | 512                      |
+// | max-bond-dim                | Reconstruction max MPS bond dimension                                  |    int      | 512                      |
+// +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
+// | reconstruct-builder         | Reconstruction network builder                                         |    string   | "MPS"                    |
 // +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
 #pragma once
 
@@ -138,6 +140,7 @@ private:
   double m_reconstructTol;
   int m_layerCounter;
   int m_maxBondDim;
+  std::string m_reconstructBuilder;
   std::string m_kernelName;
   std::shared_ptr<AcceleratorBuffer> m_buffer;
   std::unordered_map<std::string, std::vector<TNQVM_COMPLEX_TYPE>>
