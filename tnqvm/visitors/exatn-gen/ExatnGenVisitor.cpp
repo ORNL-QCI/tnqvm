@@ -53,10 +53,6 @@ namespace {
 std::string generateQubitTensorName(int qubitIndex) {
   return "Q" + std::to_string(qubitIndex);
 };
-// The max number of qubits that we allow full state vector contraction.
-// Above this limit, only tensor-based calculation is allowed.
-// e.g. simulating bit-string measurement by tensor contraction.
-const int MAX_NUMBER_QUBITS_FOR_STATE_VEC = 50;
 
 // Max memory size: 8GB
 const int64_t MAX_TALSH_MEMORY_BUFFER_SIZE_BYTES = 8 * (1ULL << 30);
@@ -74,42 +70,6 @@ std::vector<TNQVM_COMPLEX_TYPE> flattenGateMatrix(
   }
 
   return resultVector;
-}
-
-template <typename TNQVM_COMPLEX_TYPE>
-bool checkStateVectorNorm(const std::vector<TNQVM_COMPLEX_TYPE> &in_stateVec) {
-
-  const double norm =
-      std::accumulate(in_stateVec.begin(), in_stateVec.end(), 0.0,
-                      [](double runningNorm, TNQVM_COMPLEX_TYPE vecComponent) {
-                        return runningNorm + std::norm(vecComponent);
-                      });
-
-  return (std::abs(norm - 1.0) < 1e-12);
-}
-
-template <typename TNQVM_COMPLEX_TYPE>
-double calcExpValueZ(const std::vector<int> &in_bits,
-                     const std::vector<TNQVM_COMPLEX_TYPE> &in_stateVec) {
-  TNQVM_TELEMETRY_ZONE("calcExpValueZ", __FILE__, __LINE__);
-  const auto hasEvenParity =
-      [](uint64_t x, const std::vector<int> &in_qubitIndices) -> bool {
-    size_t count = 0;
-    for (const auto &bitIdx : in_qubitIndices) {
-      if (x & (1ULL << bitIdx)) {
-        count++;
-      }
-    }
-    return (count % 2) == 0;
-  };
-
-  double result = 0.0;
-  for (uint64_t i = 0; i < in_stateVec.size(); ++i) {
-    result +=
-        (hasEvenParity(i, in_bits) ? 1.0 : -1.0) * std::norm(in_stateVec[i]);
-  }
-
-  return result;
 }
 } // namespace
 
