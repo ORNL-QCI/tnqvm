@@ -854,7 +854,9 @@ const double ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZ(
     assert(access_granted);
     // std::cout << "Component " << component.network->getTensor(0)->getName()
     //           << " expectation value = " << *body_ptr << "\n";
-    return body_ptr->real();
+    const std::complex<double> renormalizedComponentExpVal =
+        (*body_ptr) * component.coefficient;
+    return renormalizedComponentExpVal.real();
   }
   xacc::error("Unable to map execution data for sub-composite: " +
               in_function->name());

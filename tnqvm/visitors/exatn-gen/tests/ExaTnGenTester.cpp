@@ -38,7 +38,8 @@ TEST(ExaTnGenTester, checkExpVal) {
     auto accelerator =
         xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-gen"}});
     auto xasmCompiler = xacc::getCompiler("xasm");
-    auto ir = xasmCompiler->compile(R"(__qpu__ void ansatz(qbit q, double t) {
+    auto ir = xasmCompiler->compile(R"(__qpu__ void ansatz(qbit q, double t)
+    {
       X(q[0]);
       Ry(q[1], t);
       CX(q[1], q[0]);
@@ -108,8 +109,8 @@ TEST(ExaTnGenTester, checkVqeH2) {
 }
 
 TEST(ExaTnGenTester, checkVqeH3) {
-  auto accelerator = xacc::getAccelerator(
-      "tnqvm", {{"tnqvm-visitor", "exatn-gen"}});
+  auto accelerator =
+      xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-gen"}});
   // Create the N=3 deuteron Hamiltonian
   auto H_N_3 = xacc::quantum::getObservable(
       "pauli",
@@ -140,21 +141,19 @@ TEST(ExaTnGenTester, checkVqeH3) {
   auto buffer = xacc::qalloc(3);
   vqe->execute(buffer);
   std::cout << "Energy = " << (*buffer)["opt-val"].as<double>() << "\n";
+  auto optParams = (*buffer)["opt-params"].as<std::vector<double>>();
+  for (const auto &param : optParams) {
+    std::cout << "Param: " << param << "\n";
+  }
   // Expected result: -2.04482
   EXPECT_NEAR((*buffer)["opt-val"].as<double>(), -2.04482, 1e-4);
 }
 
 TEST(ExaTnGenTester, checkVqeH3Approx) {
+  // Reconstruct tensor network every 10 layers
   auto accelerator = xacc::getAccelerator(
-      "tnqvm", {{"tnqvm-visitor", "exatn-gen"}, {"reconstruct-layers", 6}});
-  // Create the N=3 deuteron Hamiltonian
-  auto H_N_3 = xacc::quantum::getObservable(
-      "pauli",
-      std::string("5.907 - 2.1433 X0X1 - 2.1433 Y0Y1 + .21829 Z0 - 6.125 Z1 + "
-                  "9.625 - 9.625 Z2 - 3.91 X1 X2 - 3.91 Y1 Y2"));
-
-  auto optimizer = xacc::getOptimizer("nlopt");
-
+      "tnqvm", {{"tnqvm-visitor", "exatn-gen"}, {"reconstruct-layers", 10}});
+  xacc::set_verbose(true);
   xacc::qasm(R"(
         .compiler xasm
         .circuit deuteron_ansatz_h3_2
@@ -165,21 +164,24 @@ TEST(ExaTnGenTester, checkVqeH3Approx) {
         exp_i_theta(q, t1, {{"pauli", "X0 Z1 Y2 - X2 Z1 Y0"}});
     )");
   auto ansatz = xacc::getCompiled("deuteron_ansatz_h3_2");
-
-  // Get the VQE Algorithm and initialize it
+  auto H_N_3 = xacc::quantum::getObservable(
+      "pauli",
+      std::string("5.907 - 2.1433 X0X1 - 2.1433 Y0Y1 + .21829 Z0 - 6.125 Z1 + "
+                  "9.625 - 9.625 Z2 - 3.91 X1 X2 - 3.91 Y1 Y2"));
+  auto optimizer = xacc::getOptimizer("nlopt");
+  // Allocate some qubits and execute
+  auto buffer = xacc::qalloc(3);
   auto vqe = xacc::getAlgorithm("vqe");
   vqe->initialize({std::make_pair("ansatz", ansatz),
                    std::make_pair("observable", H_N_3),
                    std::make_pair("accelerator", accelerator),
                    std::make_pair("optimizer", optimizer)});
-
-  // Allocate some qubits and execute
-  auto buffer = xacc::qalloc(3);
-  vqe->execute(buffer, {0.0, 0.0});
+  // The reconstruction can take a long time, so we just test a single
+  // observable evaluation.
+  auto energies = vqe->execute(buffer, {0.0684968, 0.17797});
   buffer->print();
-  // std::cout << "Energy = " << (*buffer)["opt-val"].as<double>() << "\n";
-  // // Expected result: -2.04482
-  // EXPECT_NEAR((*buffer)["opt-val"].as<double>(), -2.04482, 1e-4);
+  std::cout << "Energy = " << energies[0] << "\n";
+  EXPECT_NEAR(energies[0], -2.04482, 1e-4);
 }
 
 int main(int argc, char **argv) {
