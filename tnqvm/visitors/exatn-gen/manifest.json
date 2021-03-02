@@ -1,0 +1,6 @@
+{
+  "bundle.symbolic_name" : "tnqvm_exatn_gen",
+  "bundle.activator" : true,
+  "bundle.name" : "XACC ExaTN backend",
+  "bundle.description" : "This bundle provides a tensor network Accelerator for Gate Model QC."
+}
