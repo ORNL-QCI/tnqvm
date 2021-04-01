@@ -48,7 +48,7 @@ int main(int argc, char **argv)
     auto qpu = xacc::getAccelerator("tnqvm", {
         std::make_pair("tnqvm-visitor", "exatn:float"),
         std::make_pair("bitstring", BIT_STRING),
-        std::make_pair("exatn-buffer-size-gb", 4),
+        std::make_pair("exatn-buffer-size-gb", 2)
         //std::make_pair("exatn-contract-seq-optimizer", "cotengra")
     });
 
