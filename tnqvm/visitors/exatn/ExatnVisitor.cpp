@@ -446,13 +446,15 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::initialize(std::shared_ptr<AcceleratorBuf
       // exaTN will automatically use MPI_COMM_WORLD.
       exatn::initialize(exatnParams);
     }
-    exatn::activateContrSeqCaching();
+    exatn::activateContrSeqCaching(true);
+    //exatn::activateFastMath();
     //exatn::resetExecutionSerialization(true,true); //validation
   }
 #else
   {
     exatn::initialize(exatnParams);
-    exatn::activateContrSeqCaching();
+    exatn::activateContrSeqCaching(true);
+    //exatn::activateFastMath();
     //exatn::resetExecutionSerialization(true,true); //validation
   }
 #endif
