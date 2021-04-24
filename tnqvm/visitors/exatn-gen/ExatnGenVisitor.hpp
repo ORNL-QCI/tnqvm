@@ -31,13 +31,13 @@
 // +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
 // |  Initialization Parameter   |                  Parameter Description                                 |    type     |         default          |
 // +=============================+========================================================================+=============+==========================+
-// | reconstruct-layers          | Perform reconstruction after this number of 2-q gates.                 |    int      | -1 (no reconstruct       |
+// | reconstruct-layers          | Perform reconstruction after this number of 2-q gates                  |    int      | -1 (no reconstruct)      |
 // +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
 // | reconstruct-tolerance       | Reconstruction convergence tolerance                                   |    double   | 1e-4                     |
 // +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
-// | max-bond-dim                | Reconstruction max MPS bond dimension                                  |    int      | 512                      |
+// | max-bond-dim                | Reconstruction max bond dimension                                      |    int      | 512                      |
 // +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
-// | reconstruct-builder         | Reconstruction network builder                                         |    string   | "MPS"                    |
+// | reconstruct-builder         | Reconstruction network builder (tensor network ansatz)                 |    string   | "MPS"                    |
 // +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
 #pragma once
 

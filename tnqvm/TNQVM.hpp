@@ -47,7 +47,7 @@ public:
       __verbose = 1;
     } else {
       __verbose = 0;
-    }    
+    }
     // Clear the cached configs on TNQVM initialize.
     options.clear();
     // Force a configuration update,
@@ -78,7 +78,7 @@ public:
       // We must have at least one TNQVM service registered.
       assert(!allVisitorServices.empty());
       bool foundRequestedBackend = false;
-      
+
       for (const auto& registeredService: allVisitorServices)
       {
         if (registeredService->name() == requestedBackend)
@@ -132,27 +132,27 @@ public:
   getAcceleratorState(std::shared_ptr<CompositeInstruction> program) override;
 
   const std::string name() const override { return "tnqvm"; }
-  
+
   const std::string description() const override {
     return "XACC tensor network quantum virtual machine (TNQVM) Accelerator";
   }
 
   const std::string& getVisitorName() const { return backendName; }
-  
+
   virtual ~TNQVM() {}
-  
-  virtual HeterogeneousMap getExecutionInfo() const override { 
+
+  virtual HeterogeneousMap getExecutionInfo() const override {
     auto result = visitor->getExecutionInfo();
     result.insert("visitor", visitor->name());
-    return result; 
+    return result;
   }
-  
+
   int verbose() const { return __verbose; }
   void verbose(int level) { __verbose = level; }
   void set_verbose(int level) { __verbose = level; }
   void mute() { __verbose = 0; }
   void unmute() { __verbose = 1; } // default to 1
-  
+
 protected:
   std::shared_ptr<TNQVMVisitor> visitor;
 
@@ -167,7 +167,7 @@ private:
   // Initialized to the default.
   std::string backendName = DEFAULT_VISITOR_BACKEND;
   // Number of *shots* (randomized runs) requested.
-  // If not specified (i.e. left as -1), 
+  // If not specified (i.e. left as -1),
   // then we don't return the binary measurement result (as a bit string).
   // This is to make sure that on the XACC side, it can interpret the avarage-Z result correctly.
   int nbShots = -1;
