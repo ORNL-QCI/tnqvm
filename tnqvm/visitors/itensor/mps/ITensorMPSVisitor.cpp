@@ -109,19 +109,79 @@ void ITensorMPSVisitor::initialize(
   // Set all spins to be Up
   itensor::InitState state(sites, "Up");
   m_mps = itensor::MPS(state);
+  m_measureBits.clear();
+  m_buffer = accbuffer_in;
+
   // Debug
   itensor::PrintData(m_mps);
+}
+
+itensor::Index ITensorMPSVisitor::getSiteIndex(size_t site_id) {
+  if (m_buffer->size() > 1) {
+    return itensor::siteIndex(m_mps, site_id);
+  }
+
+  auto idxs = itensor::siteInds(m_mps, site_id);
+  for (auto iter = idxs.begin(); iter != idxs.end(); ++iter) {
+    if (iter->dim() == 2) {
+      return *iter;
+    }
+  }
+  __builtin_unreachable();
+}
+
+void ITensorMPSVisitor::finalize() {
+  std::cout << "Finalize\n";
+  std::cout << "Measure: ";
+  for (const auto& bit: m_measureBits) {
+    std::cout << bit << " ";
+  }
+  std::cout << "\n";
+  std::cout << "Site index:\n";
+  itensor::PrintData(itensor::siteInds(m_mps, 1));
+  auto hamOp =
+      xacc::container::contains(m_measureBits, 0)
+          ? singleQubitTensor(getSiteIndex(1), Z(0))
+          : singleQubitTensor(getSiteIndex(1), Identity(0));
+
+  for (size_t i = 2; i <= m_buffer->size(); ++i) {
+    if (xacc::container::contains(m_measureBits, i - 1)) {
+      Z obsGate(i - 1);
+      auto Op = singleQubitTensor(getSiteIndex(i), obsGate);
+      hamOp *= Op;
+    } else {
+      Identity obsGate(i - 1);
+      auto Op = singleQubitTensor(getSiteIndex(i), obsGate);
+      hamOp *= Op;
+    }
+  }
+
+  std::cout << "Observable:\n";
+  // Debug
+  itensor::PrintData(hamOp);
+  auto bond_ket = m_mps(1);
+  for (size_t i = 2; i <= m_buffer->size(); ++i) {
+    bond_ket *= m_mps(i);
+  }
+  auto bond_bra = itensor::dag(itensor::prime(bond_ket, "Site"));
+  const double exp_val_z = itensor::eltC(bond_bra * hamOp * bond_ket).real();
+  std::cout << "Exp-val = " << exp_val_z << "\n";
+  m_buffer->addExtraInfo("exp-val-z", exp_val_z);
 }
 
 void ITensorMPSVisitor::applySingleQubitGate(xacc::Instruction &in_gate) {
   assert(in_gate.bits().size() == 1);
   // ITensor use 1-base indexing (weird)
   auto bit_loc = in_gate.bits()[0] + 1;
+  itensor::PrintData(itensor::siteInds(m_mps, 1));
+  // IMPORTTANT: shift the gauge position 
   m_mps.position(bit_loc);
-  auto Op = singleQubitTensor(itensor::siteIndex(m_mps, bit_loc), in_gate);
+  auto Op = singleQubitTensor(getSiteIndex(bit_loc), in_gate);
   auto newA = Op * m_mps(bit_loc);
   newA.noPrime();
   m_mps.set(bit_loc, newA);
+  std::cout << "Apply: " << in_gate.toString() << "\n";
+  itensor::PrintData(m_mps);
 }
 
 // Single-qubit gates:
@@ -135,13 +195,50 @@ void ITensorMPSVisitor::visit(Rz &gate) { applySingleQubitGate(gate); }
 void ITensorMPSVisitor::visit(U &gate) { applySingleQubitGate(gate); }
 
 // two-qubit gates
-void ITensorMPSVisitor::visit(CNOT &gate) {}
+void ITensorMPSVisitor::visit(CNOT &gate) {
+  auto bit_loc1 = gate.bits()[0] + 1;
+  auto bit_loc2 = gate.bits()[1] + 1;
+  // IMPORTTANT: shift the gauge position 
+  m_mps.position(bit_loc1);
+  auto s1 = getSiteIndex(bit_loc1);
+  auto s2 = getSiteIndex(bit_loc2);
+  auto sP1 = itensor::prime(s1);
+  auto sP2 = itensor::prime(s2);
+  auto Up1 = s1(1);
+  auto UpP1 = sP1(1);
+  auto Dn1 = s1(2);
+  auto DnP1 = sP1(2);
+
+  auto Up2= s2(1);
+  auto UpP2 = sP2(1);
+  auto Dn2 = s2(2);
+  auto DnP2 = sP2(2);
+
+  auto Op = itensor::ITensor(itensor::dag(s1), itensor::dag(s2), sP1, sP2);
+  Op.set(Up1, Up2, UpP1, UpP2, 1.0);
+  Op.set(Up1, Dn2, UpP1, DnP2, 1.0);
+  Op.set(Dn1, Up2, DnP1, DnP2, 1.0);
+  Op.set(Dn1, Dn2, DnP1, UpP2, 1.0);
+
+  auto wf = m_mps(bit_loc1) * m_mps(bit_loc2);
+  wf *= Op;
+  wf.noPrime();
+  itensor::PrintData(wf);
+  auto [U, S, V] = itensor::svd(wf, itensor::inds(m_mps(bit_loc1)), {"Cutoff=", 1E-8});
+  m_mps.set(bit_loc1, U);
+  m_mps.set(bit_loc2, S * V);
+  std::cout << "After CNOT:\n";
+  itensor::PrintData(m_mps);
+}
+
 void ITensorMPSVisitor::visit(Swap &gate) {}
 void ITensorMPSVisitor::visit(CZ &gate) {}
 void ITensorMPSVisitor::visit(CPhase &cp) {}
 
 // others
-void ITensorMPSVisitor::visit(Measure &gate) {}
+void ITensorMPSVisitor::visit(Measure &gate) {
+  m_measureBits.emplace_back(gate.bits()[0]);
+}
 
 // void ITensorMPSVisitor::visit(Hadamard &gate) {
 //   auto iqbit_in = gate.bits()[0];

@@ -54,7 +54,7 @@ public:
   virtual const double getExpectationValueZ(std::shared_ptr<CompositeInstruction> function);
 
   virtual void initialize(std::shared_ptr<AcceleratorBuffer> buffer, int nbShots = 1) override;
-  virtual void finalize() {}  
+  virtual void finalize() override;
   // Service name as defined in manifest.json
   virtual const std::string name() const { return "itensor-mps"; }
 
@@ -92,7 +92,10 @@ public:
 
 private:
   void applySingleQubitGate(xacc::Instruction &in_gate);
+  itensor::Index getSiteIndex(size_t site_id);
   itensor::MPS m_mps;
+  std::vector<size_t> m_measureBits;
+  std::shared_ptr<AcceleratorBuffer> m_buffer;
 };
 
 } // namespace tnqvm

@@ -227,9 +227,7 @@ TEST(ITensorMPSVisitorTester, checkOneQubitBug) {
   };
 
   auto pi = 3.14926;
-  // UNCOMMENT TO SEE BUG: Looks like it's an edge case for one-qubit circuits:
-  // in ITensorMPSVisitor::averZs, bondMats_m vector is empty.  
-  // run(visitor, pi);
+  run(visitor, pi);
 }
 
 TEST(ITensorMPSVisitorTester, checkSampling) {
