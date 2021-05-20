@@ -288,8 +288,8 @@ void ITensorMPSVisitor::visit(CZ &gate) {
 
 void ITensorMPSVisitor::visit(CPhase &cp) {
   const double theta = cp.getParameter(0).as<double>();
-  auto bit_loc1 = gate.bits()[0] + 1;
-  auto bit_loc2 = gate.bits()[1] + 1;
+  auto bit_loc1 = cp.bits()[0] + 1;
+  auto bit_loc2 = cp.bits()[1] + 1;
   auto [Up1, Dn1, Up2, Dn2, UpP1, DnP1, UpP2, DnP2] =
       getTwoQubitOpInds(bit_loc1, bit_loc2);
   auto Op = createTwoQubitOpTensor(bit_loc1, bit_loc2);
@@ -298,7 +298,7 @@ void ITensorMPSVisitor::visit(CPhase &cp) {
   Op.set(Up1, Dn2, UpP1, DnP2, 1.0);
   Op.set(Dn1, Up2, DnP1, UpP2, 1.0);
   // exp(itheta) the last one
-  Op.set(Dn1, Dn2, DnP1, DnP2, std::exp(std::complex<double>(0.0, theta));
+  Op.set(Dn1, Dn2, DnP1, DnP2, std::exp(std::complex<double>(0.0, theta)));
 
   applyTwoQubitGate(Op, bit_loc1, bit_loc2);
 }
