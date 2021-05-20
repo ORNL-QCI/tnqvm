@@ -307,6 +307,90 @@ TEST(ITensorMPSVisitorTester, checkSampling) {
   }
 }
 
+TEST(ITensorMPSVisitorTester, testParametricGate) {
+  auto accelerator = xacc::getAccelerator("tnqvm");
+  auto xasmCompiler = xacc::getCompiler("xasm");
+  auto program = xasmCompiler
+                     ->compile(R"(__qpu__ void rotation(qbit q, double theta) {
+      Rx(q[0], theta);
+      Measure(q[0]);
+    })",
+                               accelerator)
+                     ->getComposites()[0];
+
+  const auto angles =
+      xacc::linspace(-xacc::constants::pi, xacc::constants::pi, 20);
+  for (size_t i = 0; i < angles.size(); ++i) {
+    auto buffer = xacc::qalloc(1);
+    auto evaled = program->operator()({angles[i]});
+    accelerator->execute(buffer, evaled);
+    const double expectedResult =
+        1.0 - 2.0 * std::sin(angles[i] / 2.0) * std::sin(angles[i] / 2.0);
+    std::cout << "Angle = " << angles[i]
+              << "; result = " << buffer->getExpectationValueZ()
+              << " vs expected = " << expectedResult << "\n";
+    EXPECT_NEAR(buffer->getExpectationValueZ(), expectedResult, 1e-6);
+  }
+}
+
+TEST(ITensorMPSVisitorTester, testControlGate) {
+  auto accelerator = xacc::getAccelerator("tnqvm");
+  auto xasmCompiler = xacc::getCompiler("xasm");
+  auto program =
+      xasmCompiler
+          ->compile(R"(__qpu__ void rotationControl(qbit q, double theta) {
+      X(q[0]);
+      H(q[1]);
+      CPhase(q[0], q[1], theta);
+      H(q[1]);
+      Measure(q[1]);
+    })",
+                    accelerator)
+          ->getComposites()[0];
+
+  const auto angles =
+      xacc::linspace(-xacc::constants::pi, xacc::constants::pi, 20);
+  for (size_t i = 0; i < angles.size(); ++i) {
+    auto buffer = xacc::qalloc(2);
+    auto evaled = program->operator()({angles[i]});
+    accelerator->execute(buffer, evaled);
+    const double expectedResult =
+        1.0 - 2.0 * std::sin(angles[i] / 2.0) * std::sin(angles[i] / 2.0);
+    std::cout << "Angle = " << angles[i]
+              << "; result = " << buffer->getExpectationValueZ()
+              << " vs expected = " << expectedResult << "\n";
+    EXPECT_NEAR(buffer->getExpectationValueZ(), expectedResult, 1e-6);
+  }
+}
+
+TEST(ITensorMPSVisitorTester, testU3Gate) {
+  // Test U3(theta,−pi/2, pi/2) = RX(theta)
+  auto accelerator = xacc::getAccelerator("tnqvm");
+  auto xasmCompiler = xacc::getCompiler("xasm");
+  auto program =
+      xasmCompiler
+          ->compile(R"(__qpu__ void rotationU3(qbit q, double theta) {
+      U(q[0], theta, -pi/2, pi/2);
+      Measure(q[0]);
+    })",
+                    accelerator)
+          ->getComposites()[0];
+
+  const auto angles =
+      xacc::linspace(-xacc::constants::pi, xacc::constants::pi, 20);
+  for (size_t i = 0; i < angles.size(); ++i) {
+    auto buffer = xacc::qalloc(1);
+    auto evaled = program->operator()({angles[i]});
+    accelerator->execute(buffer, evaled);
+    const double expectedResult =
+        1.0 - 2.0 * std::sin(angles[i] / 2.0) * std::sin(angles[i] / 2.0);
+    std::cout << "Angle = " << angles[i]
+              << "; result = " << buffer->getExpectationValueZ()
+              << " vs expected = " << expectedResult << "\n";
+    EXPECT_NEAR(buffer->getExpectationValueZ(), expectedResult, 1e-6);
+  }
+}
+
 TEST(ITensorMPSVisitorTester, checkDeuteuron) {
   auto accelerator = xacc::getAccelerator("tnqvm");
   auto xasmCompiler = xacc::getCompiler("xasm");
@@ -393,7 +477,7 @@ TEST(ITensorMPSVisitorTester, testDeuteronVqeH2) {
   // Allocate some qubits and execute
   auto buffer = xacc::qalloc(2);
   vqe->execute(buffer);
-  buffer->print();
+  // buffer->print();
   // Expected result: -1.74886
   EXPECT_NEAR((*buffer)["opt-val"].as<double>(), -1.74886, 1e-4);
 }
@@ -430,7 +514,7 @@ TEST(ITensorMPSVisitorTester, testDeuteronVqeH3) {
   // Allocate some qubits and execute
   auto buffer = xacc::qalloc(3);
   vqe->execute(buffer);
-  buffer->print();
+  // buffer->print();
   // Expected result: -2.04482
   EXPECT_NEAR((*buffer)["opt-val"].as<double>(), -2.04482, 1e-4);
 }

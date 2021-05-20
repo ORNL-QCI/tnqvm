@@ -103,11 +103,15 @@ private:
              itensor::IndexVal, itensor::IndexVal>
   getTwoQubitOpInds(size_t in_siteId1, size_t in_siteId2);
   itensor::ITensor createTwoQubitOpTensor(size_t in_siteId1, size_t in_siteId2);
+  double compute_expectation_z(const std::vector<size_t> &in_measureBits);
 
 private:
   itensor::MPS m_mps;
   std::vector<size_t> m_measureBits;
   std::shared_ptr<AcceleratorBuffer> m_buffer;
+  // SVD options
+  double m_svdCutoff;
+  int m_maxDim;
 };
 
 } // namespace tnqvm
