@@ -51,7 +51,7 @@ public:
     return std::make_shared<ITensorMPSVisitor>();
   }
 
-  virtual const double getExpectationValueZ(std::shared_ptr<CompositeInstruction> function);
+  virtual const double getExpectationValueZ(std::shared_ptr<CompositeInstruction> function) override;
 
   virtual void initialize(std::shared_ptr<AcceleratorBuffer> buffer, int nbShots = 1) override;
   virtual void finalize() override;
@@ -88,7 +88,7 @@ public:
   void visit(CZ &gate);
   // others
   void visit(Measure &gate);
-//   void visit(Circuit &f);
+  virtual bool supportVqeMode() const override { return true; }
 
 private:
   void applySingleQubitGate(xacc::Instruction &in_gate);
