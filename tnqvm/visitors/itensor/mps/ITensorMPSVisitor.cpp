@@ -160,6 +160,8 @@ double ITensorMPSVisitor::compute_expectation_z(
     const std::vector<size_t> &in_measureBits) {
   if (in_measureBits.size() == 1) {
     const auto site_idx = in_measureBits[0] + 1;
+    // IMPORTTANT: shift the gauge position
+    m_mps.position(site_idx);
     auto ket = m_mps(site_idx);
     auto bra = itensor::dag(itensor::prime(ket, "Site"));
     auto Z_op = singleQubitTensor(getSiteIndex(site_idx), Z(in_measureBits[0]));
