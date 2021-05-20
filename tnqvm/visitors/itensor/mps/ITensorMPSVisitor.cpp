@@ -158,28 +158,36 @@ itensor::Index ITensorMPSVisitor::getSiteIndex(size_t site_id) {
 
 double ITensorMPSVisitor::compute_expectation_z(
     const std::vector<size_t> &in_measureBits) {
-  auto hamOp = xacc::container::contains(in_measureBits, 0)
-                   ? singleQubitTensor(getSiteIndex(1), Z(0))
-                   : singleQubitTensor(getSiteIndex(1), Identity(0));
+  if (in_measureBits.size() == 1) {
+    const auto site_idx = in_measureBits[0] + 1;
+    auto ket = m_mps(site_idx);
+    auto bra = itensor::dag(itensor::prime(ket, "Site"));
+    auto Z_op = singleQubitTensor(getSiteIndex(site_idx), Z(in_measureBits[0]));
+    return itensor::eltC(bra * Z_op * ket).real();
+  } else {
+    auto hamOp = xacc::container::contains(in_measureBits, 0)
+                     ? singleQubitTensor(getSiteIndex(1), Z(0))
+                     : singleQubitTensor(getSiteIndex(1), Identity(0));
 
-  for (size_t i = 2; i <= m_buffer->size(); ++i) {
-    if (xacc::container::contains(in_measureBits, i - 1)) {
-      Z obsGate(i - 1);
-      auto Op = singleQubitTensor(getSiteIndex(i), obsGate);
-      hamOp *= Op;
-    } else {
-      Identity obsGate(i - 1);
-      auto Op = singleQubitTensor(getSiteIndex(i), obsGate);
-      hamOp *= Op;
+    for (size_t i = 2; i <= m_buffer->size(); ++i) {
+      if (xacc::container::contains(in_measureBits, i - 1)) {
+        Z obsGate(i - 1);
+        auto Op = singleQubitTensor(getSiteIndex(i), obsGate);
+        hamOp *= Op;
+      } else {
+        Identity obsGate(i - 1);
+        auto Op = singleQubitTensor(getSiteIndex(i), obsGate);
+        hamOp *= Op;
+      }
     }
-  }
 
-  auto bond_ket = m_mps(1);
-  for (size_t i = 2; i <= m_buffer->size(); ++i) {
-    bond_ket *= m_mps(i);
+    auto bond_ket = m_mps(1);
+    for (size_t i = 2; i <= m_buffer->size(); ++i) {
+      bond_ket *= m_mps(i);
+    }
+    auto bond_bra = itensor::dag(itensor::prime(bond_ket, "Site"));
+    return itensor::eltC(bond_bra * hamOp * bond_ket).real();
   }
-  auto bond_bra = itensor::dag(itensor::prime(bond_ket, "Site"));
-  return itensor::eltC(bond_bra * hamOp * bond_ket).real();
 }
 
 void ITensorMPSVisitor::finalize() {
@@ -223,6 +231,8 @@ void ITensorMPSVisitor::applyTwoQubitGate(itensor::ITensor &in_gateTensor,
   // itensor::PrintData(wf);
   auto [U, S, V] = itensor::svd(wf, itensor::inds(m_mps(in_siteId1)),
                                 {"Cutoff=", m_svdCutoff, "MaxDim=", m_maxDim});
+  // std::cout << "Singular values:\n";
+  // itensor::PrintData(S);
   m_mps.set(in_siteId1, U);
   m_mps.set(in_siteId2, S * V);
 }
