@@ -3,7 +3,7 @@
 #include <iostream>
 #include <fstream>
 #include <numeric>
-
+#include <cassert>
 // Initial state:
 const std::vector<int> INITIAL_STATE_BIT_STRING(53, 0);
 
@@ -17,12 +17,12 @@ std::string bitStringVecToString(const std::vector<int>& in_vec)
 int main(int argc, char **argv)
 {
     xacc::Initialize();
-    //xacc::set_verbose(true);
-    //xacc::logToFile(true);
-    //xacc::setLoggingLevel(1);
+    xacc::set_verbose(true);
+    xacc::logToFile(true);
+    xacc::setLoggingLevel(1);
 
     // Options: 4, 5, 6, 8, 10, 12, 14, 16, 18, 20
-    const int CIRCUIT_DEPTH = 8;
+    const int CIRCUIT_DEPTH = 4;
 
    // Construct the full path to the XASM source file
     const std::string XASM_SRC_FILE = std::string(RESOURCE_DIR) + "/sycamore_53_" + std::to_string(CIRCUIT_DEPTH) + "_0.xasm";
@@ -37,19 +37,23 @@ int main(int argc, char **argv)
     const std::string newKernelName = kernelName + "_" + std::to_string(CIRCUIT_DEPTH);
     xasmSrcStr.replace(xasmSrcStr.find(kernelName), kernelName.length(), newKernelName);
 
+    const int NB_OPEN_QUBITS = 21;
     // The bitstring to calculate amplitude
-    // Example: bitstring = 000000000...00
-    const std::vector<int> BIT_STRING(53, 0);
-
+    // Example: bitstring = 000000000...00 (-1 -1)
+    // there are NB_OPEN_QUBITS open legs at the end (-1) values
+    std::vector<int> BIT_STRING(53, 0);
+    std::fill_n(BIT_STRING.begin() + (BIT_STRING.size() - NB_OPEN_QUBITS),
+                NB_OPEN_QUBITS, -1);
     // ExaTN visitor:
     // Note:
     // (1) "exatn" == "exatn:double" uses double (64-bit) type.
     // (1) "exatn:float" uses float (32-bit) type.
+    const std::string OPTIMIZER_NAME = "cotengra"; // "cotengra"
     auto qpu = xacc::getAccelerator("tnqvm", {
-        std::make_pair("tnqvm-visitor", "exatn:float"),
+        std::make_pair("tnqvm-visitor", "exatn"),
         std::make_pair("bitstring", BIT_STRING),
-        std::make_pair("exatn-buffer-size-gb", 2)
-        //std::make_pair("exatn-contract-seq-optimizer", "cotengra")
+        std::make_pair("exatn-buffer-size-gb", 2),
+        std::make_pair("exatn-contract-seq-optimizer", OPTIMIZER_NAME)
     });
 
     // Allocate a register of 53 qubits
@@ -61,17 +65,13 @@ int main(int argc, char **argv)
     auto program = ir->getComposites()[0];
     qpu->execute(qubitReg, program);
     // qubitReg->print();
-    const double realAmpl = (*qubitReg)["amplitude-real"].as<double>();
-    const double imagAmpl = (*qubitReg)["amplitude-imag"].as<double>();
-
-    // qflex style output:
-    std::cout << "================= RESULT =================\n";
-    std::cout << bitStringVecToString(INITIAL_STATE_BIT_STRING);
-    std::cout << " --> ";
-    std::cout << bitStringVecToString(BIT_STRING);
-    std::cout << ": " << realAmpl << " " << imagAmpl << "\n";
-    std::cout << "Bit-string probability: " << sqrt(realAmpl*realAmpl + imagAmpl*imagAmpl) << "\n";
-
+    const auto realAmpl = (*qubitReg)["amplitude-real-vec"].as<std::vector<double>>();
+    const auto imagAmpl = (*qubitReg)["amplitude-imag-vec"].as<std::vector<double>>();
+    // Open 21 legs
+    assert(realAmpl.size() == (1ULL << NB_OPEN_QUBITS));
+    assert(imagAmpl.size() == (1ULL << NB_OPEN_QUBITS));
+    
+    std::cout << "Slice vector of size: " << realAmpl.size() << "\n";
     xacc::Finalize();
     return 0;
 }

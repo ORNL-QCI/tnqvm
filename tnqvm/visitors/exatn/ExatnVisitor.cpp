@@ -447,11 +447,13 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::initialize(std::shared_ptr<AcceleratorBuf
       exatn::initialize(exatnParams);
     }
     exatn::activateContrSeqCaching();
+    //exatn::resetExecutionSerialization(true,true); //validation
   }
 #else
   {
     exatn::initialize(exatnParams);
     exatn::activateContrSeqCaching();
+    //exatn::resetExecutionSerialization(true,true); //validation
   }
 #endif
 
