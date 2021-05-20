@@ -195,45 +195,113 @@ void ITensorMPSVisitor::visit(Rz &gate) { applySingleQubitGate(gate); }
 void ITensorMPSVisitor::visit(U &gate) { applySingleQubitGate(gate); }
 
 // two-qubit gates
-void ITensorMPSVisitor::visit(CNOT &gate) {
-  auto bit_loc1 = gate.bits()[0] + 1;
-  auto bit_loc2 = gate.bits()[1] + 1;
-  // IMPORTTANT: shift the gauge position 
-  m_mps.position(bit_loc1);
-  auto s1 = getSiteIndex(bit_loc1);
-  auto s2 = getSiteIndex(bit_loc2);
+void ITensorMPSVisitor::applyTwoQubitGate(itensor::ITensor &in_gateTensor,
+                                          size_t in_siteId1,
+                                          size_t in_siteId2) {
+  assert(std::abs(in_siteId1 - in_siteId2) == 1);
+  // IMPORTTANT: shift the gauge position
+  m_mps.position(in_siteId1);
+  auto wf = m_mps(in_siteId1) * m_mps(in_siteId2);
+  wf *= in_gateTensor;
+  wf.noPrime();
+  itensor::PrintData(wf);
+  auto [U, S, V] =
+      itensor::svd(wf, itensor::inds(m_mps(in_siteId1)), {"Cutoff=", 1E-8});
+  m_mps.set(in_siteId1, U);
+  m_mps.set(in_siteId2, S * V);
+}
+
+std::tuple<itensor::IndexVal, itensor::IndexVal, itensor::IndexVal,
+           itensor::IndexVal, itensor::IndexVal, itensor::IndexVal,
+           itensor::IndexVal, itensor::IndexVal>
+ITensorMPSVisitor::getTwoQubitOpInds(size_t in_siteId1, size_t in_siteId2) {
+
+  auto s1 = getSiteIndex(in_siteId1);
+  auto s2 = getSiteIndex(in_siteId2);
   auto sP1 = itensor::prime(s1);
   auto sP2 = itensor::prime(s2);
   auto Up1 = s1(1);
   auto UpP1 = sP1(1);
   auto Dn1 = s1(2);
   auto DnP1 = sP1(2);
-
-  auto Up2= s2(1);
+  auto Up2 = s2(1);
   auto UpP2 = sP2(1);
   auto Dn2 = s2(2);
   auto DnP2 = sP2(2);
 
-  auto Op = itensor::ITensor(itensor::dag(s1), itensor::dag(s2), sP1, sP2);
+  return std::make_tuple(Up1, Dn1, Up2, Dn2, UpP1, DnP1, UpP2, DnP2);
+}
+
+itensor::ITensor ITensorMPSVisitor::createTwoQubitOpTensor(size_t in_siteId1,
+                                                           size_t in_siteId2) {
+  auto s1 = getSiteIndex(in_siteId1);
+  auto s2 = getSiteIndex(in_siteId2);
+  auto sP1 = itensor::prime(s1);
+  auto sP2 = itensor::prime(s2);
+  return itensor::ITensor(itensor::dag(s1), itensor::dag(s2), sP1, sP2);
+}
+
+void ITensorMPSVisitor::visit(CNOT &gate) {
+  auto bit_loc1 = gate.bits()[0] + 1;
+  auto bit_loc2 = gate.bits()[1] + 1;
+  auto [Up1, Dn1, Up2, Dn2, UpP1, DnP1, UpP2, DnP2] =
+      getTwoQubitOpInds(bit_loc1, bit_loc2);
+  auto Op = createTwoQubitOpTensor(bit_loc1, bit_loc2);
   Op.set(Up1, Up2, UpP1, UpP2, 1.0);
   Op.set(Up1, Dn2, UpP1, DnP2, 1.0);
   Op.set(Dn1, Up2, DnP1, DnP2, 1.0);
   Op.set(Dn1, Dn2, DnP1, UpP2, 1.0);
-
-  auto wf = m_mps(bit_loc1) * m_mps(bit_loc2);
-  wf *= Op;
-  wf.noPrime();
-  itensor::PrintData(wf);
-  auto [U, S, V] = itensor::svd(wf, itensor::inds(m_mps(bit_loc1)), {"Cutoff=", 1E-8});
-  m_mps.set(bit_loc1, U);
-  m_mps.set(bit_loc2, S * V);
-  std::cout << "After CNOT:\n";
-  itensor::PrintData(m_mps);
+  applyTwoQubitGate(Op, bit_loc1, bit_loc2);
 }
 
-void ITensorMPSVisitor::visit(Swap &gate) {}
-void ITensorMPSVisitor::visit(CZ &gate) {}
-void ITensorMPSVisitor::visit(CPhase &cp) {}
+void ITensorMPSVisitor::visit(Swap &gate) {
+  auto bit_loc1 = gate.bits()[0] + 1;
+  auto bit_loc2 = gate.bits()[1] + 1;
+  auto [Up1, Dn1, Up2, Dn2, UpP1, DnP1, UpP2, DnP2] =
+      getTwoQubitOpInds(bit_loc1, bit_loc2);
+  auto Op = createTwoQubitOpTensor(bit_loc1, bit_loc2);
+  // up-up and down-down intact
+  Op.set(Up1, Up2, UpP1, UpP2, 1.0);
+  Op.set(Dn1, Dn2, DnP1, DnP2, 1.0);
+
+  // Swap: up-down => down-up and vice-versa
+  Op.set(Up1, Dn2, DnP1, UpP2, 1.0);
+  Op.set(Dn1, Up2, UpP1, DnP2, 1.0);
+  applyTwoQubitGate(Op, bit_loc1, bit_loc2);
+}
+
+void ITensorMPSVisitor::visit(CZ &gate) {
+  auto bit_loc1 = gate.bits()[0] + 1;
+  auto bit_loc2 = gate.bits()[1] + 1;
+  auto [Up1, Dn1, Up2, Dn2, UpP1, DnP1, UpP2, DnP2] =
+      getTwoQubitOpInds(bit_loc1, bit_loc2);
+  auto Op = createTwoQubitOpTensor(bit_loc1, bit_loc2);
+  
+  Op.set(Up1, Up2, UpP1, UpP2, 1.0);
+  Op.set(Up1, Dn2, UpP1, DnP2, 1.0);
+  Op.set(Dn1, Up2, DnP1, UpP2, 1.0);
+  // -1 the last one
+  Op.set(Dn1, Dn2, DnP1, DnP2, -1.0);
+
+  applyTwoQubitGate(Op, bit_loc1, bit_loc2);
+}
+
+void ITensorMPSVisitor::visit(CPhase &cp) {
+  const double theta = cp.getParameter(0).as<double>();
+  auto bit_loc1 = gate.bits()[0] + 1;
+  auto bit_loc2 = gate.bits()[1] + 1;
+  auto [Up1, Dn1, Up2, Dn2, UpP1, DnP1, UpP2, DnP2] =
+      getTwoQubitOpInds(bit_loc1, bit_loc2);
+  auto Op = createTwoQubitOpTensor(bit_loc1, bit_loc2);
+
+  Op.set(Up1, Up2, UpP1, UpP2, 1.0);
+  Op.set(Up1, Dn2, UpP1, DnP2, 1.0);
+  Op.set(Dn1, Up2, DnP1, UpP2, 1.0);
+  // exp(itheta) the last one
+  Op.set(Dn1, Dn2, DnP1, DnP2, std::exp(std::complex<double>(0.0, theta));
+
+  applyTwoQubitGate(Op, bit_loc1, bit_loc2);
+}
 
 // others
 void ITensorMPSVisitor::visit(Measure &gate) {

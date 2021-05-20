@@ -92,7 +92,19 @@ public:
 
 private:
   void applySingleQubitGate(xacc::Instruction &in_gate);
+  void applyTwoQubitGate(itensor::ITensor &in_gateTensor, size_t in_siteId1,
+                         size_t in_siteId2);
   itensor::Index getSiteIndex(size_t site_id);
+
+  // Returns Up1, Dn1, Up2, Dn2, UpP1, DnP1, UpP2, DnP2
+  // indices to construct 2-q gate tensor.
+  std::tuple<itensor::IndexVal, itensor::IndexVal, itensor::IndexVal,
+             itensor::IndexVal, itensor::IndexVal, itensor::IndexVal,
+             itensor::IndexVal, itensor::IndexVal>
+  getTwoQubitOpInds(size_t in_siteId1, size_t in_siteId2);
+  itensor::ITensor createTwoQubitOpTensor(size_t in_siteId1, size_t in_siteId2);
+
+private:
   itensor::MPS m_mps;
   std::vector<size_t> m_measureBits;
   std::shared_ptr<AcceleratorBuffer> m_buffer;
