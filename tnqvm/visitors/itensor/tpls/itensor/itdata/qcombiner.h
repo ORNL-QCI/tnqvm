@@ -1,6 +1,17 @@
 //
-// Distributed under the ITensor Library License, Version 1.2
-//    (See accompanying LICENSE file.)
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 #ifndef __ITENSOR_QCOMBINER_H
 #define __ITENSOR_QCOMBINER_H
@@ -35,6 +46,14 @@ class QCombiner
             s.read((char*)&start, sizeof(size_t));
             s.read((char*)&extent, sizeof(size_t));
             }
+
+        std::ostream&
+        print(std::ostream & s) const
+            {
+            s << "Block: " << block << ", Start: " << start << ", Extent: " << extent << "\n";
+            return s;
+            }
+
         };
     public:
     using storage_type = std::vector<BlockRange>;
@@ -46,17 +65,17 @@ class QCombiner
 
     QCombiner() { }
     
-    template<typename IQInds>
+    template<typename Inds>
     explicit
-    QCombiner(IQInds const& cinds)
+    QCombiner(Inds const& cinds)
         { 
         //set up range to sum over all possible
         //blocks that can be formed out of combined inds
         auto RB = RangeBuilder(cinds.size());
         for(auto j : itensor::range(cinds))
-            RB.nextIndex(cinds[j].nindex());
+            RB.nextIndex(cinds[j].nblock());
         R_ = RB.build();
-        store_.resize(area(R_));
+        store_.resize(dim(R_));
         }
 
     explicit
@@ -102,8 +121,11 @@ read(std::istream& s, QCombiner & dat);
 void
 write(std::ostream& s, QCombiner const& dat);
 
+std::ostream&
+operator<<(std::ostream& s, QCombiner const& dat);
+
 Cplx
-doTask(GetElt<IQIndex> const& g, QCombiner const& c);
+doTask(GetElt const& g, QCombiner const& c);
 
 Real inline
 doTask(NormNoScale, QCombiner const& d) { return 0; }
@@ -113,20 +135,20 @@ doTask(Conj,QCombiner const& d) { }
 
 template<typename T>
 void
-doTask(Contract<IQIndex> & C,
+doTask(Contract & C,
        QDense<T>    const& d,
        QCombiner  const& cmb,
        ManageStore       & m);
 
 template<typename T>
 void
-doTask(Contract<IQIndex> & C,
+doTask(Contract & C,
        QCombiner  const& cmb,
        QDense<T>    const& d,
        ManageStore       & m);
 
 void inline
-doTask(PrintIT<IQIndex> & P, 
+doTask(PrintIT & P, 
        QCombiner const& d) { P.s << "QCombiner "; }
 
 auto inline

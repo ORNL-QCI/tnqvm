@@ -1,9 +1,21 @@
 //
-// Distributed under the ITensor Library License, Version 1.2
-//    (See accompanying LICENSE file.)
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 #ifndef __ITENSOR_DMRGOBSERVER_H
 #define __ITENSOR_DMRGOBSERVER_H
+#include "itensor/mps/mps.h"
 #include "itensor/mps/observer.h"
 #include "itensor/spectrum.h"
 
@@ -16,108 +28,115 @@ namespace itensor {
 // derived class.
 //
 
-template<class Tensor>
 class DMRGObserver : public Observer
     {
     public:
     
-    DMRGObserver(const MPSt<Tensor>& psi, 
-                 const Args& args = Global::args());
+    DMRGObserver(MPS const& psi, 
+                 Args const& args = Args::global());
 
     virtual ~DMRGObserver() { }
 
     void virtual
-    measure(const Args& args = Global::args());
+    measure(Args const& args = Args::global());
     
     bool virtual
-    checkDone(const Args& args = Global::args());
+    checkDone(Args const& args = Args::global());
 
     void virtual
-    lastSpectrum(const Spectrum& spec) { last_spec_ = spec; }
+    lastSpectrum(Spectrum const& spec) { last_spec_ = spec; }
 
-    const MPSt<Tensor>& 
+    MPS const& 
     psi() const { return psi_; }
     
-    const Spectrum&
+    Spectrum const&
     spectrum() const { return last_spec_; }
 
     private:
 
     /////////////
-    //
-    // Data Members
 
-    const MPSt<Tensor>& psi_;
-
+    MPS const& psi_;
     Real energy_errgoal; //Stop DMRG once energy has converged to this precision
+    Real S; //von Neumann entropy
+    //Real Renyi2; //2nd order Renyi entropy
+    //Real DEnergy; //energy difference between last two sweeps
+    //vector<Real> EnergyLis; //list of all energies of dmrg sweeps
+    Real entropy_errgoal; //Stop DMRG once entropy has converged to this precision
     bool printeigs;      //Print slowest decaying eigenvalues after every sweep
     int max_eigs;
     Real max_te;
     bool done_;
     Real last_energy_;
+    Real last_entropy_;
     Spectrum last_spec_;
 
-    //SiteSet::DefaultOpsT default_ops_;
-
-    //
     /////////////
 
     }; // class DMRGObserver
 
-template<class Tensor>
-inline DMRGObserver<Tensor>::
-DMRGObserver(const MPSt<Tensor>& psi, const Args& args) 
+inline DMRGObserver::
+DMRGObserver(MPS const& psi, Args const& args) 
     : 
     psi_(psi),
     energy_errgoal(args.getReal("EnergyErrgoal",-1)), 
+    entropy_errgoal(args.getReal("EntropyErrgoal",-1)),
     printeigs(args.getBool("PrintEigs",true)),
     max_eigs(-1),
     max_te(-1),
     done_(false),
-    last_energy_(1000)
+    last_energy_(1000),
+    last_entropy_(1000)
     //default_ops_(psi.sites().defaultOps())
     { 
     }
 
-template<class Tensor>
-void inline DMRGObserver<Tensor>::
-measure(const Args& args)
+void inline DMRGObserver::
+measure(Args const& args)
     {
-    auto N = psi_.N();
+    auto N = length(psi_);
     auto b = args.getInt("AtBond",1);
     auto sw = args.getInt("Sweep",0);
+    auto nsweep = args.getInt("NSweep",0);
     auto ha = args.getInt("HalfSweep",0);
     auto energy = args.getReal("Energy",0);
-    //using IndexT = typename Tensor::index_type;
+    auto silent = args.getBool("Silent",false);
 
-    if(!args.getBool("Quiet",false) && !args.getBool("NoMeasure",false))
-        {
-        if(b < N && b > 0)
-            {
-            auto wfb = psi_.A(b)*psi_.A(b+1);
-            //for(const std::string& opname : default_ops_)
-            //    {
-            //    auto sb = IndexT(psi_.sites()(b));
-            //    auto z = (dag(prime(wfb,sb))*psi_.sites().op(opname,b)*wfb).cplx();
-            //    //auto z = (prime(wfb,psi_.sites()(b))*psi_.sites().op(opname,b)*wfb).cplx();
-            //    if(std::fabs(z.imag()) < 1E-14)
-            //        printfln("<%s>(%d) = %.10E",opname,b,z.real());
-            //    else
-            //        printfln("<%s>(%d) = (%.10E,%.10E)",opname,b,z.real(),z.imag());
-            //    }
-            }
-        }
+    //if(!args.getBool("Quiet",false) && !args.getBool("NoMeasure",false))
+    //    {
+    //    if(b < N && b > 0)
+    //        {
+    //        auto wfb = psi_(b)*psi_(b+1);
+    //        //for(const std::string& opname : default_ops_)
+    //        //    {
+    //        //    auto sb = IndexT(psi_.sites()(b));
+    //        //    auto z = (dag(prime(wfb,sb))*psi_.sites().op(opname,b)*wfb).eltC();
+    //        //    //auto z = (prime(wfb,psi_.sites()(b))*psi_.sites().op(opname,b)*wfb).eltC();
+    //        //    if(std::fabs(z.imag()) < 1E-14)
+    //        //        printfln("<%s>(%d) = %.10E",opname,b,z.real());
+    //        //    else
+    //        //        printfln("<%s>(%d) = (%.10E,%.10E)",opname,b,z.real(),z.imag());
+    //        //    }
+    //        }
+    //    }
 
-    if(printeigs)
+    if(!silent && printeigs)
         {
         if(b == N/2 && ha == 2)
             {
             println();
             auto center_eigs = last_spec_.eigsKept();
-            Real S = 0;
+            // Normalize eigs
+            Real norm_eigs = 0;
+            for(auto& p : center_eigs)
+              norm_eigs += p;
+            center_eigs /= norm_eigs;
+            // Calculate entropy
+            //Real S = 0;
+            S = 0.0;
             for(auto& p : center_eigs)
                 {
-                if(p > 1E-13) S += p*std::log(p);
+                if(p > 1E-13) S += p*log(p);
                 }
             S *= -1;
             printfln("    vN Entropy at center bond b=%d = %.12f",N/2,S);
@@ -135,30 +154,40 @@ measure(const Args& args)
 
     max_eigs = std::max(max_eigs,last_spec_.numEigsKept());
     max_te = std::max(max_te,last_spec_.truncerr());
-    if(b == 1 && ha == 2) 
+    if(!silent)
         {
-        if(!printeigs) println();
-        println("    Largest m during sweep ",sw," was ",(max_eigs > 1 ? max_eigs : 1));
-        max_eigs = -1;
-        println("    Largest truncation error: ",(max_te > 0 ? max_te : 0.));
-        max_te = -1;
-        printfln("    Energy after sweep %d is %.12f",sw,energy);
+        if(b == 1 && ha == 2) 
+            {
+            if(!printeigs) println();
+            auto swstr = (nsweep>0) ? format("%d/%d",sw,nsweep) 
+                                    : format("%d",sw);
+            println("    Largest link dim during sweep ",swstr," was ",(max_eigs > 1 ? max_eigs : 1));
+            max_eigs = -1;
+            println("    Largest truncation error: ",(max_te > 0 ? max_te : 0.));
+            max_te = -1;
+            printfln("    Energy after sweep %s is %.12f",swstr,energy);
+            }
         }
 
     }
 
 
-template<class Tensor>
-bool inline DMRGObserver<Tensor>::
-checkDone(const Args& args)
+bool inline DMRGObserver::
+checkDone(Args const& args)
     {
     const int sw = args.getInt("Sweep",0);
     const Real energy = args.getReal("Energy",0);
     
-    if(sw == 1) last_energy_ = 1000;
-    if(energy_errgoal > 0 && sw%2 == 0)
+    if(sw == 1)
+        {
+        last_energy_ = 1000;
+        last_entropy_ = 1000;
+        }
+    //Only energy_errgoal is specified
+    if(energy_errgoal > 0 && entropy_errgoal < 0 && sw%2 == 0)
         {
         Real dE = std::fabs(energy-last_energy_);
+        printfln("    Energy error dE = %.3E after %d sweeps;", dE, sw);
         if(dE < energy_errgoal)
             {
             printfln("    Energy error goal met (dE = %.3E < %.3E); returning after %d sweeps.",
@@ -167,14 +196,44 @@ checkDone(const Args& args)
             return true;
             }
         }
+    //Only entropy_errgoal is specified
+    if(energy_errgoal < 0 && entropy_errgoal > 0 && sw%2 == 0)
+        {
+        Real dS = std::fabs(S-last_entropy_);
+        printfln("    Entropy error dS = %.3E after %d sweeps;", dS, sw);
+        if(dS < entropy_errgoal)
+            {
+            printfln("    Entropy error goal met (dS = %.3E < %.3E); returning after %d sweeps.",
+                      dS, entropy_errgoal, sw);
+            last_entropy_ = 1000;
+            return true;
+            }
+        }
+    //Both energy_errgoal and entropy_errgoal are specified, stop when one of them is met
+    if(energy_errgoal > 0 && entropy_errgoal > 0 && sw%2 == 0)
+        {
+        Real dE = std::fabs(energy-last_energy_);
+        Real dS = std::fabs(S-last_entropy_);
+        printfln("    Energy error dE = %.3E after %d sweeps;", dE, sw);
+        printfln("    Entropy error dS = %.3E after %d sweeps;", dS, sw);
+        if(dE < energy_errgoal && dS < entropy_errgoal)
+            {
+            printfln("    Energy (Entropy) error goal met (dE = %.3E < %.3E and dS = %.3E < %.3E); returning after %d sweeps.",
+                      dE, energy_errgoal, dS, entropy_errgoal, sw);
+            last_energy_ = 1000;
+            last_entropy_ = 1000;
+            return true;
+            }
+        }
     last_energy_ = energy;
+    last_entropy_ = S;
 
     //If STOP_DMRG found, will return true (i.e. done) once, but 
     //outer calling using same Observer may continue running e.g. infinite dmrg calling finite dmrg.
     if(fileExists("STOP_DMRG"))
         {
         println("File STOP_DMRG found: stopping this DMRG run after sweep ",sw);
-        system("rm -f STOP_DMRG");
+        std::remove("STOP_DMRG");
         return true;
         }
 
@@ -182,7 +241,7 @@ checkDone(const Args& args)
     if(fileExists("STOP_DMRG_ALL"))
         {
         println("File STOP_DMRG_ALL found: stopping this run after sweep ",sw);
-        system("rm -f STOP_DMRG_ALL");
+        std::remove("STOP_DMRG_ALL");
         done_ = true;
         return done_;
         }

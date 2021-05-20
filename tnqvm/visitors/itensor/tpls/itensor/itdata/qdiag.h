@@ -1,6 +1,17 @@
 //
-// Distributed under the ITensor Library License, Version 1.2
-//    (See accompanying LICENSE file.)
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 #ifndef __ITENSOR_QDIAG_H
 #define __ITENSOR_QDIAG_H
@@ -19,10 +30,10 @@ template<typename T>
 class QDiag
     {
     static_assert(not std::is_const<T>::value,
-                  "Template argument of QDense must be non-const");
+                  "Template argument of QDiag must be non-const");
     public:
     using value_type = T;
-    using storage_type = std::vector<value_type>;
+    using storage_type = vector_no_init<value_type>;
     using iterator = typename storage_type::iterator;
     using const_iterator = typename storage_type::const_iterator;
 
@@ -36,11 +47,11 @@ class QDiag
 
     QDiag() { }
 
-    QDiag(IQIndexSet const& is);
+    QDiag(IndexSet const& is);
 
     //Special "allSame" mode where non-zero
     //elements assumed to have the same value "val"
-    QDiag(IQIndexSet const& is, 
+    QDiag(IndexSet const& is, 
           T val_);
 
     template<typename V>
@@ -129,7 +140,7 @@ read(std::istream & s, QDiag<T> & dat)
  
 template<typename T>
 Cplx
-doTask(GetElt<IQIndex>& G, QDiag<T> const& D);
+doTask(GetElt& G, QDiag<T> const& D);
 
 template<typename T>
 QN
@@ -162,7 +173,20 @@ template<typename F, typename T>
 void
 doTask(VisitIT<F> & V, QDiag<T> const& d)
     {
-    for(auto& elt : d.store) detail::call<void>(V.f,elt*V.scale_fac);
+    if(d.allSame()) 
+        {
+        for(decltype(d.length) j = 0; j < d.length; ++j) 
+            {
+            detail::call<void>(V.f,V.scale_fac * d.val);
+            }
+        }
+    else
+        {
+        for(auto& elt : d.store) 
+            {
+            detail::call<void>(V.f,elt*V.scale_fac);
+            }
+        }
     }
 
 template<typename F>
@@ -209,7 +233,7 @@ doTask(GenerateIT<F,Cplx>& G, QDiagCplx & D)
 
 template<typename T>
 Cplx
-doTask(SumEls<IQIndex>, QDiag<T> const& d);
+doTask(SumEls, QDiag<T> const& d);
 
 template<typename T>
 void
@@ -238,7 +262,7 @@ doTask(NormNoScale, QDiag<T> const& d);
 
 template<typename T>
 void
-doTask(PrintIT<IQIndex>& P, QDiag<T> const& d);
+doTask(PrintIT& P, QDiag<T> const& d);
 
 auto inline constexpr
 doTask(StorageType const& S, QDiagReal const& d) ->StorageType::Type { return StorageType::QDiagReal; }
@@ -248,31 +272,36 @@ doTask(StorageType const& S, QDiagCplx const& d) ->StorageType::Type { return St
 
 template<typename VA, typename VB>
 void
-doTask(Contract<IQIndex>& Con,
+doTask(Contract& Con,
        QDiag<VA> const& A,
        QDense<VB> const& B,
        ManageStore& m);
 
 template<typename VA, typename VB>
 void
-doTask(Contract<IQIndex>& Con,
+doTask(Contract& Con,
        QDense<VA> const& A,
        QDiag<VB> const& B,
        ManageStore& m);
 
+template<typename T>
+void
+doTask(Order const& P,
+       QDiag<T> & dA) { }
+
 template<typename Indexable>
 std::tuple<size_t,size_t,IntArray>
-diagBlockBounds(IQIndexSet const& is,
+diagBlockBounds(IndexSet const& is,
                 Indexable const& block_ind)
     {
     long nb = -1;
     long ne = std::numeric_limits<long>::max();
-    auto starts = IntArray(rank(is),0);
+    auto starts = IntArray(order(is),0);
     for(auto n : range(is))
         {
-        for(auto j : range(block_ind[n])) starts[n] += is[n][j].m();
+        for(auto j : range(block_ind[n])) starts[n] += is[n].blocksize0(j);
         nb = std::max(nb,starts[n]);
-        ne = std::min(ne,starts[n]+is[n][block_ind[n]].m());
+        ne = std::min(ne,starts[n]+is[n].blocksize0(block_ind[n]));
         }
     for(auto n : range(is))
         {
@@ -284,13 +313,13 @@ diagBlockBounds(IQIndexSet const& is,
 template<typename V, typename Indexable>
 DataRange<const V>
 getBlock(QDiag<V> const& D,
-         IQIndexSet const& is,
+         IndexSet const& is,
          Indexable const& block_ind)
     {
     long nb = -1, ne = -1;
     auto starts = IntArray{};
 
-    if(block_ind.size()==0 && rank(is)==0)
+    if(block_ind.size()==0 && order(is)==0)
         {
         nb = 0;
         ne = 1;
@@ -313,7 +342,7 @@ getBlock(QDiag<V> const& D,
 template<typename V, typename Indexable>
 DataRange<V>
 getBlock(QDiag<V> & D,
-         IQIndexSet const& is,
+         IndexSet const& is,
          Indexable const& block_ind)
     {
     auto const& cD = D;
@@ -324,9 +353,26 @@ getBlock(QDiag<V> & D,
     return DataRange<V>{ncd,cdr.size()};
     }
 
+//template<typename V>
+//ITensor
+//doTask(ToITensor & T, QDiag<V> const& d);
+
 template<typename V>
-ITensor
-doTask(ToITensor & T, QDiag<V> const& d);
+bool
+doTask(IsEmpty, QDiag<V> const& d) { return (d.length == 0ul); }
+
+template<typename T>
+bool
+doTask(IsDense,
+       QDiag<T> const& d);
+
+template<typename V>
+void
+doTask(RemoveQNs &, QDiag<V> const&, ManageStore &);
+
+template<typename T>
+void
+doTask(ToDense &, QDiag<T> const&, ManageStore &);
 
 } //namespace itensor
 

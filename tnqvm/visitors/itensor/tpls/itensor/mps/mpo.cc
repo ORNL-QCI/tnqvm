@@ -1,8 +1,20 @@
 //
-// Distributed under the ITensor Library License, Version 1.2
-//    (See accompanying LICENSE file.)
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 #include "itensor/util/print_macro.h"
+#include "itensor/util/str.h"
 #include "itensor/mps/mpo.h"
 #include "itensor/mps/localop.h"
 
@@ -18,122 +30,43 @@ using std::pair;
 using std::make_pair;
 using std::string;
 
-template <class Tensor>
-MPOt<Tensor>::
-MPOt() 
+MPO::
+MPO() 
   : Parent(),
     logrefNorm_(DefaultLogRefScale)
     { 
     }
-template MPOt<ITensor>::MPOt();
-template MPOt<IQTensor>::MPOt();
 
-template<class T>
-MPOt<T>::
-MPOt(int N)
+MPO::
+MPO(int N)
   : Parent(N),
     logrefNorm_(DefaultLogRefScale)
     { 
     }
-template MPOt<ITensor>::MPOt(int N);
-template MPOt<IQTensor>::MPOt(int N);
 
-template <class Tensor>
-MPOt<Tensor>::
-MPOt(const SiteSet& sites,
+MPO::
+MPO(const SiteSet& sites,
      Real _logrefNorm) 
     : 
     Parent(sites)
     { 
     // Norm of psi^2 = 1 = norm = sum of denmat evals. 
     // This translates to Tr{Adag A} = norm.  
-    // Ref. norm is Tr{1} = d^N, d = 2 S=1/2, d = 4 for Hubbard, etc
-    if(_logrefNorm == DefaultLogRefScale) logrefNorm_ = sites.N();
+    // Ref. norm is Tr{1} = d^N, d = 2 S=1/2, d = 4 for Electron, etc
+    if(_logrefNorm == DefaultLogRefScale) logrefNorm_ = sites.length();
 
     //Set all tensors to identity ops
-    for(int j = 1; j <= N(); ++j)
+    for(int j = 1; j <= length(); ++j)
         {
-        Anc(j) = sites.op("Id",j);
+        ref(j) = sites.op("Id",j);
         }
     putMPOLinks(*this);
     }
-template
-MPOt<ITensor>::
-MPOt(const SiteSet& sites, Real _logrefNorm);
-template
-MPOt<IQTensor>::
-MPOt(const SiteSet& sites, Real _logrefNorm);
-
-/*
-template<class Tensor> 
-void MPOt<Tensor>::
-position(int i, const Args& args)
-    {
-    if(isNull()) Error("position: MPS is null");
-
-    while(l_orth_lim_ < i-1)
-        {
-        if(l_orth_lim_ < 0) l_orth_lim_ = 0;
-        Tensor WF = A(l_orth_lim_+1) * A(l_orth_lim_+2);
-        svdBond(l_orth_lim_+1,WF,Fromleft,args);
-        }
-    while(r_orth_lim_ > i+1)
-        {
-        if(r_orth_lim_ > N_+1) r_orth_lim_ = N_+1;
-        Tensor WF = A(r_orth_lim_-2) * A(r_orth_lim_-1);
-        svdBond(r_orth_lim_-2,WF,Fromright,args);
-        }
-
-    is_ortho_ = true;
-    }
-template void MPOt<ITensor>::
-position(int b, const Args& args);
-template void MPOt<IQTensor>::
-position(int b, const Args& args);
-*/
-
-/*
-template <class Tensor>
-void MPOt<Tensor>::
-orthogonalize(const Args& args)
-    {
-    //Do a half-sweep to the right, orthogonalizing each bond
-    //but do not truncate since the basis to the right might not
-    //be ortho (i.e. use the current m).
-    //svd_.useOrigM(true);
-    int orig_maxm = maxm();
-    Real orig_cutoff = cutoff();
-    for(Spectrum& spec : spectrum_)
-        {
-        spec.maxm(MAX_M);
-        spec.cutoff(MIN_CUT);
-        }
-
-    position(1);
-    position(N_);
-
-    //Now basis is ortho, ok to truncate
-    for(Spectrum& spec : spectrum_)
-        {
-        spec.useOrigM(false);
-        spec.maxm(orig_maxm);
-        spec.cutoff(orig_cutoff);
-        }
-    position(1);
-
-    is_ortho_ = true;
-    }
-template
-void MPOt<ITensor>::orthogonalize(const Args& args);
-template
-void MPOt<IQTensor>::orthogonalize(const Args& args);
-*/
 
 
-template <class Tensor>
-MPOt<Tensor>& MPOt<Tensor>::
-plusEq(const MPOt<Tensor>& other_,
-       const Args& args)
+MPO& MPO::
+plusEq(MPO const& other_,
+       Args const& args)
     {
     if(doWrite())
         Error("operator+= not supported if doWrite(true)");
@@ -166,23 +99,206 @@ plusEq(const MPOt<Tensor>& other_,
 
     return addAssumeOrth(*this,other_,args);
     }
-template
-MPOt<ITensor>& MPOt<ITensor>::plusEq(const MPOt<ITensor>& other, const Args&);
-template
-MPOt<IQTensor>& MPOt<IQTensor>::plusEq(const MPOt<IQTensor>& other, const Args&);
+
+MPO&
+operator*=(MPO & W, Real a) { W.ref(W.leftLim()+1) *= a; return W; }
+
+MPO&
+operator*=(MPO & W, Cplx a) { W.ref(W.leftLim()+1) *= a; return W; }
+
+MPO&
+operator/=(MPO & W, Real a) { W.ref(W.leftLim()+1) /= a; return W; }
+
+MPO&
+operator/=(MPO & W, Cplx a) { W.ref(W.leftLim()+1) /= a; return W; }
+
+MPO
+operator*(MPO W, Real r) { return W *= r; }
+
+MPO
+operator*(Real r, MPO W) { return W *= r; }
+
+MPO
+operator*(MPO W, Cplx z) { return W *= z; }
+
+MPO
+operator*(Cplx z, MPO W) { return W *= z; }
+
+MPO
+dag(MPO W)
+    {
+    W.dag();
+    return W;
+    }
+
+int
+length(MPO const& W)
+    {
+    return W.length();
+    }
+
+bool
+isOrtho(MPO const& W)
+    {
+    return W.leftLim()+1 == W.rightLim()-1;
+    }
+
+int
+orthoCenter(MPO const& W)
+    {
+    if(!isOrtho(W)) Error("orthogonality center not well defined.");
+    return (W.leftLim() + 1);
+    }
+
+bool
+hasSiteInds(MPO const& A, IndexSet const& sites)
+    {
+    auto N = length(A);
+    if( N!=length(sites) ) Error("In hasSiteInds(MPO,IndexSet), lengths of MPO and IndexSet of site indices don't match");
+    for( auto n : range1(N) )
+      {
+      if( !hasIndex(A(n),sites(n)) ) return false;
+      }
+    return true;
+    }
+
+// Find the site Index of the bth MPO tensor of W
+// having the tags tsmatch
+Index
+siteIndex(MPO const& W, int b, TagSet const& tsmatch)
+    {
+    return findIndex(siteInds(W,b),tsmatch);
+    }
+
+// Find the site Index of the bth MPO tensor of W
+// that is not in the IndexSet is
+Index
+uniqueSiteIndex(MPO const& W, IndexSet const& is, int b)
+    {
+    return findIndex(uniqueInds(siteInds(W,b),is));
+    }
+
+// Get the site Index of the MPS W*A 
+// as if MPO W was applied to MPS A
+Index
+uniqueSiteIndex(MPO const& W, MPS const& A, int b)
+    {
+    return uniqueIndex(W(b),{W(b-1),W(b+1),A(b)});
+    }
+
+// Get the site Index that is unique to A
+Index
+uniqueSiteIndex(MPO const& A, MPO const& B, int b)
+    {
+    return uniqueIndex(A(b),{A(b-1),A(b+1),B(b)});
+    }
+
+IndexSet
+uniqueSiteInds(MPO const& A, MPS const& x)
+    {
+    auto N = length(x);
+    if( N!=length(x) ) Error("In uniqueSiteInds(MPO,MPS), lengths of MPO and MPS do not match");
+    auto inds = IndexSetBuilder(N);
+    for( auto n : range1(N) )
+      {
+      auto s = uniqueSiteIndex(A,x,n);
+      inds.nextIndex(std::move(s));
+      }
+    return inds.build();
+    }
+
+// Get the site Indices of the MPO A*B 
+// as if MPO A and MPO B were contracted
+IndexSet
+siteInds(MPO const& A, MPO const& B, int b)
+    {
+    auto sA = uniqueSiteIndex(A,B,b);
+    auto sB = uniqueSiteIndex(B,A,b);
+    return IndexSet(sA,sB);
+    }
+
+// Get the site Indices that are unique to A
+IndexSet
+uniqueSiteInds(MPO const& A, MPO const& B)
+    {
+    auto N = length(A);
+    if( N!=length(B) ) Error("In uniqueSiteInds(MPO,MPO), lengths of MPO and MPS do not match");
+    auto inds = IndexSetBuilder(N);
+    for( auto n : range1(N) )
+      {
+      auto s = uniqueSiteIndex(A,B,n);
+      inds.nextIndex(std::move(s));
+      }
+    return inds.build();
+    }
+
+// Get the site Indices that are unique to A
+// (on A but not in the input IndexSet of site indices)
+IndexSet
+uniqueSiteInds(MPO const& A, IndexSet const& sites)
+    {
+    auto N = length(A);
+    if( N!=length(sites) ) Error("In uniqueSiteInds(MPO,IndexSet), lengths of MPO and IndexSet do not match");
+    auto inds = IndexSetBuilder(N);
+    for( auto n : range1(N) )
+      {
+      auto sn = uniqueSiteIndex(A,{sites(n)},n);
+      inds.nextIndex(std::move(sn));
+      }
+    return inds.build();
+    }
+
+MPO& MPO::
+replaceSiteInds(IndexSet const& sites_old, IndexSet const& sites_new)
+    {
+    auto& A = *this;
+    auto N = itensor::length(A);
+    if( itensor::length(sites_new)!=N ) Error("In replaceSiteInds(MPO,IndexSet,IndexSet), number of new sites must be equal length of MPO");
+    if( itensor::hasSiteInds(A,sites_new) ) return A;
+    for( auto n : range1(N) )
+        A_[n].replaceInds({sites_old(n)},{sites_new(n)});
+    return A;
+    }
+
+MPO
+replaceSiteInds(MPO A, IndexSet const& sites_old, IndexSet const& sites_new)
+    {
+    A.replaceSiteInds(sites_old,sites_new);
+    return A;
+    }
+
+MPO& MPO::
+swapSiteInds()
+    {
+    auto& A = *this;
+    auto N = itensor::length(A);
+    for( auto n : range1(N) )
+        {
+        auto s = itensor::siteInds(A,n);
+        A_[n].swapInds({s(1)},{s(2)});
+        }
+    return A;
+    }
+
+MPO
+swapSiteInds(MPO A)
+    {
+    A.swapSiteInds();
+    return A;
+    }
 
 int 
-findCenter(const IQMPO& psi)
+findCenter(MPO const& psi)
     {
-    for(int j = 1; j <= psi.N(); ++j) 
+    for(int j = 1; j <= length(psi); ++j) 
         {
-        const IQTensor& A = psi.A(j);
-        if(A.r() == 0) Error("Zero rank tensor in IQMPO");
+        const auto& A = psi(j);
+        if(A.order() == 0) Error("Zero order tensor in MPO");
         bool allOut = true;
-        for(const IQIndex& I : A.inds())
+        for(const auto& I : A.inds())
             {
             //Only look at Link IQIndices
-            if(I.type() != Link) continue;
+            if(!hasTags(I,"Link")) continue;
 
             if(I.dir() != Out)
                 {
@@ -198,9 +314,9 @@ findCenter(const IQMPO& psi)
     }
 
 void
-checkQNs(const IQMPO& H)
+checkQNs(MPO const& H)
     {
-    const int N = H.N();
+    const int N = length(H);
 
     const QN Zero;
 
@@ -210,37 +326,37 @@ checkQNs(const IQMPO& H)
         Error("Did not find an ortho. center");
         }
 
-    //Check that all IQTensors have zero div
+    //Check that all ITensors have zero div
     //including the ortho. center
     for(int i = 1; i <= N; ++i) 
         {
-        if(!H.A(i))
+        if(!H(i))
             {
             println("A(",i,") null, QNs not well defined");
             Error("QNs not well defined");
             }
-        if(div(H.A(i)) != Zero)
+        if(div(H(i)) != Zero)
             {
             cout << "At i = " << i << endl;
-            Print(H.A(i));
-            Error("Non-zero div IQTensor in IQMPO");
+            Print(H(i));
+            Error("Non-zero div ITensor in MPO");
             }
         }
 
     //Check arrows from left edge
     for(int i = 1; i < center; ++i)
         {
-        if(rightLinkInd(H,i).dir() != In) 
+        if(dir(linkIndex(H,i)) != In) 
             {
             println("checkQNs: At site ",i," to the left of the OC, Right side Link not pointing In");
-            Error("Incorrect Arrow in IQMPO");
+            Error("Incorrect Arrow in MPO");
             }
         if(i > 1)
             {
-            if(leftLinkInd(H,i).dir() != Out) 
+            if(dir(linkIndex(H,i-1)) != Out) 
                 {
                 println("checkQNs: At site ",i," to the left of the OC, Left side Link not pointing Out");
-                Error("Incorrect Arrow in IQMPO");
+                Error("Incorrect Arrow in MPO");
                 }
             }
         }
@@ -249,133 +365,478 @@ checkQNs(const IQMPO& H)
     for(int i = N; i > center; --i)
         {
         if(i < N)
-        if(rightLinkInd(H,i).dir() != Out) 
+        if(dir(linkIndex(H,i)) != Out) 
             {
             println("checkQNs: At site ",i," to the right of the OC, Right side Link not pointing Out");
-            Error("Incorrect Arrow in IQMPO");
+            Error("Incorrect Arrow in MPO");
             }
-        if(leftLinkInd(H,i).dir() != In) 
+        if(dir(linkIndex(H,i-1)) != In) 
             {
             println("checkQNs: At site ",i," to the right of the OC, Left side Link not pointing In");
-            Error("Incorrect Arrow in IQMPO");
+            Error("Incorrect Arrow in MPO");
             }
         }
     }
 
 
 
-template <class Tensor>
 std::ostream& 
-operator<<(std::ostream& s, MPOt<Tensor> const& M)
+operator<<(std::ostream& s, MPO const& M)
     {
     s << "\n";
-    for(int i = 1; i <= M.N(); ++i) s << M.A(i) << "\n";
+    for(int i = 1; i <= length(M); ++i) s << M(i) << "\n";
     return s;
     }
-template
-std::ostream& 
-operator<<(std::ostream& s, MPOt<ITensor> const& M);
-template
-std::ostream& 
-operator<<(std::ostream& s, MPOt<IQTensor> const& M);
 
 void
 putMPOLinks(MPO& W, Args const& args)
     {
-    const string pfix = args.getString("Prefix","l");
-    vector<Index> links(W.N());
-    for(int b = 1; b < W.N(); ++b)
+    string pfix = args.getString("Prefix","l=");
+    if(not hasQNs(W))
         {
-        links.at(b) = Index(format("%s%d",pfix,b));
+        auto links = vector<Index>(length(W));
+        for(int b = 1; b < length(W); ++b)
+            {
+            string ts = "Link,"+pfix+str(b);
+            links.at(b) = Index(1,ts);
+            }
+        W.ref(1) *= setElt(links.at(1)(1));
+        for(int b = 2; b < length(W); ++b)
+            {
+            W.ref(b) *= setElt(links.at(b-1)(1));
+            W.ref(b) *= setElt(links.at(b)(1));
+            }
+        W.ref(length(W)) *= setElt(links.at(length(W)-1)(1));
         }
-    W.Anc(1) *= links.at(1)(1);
-    for(int b = 2; b < W.N(); ++b)
+    else
         {
-        W.Anc(b) *= links.at(b-1)(1);
-        W.Anc(b) *= links.at(b)(1);
+        QN q;
+        auto N = length(W);
+
+        auto links = vector<Index>(N);
+        for(int b = 1; b < N; ++b)
+            {
+            q += div(W(b));
+            string ts = "Link,"+pfix+str(b);
+            links.at(b) = Index(q,1,Out,ts);
+            }
+
+        W.ref(1) *= setElt(links.at(1)(1));
+        for(int b = 2; b < N; ++b)
+            {
+            W.ref(b) *= setElt(dag(links.at(b-1)(1)));
+            W.ref(b) *= setElt(links.at(b)(1));
+            }
+        W.ref(N) *= setElt(dag(links.at(N-1)(1)));
         }
-    W.Anc(W.N()) *= links.at(W.N()-1)(1);
     }
 
-void
-putMPOLinks(IQMPO& W, Args const& args)
+
+//MPO
+//toMPO(MPO const& K)
+//    {
+//    int N = length(K);
+//    MPO res;
+//    if(K.sites()) res = MPO(K.sites());
+//    else          res = MPO(N);
+//    res.logRefNorm(K.logRefNorm());
+//    for(int j = 0; j <= N+1; ++j)
+//        {
+//        res.ref(j) = ITensor(K(j));
+//        }
+//    res.leftLim(K.leftLim());
+//    res.rightLim(K.rightLim());
+//    return res;
+//    }
+
+MPO
+setTags(MPO A, TagSet const& ts, IndexSet const& is)
     {
-    QN q;
-    const int N = W.N();
-    const string pfix = args.getString("Prefix","l");
-
-    vector<IQIndex> links(N);
-    for(int b = 1; b < N; ++b)
-        {
-        string nm = format("%s%d",pfix,b);
-               
-        q += div(W.A(b));
-        links.at(b) = IQIndex(nm,Index(nm),q);
-        }
-
-    W.Anc(1) *= links.at(1)(1);
-    for(int b = 2; b < N; ++b)
-        {
-        W.Anc(b) *= dag(links.at(b-1)(1));
-        W.Anc(b) *= links.at(b)(1);
-        }
-    W.Anc(N) *= dag(links.at(N-1)(1));
+    A.setTags(ts,is);
+    return A;
     }
 
-template<typename T>
+MPO
+noTags(MPO A, IndexSet const& is)
+    {
+    A.noTags(is);
+    return A;
+    }
+
+MPO
+addTags(MPO A, TagSet const& ts, IndexSet const& is)
+    {
+    A.addTags(ts,is);
+    return A;
+    }
+
+MPO
+removeTags(MPO A, TagSet const& ts, IndexSet const& is)
+    {
+    A.removeTags(ts,is);
+    return A;
+    }
+
+MPO
+replaceTags(MPO A, TagSet const& ts1, TagSet const& ts2, IndexSet const& is)
+    {
+    A.replaceTags(ts1,ts2,is);
+    return A;
+    }
+
+MPO
+swapTags(MPO A, TagSet const& ts1, TagSet const& ts2, IndexSet const& is)
+    {
+    A.swapTags(ts1,ts2,is);
+    return A;
+    }
+
+MPO
+prime(MPO A, int plev, IndexSet const& is)
+    {
+    A.prime(plev,is);
+    return A;
+    }
+
+MPO
+prime(MPO A, IndexSet const& is)
+    {
+    A.prime(is);
+    return A;
+    }
+
+MPO
+setPrime(MPO A, int plev, IndexSet const& is)
+    {
+    A.setPrime(plev,is);
+    return A;
+    }
+
+MPO
+noPrime(MPO A, IndexSet const& is)
+    {
+    A.noPrime(is);
+    return A;
+    }
+
 bool
-isComplex(MPOt<T> const& W)
+isComplex(MPO const& W)
     {
-    for(auto j : range1(W.N()))
+    for(auto j : range1(length(W)))
         {
-        if(itensor::isComplex(W.A(j))) return true;
+        if(itensor::isComplex(W(j))) return true;
         }
     return false;
     }
-template bool isComplex(MPOt<ITensor> const& W);
-template bool isComplex(MPOt<IQTensor> const& W);
 
-//<psi|H|phi>
-template <class Tensor>
+Cplx
+traceC(MPO const& A)
+    {
+    auto N = length(A);
+    auto trA_n = A(1) * delta(dag(siteInds(A,1)));
+    auto L = trA_n;
+    if(N == 1) return eltC(L);
+    for(auto n : range1(2,N) )
+        {
+        trA_n = A(n) * delta(dag(siteInds(A,n)));
+        L *= trA_n;
+        }
+    return eltC(L);
+    }
+
+void
+trace(MPO const& A,
+      Real& re, Real& im)
+    {
+    auto z = traceC(A);
+    re = real(z);
+    im = imag(z);
+    }
+
+Real
+trace(MPO const& A)
+    {
+    Real re, im;
+    trace(A,re,im);
+    if(std::fabs(im) > (1E-12 * std::fabs(re)) )
+        printfln("Real inner: WARNING, dropping non-zero imaginary part (=%.5E) of expectation value.",im);
+    return re;
+    }
+
+Cplx
+traceC(MPO const& A,
+       MPO const& B)
+    {
+    auto N = length(A);
+    if(N != length(B)) Error("traceC(MPO,MPO): mismatched N");
+
+    // Make the site indices of the MPOs match
+    // and the links not match
+    auto sA = uniqueSiteInds(A,B);
+    auto sB = uniqueSiteInds(B,A);
+    auto Bp = replaceSiteInds(B,sB,sA);
+    Bp.replaceLinkInds(sim(linkInds(Bp)));
+
+    auto L = A(1) * Bp(1);
+    if(N == 1) return eltC(L);
+    for(auto i : range1(2,N) )
+        L = L * A(i) * Bp(i);
+    return eltC(L);
+    }
+
+void
+trace(MPO const& A,
+      MPO const& B,
+      Real& re, Real& im)
+    {
+    auto z = traceC(A,B);
+    re = real(z);
+    im = imag(z);
+    }
+
+Real
+trace(MPO const& A, MPO const& B) //Re[<psi|phi>]
+    {
+    Real re, im;
+    trace(A,B,re,im);
+    if(std::fabs(im) > (1E-12 * std::fabs(re)) )
+        printfln("Real inner: WARNING, dropping non-zero imaginary part (=%.5E) of expectation value.",im);
+    return re;
+    }
+
+//<x|A|y>
 void 
-overlap(MPSt<Tensor> const& psi, 
-        MPOt<Tensor> const& H, 
-        MPSt<Tensor> const& phi, 
+inner(MPS const& x, 
+      MPO const& A, 
+      MPS const& y, 
+      Real& re, 
+      Real& im)
+    {
+    auto N = length(A);
+    if( length(y) != N || length(x) != N ) Error("inner: mismatched N");
+
+    // Make the indices of |x> and A|y> match
+    auto sAy = uniqueSiteInds(A,y);
+    auto xp = replaceSiteInds(x,sAy);
+
+    // Dagger x, since it is the ket
+    auto xdag = dag(xp);
+    xdag.replaceLinkInds(sim(linkInds(xdag)));
+
+    auto L = y(1) * A(1) * xdag(1);
+
+    // TODO: some MPOs may store edge tensors
+    // in A(0) and A(N+1). Add this back?
+    //L *= (A(0) ? A(0)*A(1) : A(1));
+
+    for( auto n : range1(2,N) ) 
+        L = L * y(n) * A(n) * xdag(n); 
+
+    // TODO: some MPOs may store edge tensors
+    // in A(0) and A(N+1). Add this back?
+    //if(A(N+1)) L *= A(N+1);
+
+    auto z = eltC(L);
+    re = real(z);
+    im = imag(z);
+    }
+
+Real 
+inner(MPS const& psi, 
+      MPO const& H, 
+      MPS const& phi) //Re[<psi|H|phi>]
+    {
+    if(isComplex(psi) || isComplex(H) || isComplex(phi)) Error("Cannot use inner(...) with complex MPS/MPO, use innerC(...) instead");
+    Real re, im;
+    inner(psi,H,phi,re,im);
+    return re;
+    }
+
+
+Cplx 
+innerC(MPS const& psi, 
+       MPO const& H, 
+       MPS const& phi) //Re[<psi|H|phi>]
+    {
+    Real re, im;
+    inner(psi,H,phi,re,im);
+    return Cplx(re,im);
+    }
+
+// Calculate <Ax|By>
+void
+inner(MPO const& A,
+      MPS const& x,
+      MPO const& B,
+      MPS const& y,
+      Real& re,
+      Real& im)
+  {
+  if(length(x) != length(y) || length(x) != length(A) || length(y) != length(B)) Error("Mismatched N in inner");
+  auto N = length(y);
+
+  // Automatically match site indices
+  auto Ap = replaceSiteInds(A,uniqueSiteInds(A,x),uniqueSiteInds(B,y));
+
+  // Prime the links to avoid clashes
+  auto Adag = dag(A);
+  Adag.replaceLinkInds(sim(linkInds(Adag)));
+  auto xdag = dag(x);
+  xdag.replaceLinkInds(sim(linkInds(xdag)));
+
+  //scales as m^2 k^2 d
+  auto L = y(1) * B(1) * Adag(1) * xdag(1);
+  for(int i = 2; i < N; i++)
+      {
+      //scales as m^3 k^2 d + m^2 k^3 d^2
+      L = L * y(i) * B(i) * Adag(i) * xdag(i);
+      }
+  //scales as m^2 k^2 d
+  L = L * y(N) * B(N) * Adag(N) * xdag(N);
+  auto z = eltC(L);
+  re = real(z);
+  im = imag(z);
+  }
+
+// Calculate <Ax|By>
+Real
+inner(MPO const& A,
+      MPS const& x,
+      MPO const& B,
+      MPS const& y)
+    {
+    if(isComplex(A) || isComplex(x) || isComplex(B) || isComplex(y)) Error("Cannot use inner(...) with complex MPS/MPO, use innerC(...) instead");
+    Real re,im;
+    inner(A,x,B,y,re,im);
+    return re;
+    }
+
+// Calculate <Ax|By>
+Complex
+innerC(MPO const& A,
+       MPS const& x,
+       MPO const& B,
+       MPS const& y)
+    {
+    Real re,im;
+    inner(A,x,B,y,re,im);
+    return Cplx(re,im);
+    }
+
+void
+inner(MPS const& x, 
+      MPO const& A, 
+      MPO const& B,
+      MPS const& y, 
+      Real& re, 
+      Real& im)
+    {
+    if(length(x) != length(y) || length(x) != length(A) || length(x) != length(B)) Error("Mismatched N in inner");
+    auto N = length(x);
+
+    // Assume order of operations A(B|y>), use replaceInds
+    // to handle the case where A and B share all indices
+    auto sABy = uniqueSiteInds(A,uniqueSiteInds(B,y)); 
+    auto sAByp = sim(sABy);
+    auto Ap = replaceSiteInds(A,sABy,sAByp);
+    Ap.replaceLinkInds(sim(linkInds(Ap)));
+    auto xp = replaceSiteInds(x,sAByp);
+    auto xdag = dag(xp);
+    xdag.replaceLinkInds(sim(linkInds(xdag)));
+
+    //scales as m^2 k^2 d
+    auto L = y(1) * B(1) * Ap(1) * xdag(1);
+    for(int i = 2; i < N; i++)
+        {
+        //scales as m^3 k^2 d + m^2 k^3 d^2
+        L = L * y(i) * B(i) * Ap(i) * xdag(i);
+        }
+    //scales as m^2 k^2 d
+    L = L * y(N) * B(N) * Ap(N) * xdag(N);
+    auto z = eltC(L);
+    re = real(z);
+    im = imag(z);
+    }
+
+Real
+inner(MPS const& psi, 
+      MPO const& H, 
+      MPO const& K,
+      MPS const& phi) //<psi|H K|phi>
+    {
+    if(isComplex(psi) || isComplex(H) || isComplex(K) || isComplex(phi)) Error("Cannot use inner(...) with complex MPS/MPO, use innerC(...) instead");
+    Real re,im;
+    inner(psi,H,K,phi,re,im);
+    return re;
+    }
+
+Cplx
+innerC(MPS const& psi, 
+       MPO const& H, 
+       MPO const& K,
+       MPS const& phi) //<psi|H K|phi>
+    {
+    Real re,im;
+    inner(psi,H,K,phi,re,im);
+    return Cplx(re,im);
+    }
+
+// Check how close and approximation to A|x>, called |y>,
+// is to the exact A|x>
+//||y> - A|x>| / || A|x> || = sqrt{(<y|-<x|Ad)(|y>-A|x>) / <x|AdA|x>}
+//                             = sqrt{1 + (<y|y>-2*Re[<y|A|x>]) / <x|AdA|x>}
+Real
+errorMPOProd(MPS const& y,
+             MPO const& A, 
+             MPS const& x)
+    {
+    auto err = real(innerC(y,y));
+    err += -2.*real(innerC(y,A,x));
+    err /= real(innerC(A,x,A,x));
+    err = std::sqrt(std::abs(1.0+err));
+    return err;
+    }
+
+//
+// Deprecated
+//
+
+void 
+overlap(MPS const& psi, 
+        MPO const& H, 
+        MPS const& phi, 
         Real& re, 
         Real& im)
     {
-    auto N = H.N();
-    if(phi.N() != N || psi.N() != N) Error("psiHphi: mismatched N");
+    Global::warnDeprecated("overlap is deprecated in favor of inner/trace");
+    auto N = length(H);
+    if(length(phi) != N || length(psi) != N) Error("psiHphi: mismatched N");
 
-    auto L = phi.A(1); 
-    //Some Hamiltonians may store edge tensors in H.A(0) and H.A(N+1)
-    L *= (H.A(0) ? H.A(0)*H.A(1) : H.A(1));
-    L *= dag(prime(psi.A(1)));
+    auto L = phi(1); 
+    //Some Hamiltonians may store edge tensors in H(0) and H(N+1)
+    L *= (H(0) ? H(0)*H(1) : H(1));
+    L *= dag(prime(psi(1)));
     for(int i = 2; i < N; ++i) 
         { 
-        L *= phi.A(i); 
-        L *= H.A(i); 
-        L *= dag(prime(psi.A(i))); 
+        L *= phi(i); 
+        L *= H(i); 
+        L *= dag(prime(psi(i))); 
         }
-    L *= phi.A(N); 
-    L *= H.A(N);
-    if(H.A(N+1)) L *= H.A(N+1);
+    L *= phi(N); 
+    L *= H(N);
+    if(H(N+1)) L *= H(N+1);
 
-    auto z = (dag(prime(psi.A(N)))*L).cplx();
+    auto z = (dag(prime(psi(N)))*L).eltC();
     re = z.real();
     im = z.imag();
     }
-template
-void overlap(MPSt<ITensor> const& psi, MPOt<ITensor> const& H, MPSt<ITensor> const& phi, Real& re, Real& im);
-template
-void overlap(MPSt<IQTensor> const& psi, MPOt<IQTensor> const& H, MPSt<IQTensor> const& phi, Real& re, Real& im);
 
-template <class Tensor>
 Real 
-overlap(MPSt<Tensor> const& psi, 
-        MPOt<Tensor> const& H, 
-        MPSt<Tensor> const& phi) //Re[<psi|H|phi>]
+overlap(MPS const& psi, 
+        MPO const& H, 
+        MPS const& phi) //Re[<psi|H|phi>]
     {
+    Global::warnDeprecated("overlap is deprecated in favor of inner/trace");
     Real re, im;
     overlap(psi,H,phi,re,im);
     if(std::fabs(im) > 1E-5 * std::fabs(re) || std::fabs(im) > 1E-9)
@@ -384,153 +845,122 @@ overlap(MPSt<Tensor> const& psi,
         }
     return re;
     }
-template
-Real overlap(MPSt<ITensor> const& psi, MPOt<ITensor> const& H, MPSt<ITensor> const& phi);
-template
-Real overlap(MPSt<IQTensor> const& psi, MPOt<IQTensor> const& H, MPSt<IQTensor> const& phi);
 
 
-template <class Tensor>
 Cplx 
-overlapC(MPSt<Tensor> const& psi, 
-         MPOt<Tensor> const& H, 
-         MPSt<Tensor> const& phi) //Re[<psi|H|phi>]
+overlapC(MPS const& psi, 
+         MPO const& H, 
+         MPS const& phi) //Re[<psi|H|phi>]
     {
+    Global::warnDeprecated("overlap is deprecated in favor of inner/trace");
     Real re, im;
     overlap(psi,H,phi,re,im);
     return Cplx(re,im);
     }
-template
-Cplx overlapC(MPSt<ITensor> const& psi, MPOt<ITensor> const& H, MPSt<ITensor> const& phi);
-template
-Cplx overlapC(MPSt<IQTensor> const& psi, MPOt<IQTensor> const& H, MPSt<IQTensor> const& phi);
 
-template<class Tensor>
 void
-overlap(MPSt<Tensor> const& psi, 
-        MPOt<Tensor> const& H, 
-        Tensor const& LB, 
-        Tensor const& RB, 
-        MPSt<Tensor> const& phi, 
+overlap(MPS const& psi, 
+        MPO const& H, 
+        ITensor const& LB, 
+        ITensor const& RB, 
+        MPS const& phi, 
         Real& re, 
         Real& im) //<psi|H|phi>
     {
-    auto N = psi.N();
-    if(N != phi.N() || H.N() < N) Error("mismatched N in psiHphi");
+    Global::warnDeprecated("overlap is deprecated in favor of inner/trace");
+    auto N = length(psi);
+    if(N != length(phi) || length(H) < N) Error("mismatched N in psiHphi");
 
-    auto L = (LB ? LB*phi.A(1) : phi.A(1));
-    L *= H.A(1); 
-    L *= dag(prime(psi.A(1)));
+    auto L = (LB ? LB*phi(1) : phi(1));
+    L *= H(1); 
+    L *= dag(prime(psi(1)));
     for(int i = 2; i <= N; ++i)
         { 
-        L *= phi.A(i); 
-        L *= H.A(i); 
-        L *= dag(prime(psi.A(i))); 
+        L *= phi(i); 
+        L *= H(i); 
+        L *= dag(prime(psi(i))); 
         }
 
     if(RB) L *= RB;
 
-    auto z = L.cplx();
+    auto z = eltC(L);
     re = z.real();
     im = z.imag();
     }
-template void
-overlap(MPSt<ITensor> const& psi, MPOt<ITensor> const& H, ITensor const& LB, 
-        ITensor const& RB, MPSt<ITensor> const& phi, Real& re, Real& im);
-template void
-overlap(MPSt<IQTensor> const& psi, MPOt<IQTensor> const& H, IQTensor const& LB, 
-        IQTensor const& RB, MPSt<IQTensor> const& phi, Real& re, Real& im);
 
-template <class Tensor>
 Real
-overlap(MPSt<Tensor> const& psi, 
-        MPOt<Tensor> const& H, 
-        Tensor const& LB, 
-        Tensor const& RB, 
-        MPSt<Tensor> const& phi) //Re[<psi|H|phi>]
+overlap(MPS const& psi, 
+        MPO const& H, 
+        ITensor const& LB, 
+        ITensor const& RB, 
+        MPS const& phi) //Re[<psi|H|phi>]
     {
+    Global::warnDeprecated("overlap is deprecated in favor of inner/trace");
     Real re,im; 
     overlap(psi,H,LB,RB,phi,re,im);
     if(std::fabs(im) > 1.0e-12 * std::fabs(re))
-        printfln("Real psiHphi: WARNING, dropping non-zero imaginary part (=%.5E) of expectation value.",im);
+        printfln("Real overlap: WARNING, dropping non-zero imaginary part (=%.5E) of expectation value.",im);
     return re;
     }
-template Real
-overlap(MPSt<ITensor> const& psi, MPOt<ITensor> const& H, ITensor const& LB, ITensor const& RB, MPSt<ITensor> const& phi);
-template Real
-overlap(MPSt<IQTensor> const& psi, MPOt<IQTensor> const& H, IQTensor const& LB, IQTensor const& RB, MPSt<IQTensor> const& phi);
 
-template <class Tensor>
 void
-overlap(MPSt<Tensor> const& psi, 
-        MPOt<Tensor> const& H, 
-        MPOt<Tensor> const& K,
-        MPSt<Tensor> const& phi, 
+overlap(MPS const& psi, 
+        MPO const& H, 
+        MPO const& K,
+        MPS const& phi, 
         Real& re, 
-        Real& im) //<psi|H K|phi>
+        Real& im)
     {
-    if(psi.N() != phi.N() || psi.N() != H.N() || psi.N() != K.N()) Error("Mismatched N in psiHKphi");
-    auto N = psi.N();
+    Global::warnDeprecated("overlap is deprecated in favor of inner/trace");
+    //println("Running psiHKphi");
+    if(length(psi) != length(phi) || length(psi) != length(H) || length(psi) != length(K)) Error("Mismatched N in overlap");
+    auto N = length(psi);
     auto psidag = psi;
-    for(int i = 1; i <= N; i++)
-        {
-        psidag.Anc(i) = dag(psi.A(i));
-        psidag.Anc(i).mapprime(0,2);
-        }
-    MPOt<Tensor> Kp(K);
-    Kp.mapprime(1,2);
-    Kp.mapprime(0,1);
+    psidag.dag().prime(2);
+    auto Hp = H;
+    Hp.replaceTags("1","2").replaceTags("0","1");
 
     //scales as m^2 k^2 d
-    auto L = (((phi.A(1) * H.A(1)) * Kp.A(1)) * psidag.A(1));
+    auto L = phi(1) * K(1) * Hp(1) * psidag(1);
+    //printfln("L%02d = %s",1,L);
     for(int i = 2; i < N; i++)
         {
         //scales as m^3 k^2 d + m^2 k^3 d^2
-        L = ((((L * phi.A(i)) * H.A(i)) * Kp.A(i)) * psidag.A(i));
+        L = L * phi(i) * K(i) * Hp(i) * psidag(i);
+        //printfln("L%02d = %s",i,L);
         }
     //scales as m^2 k^2 d
-    L = ((((L * phi.A(N)) * H.A(N)) * Kp.A(N)) * psidag.A(N));
-    auto z = L.cplx();
+    L = L * phi(N) * K(N) * Hp(N) * psidag(N);
+    //PrintData(L);
+    auto z = L.eltC();
     re = z.real();
     im = z.imag();
     }
-template
-void overlap(MPSt<ITensor> const& psi, MPOt<ITensor> const& H, MPOt<ITensor> const& K,MPSt<ITensor> const& phi, Real& re, Real& im);
-template
-void overlap(MPSt<IQTensor> const& psi, MPOt<IQTensor> const& H, MPOt<IQTensor> const& K,MPSt<IQTensor> const& phi, Real& re, Real& im);
 
-template <class Tensor>
 Real
-overlap(MPSt<Tensor> const& psi, 
-         MPOt<Tensor> const& H, 
-         MPOt<Tensor> const& K,
-         MPSt<Tensor> const& phi) //<psi|H K|phi>
+overlap(MPS const& psi, 
+        MPO const& H, 
+        MPO const& K,
+        MPS const& phi) //<psi|H K|phi>
     {
+    Global::warnDeprecated("overlap is deprecated in favor of inner/trace");
     Real re,im;
     overlap(psi,H,K,phi,re,im);
     if(std::fabs(im) > 1.0e-12 * std::fabs(re))
-	Error("Non-zero imaginary part in psiHKphi");
+        Error("Non-zero imaginary part in overlap, use overlapC instead.");
     return re;
     }
-template Real
-overlap(MPSt<ITensor> const& psi, MPOt<ITensor> const& H, MPOt<ITensor> const& K,MPSt<ITensor> const& phi);
-template Real
-overlap(MPSt<IQTensor> const& psi, MPOt<IQTensor> const& H, MPOt<IQTensor> const& K,MPSt<IQTensor> const& phi);
 
-template <class Tensor>
 Cplx
-overlapC(MPSt<Tensor> const& psi, 
-          MPOt<Tensor> const& H, 
-          MPOt<Tensor> const& K,
-          MPSt<Tensor> const& phi) //<psi|H K|phi>
+overlapC(MPS const& psi, 
+         MPO const& H, 
+         MPO const& K,
+         MPS const& phi) //<psi|H K|phi>
     {
+    Global::warnDeprecated("overlap is deprecated in favor of inner/trace");
     Real re,im;
     overlap(psi,H,K,phi,re,im);
     return Cplx(re,im);
     }
-template
-Cplx overlapC(MPSt<ITensor> const& psi, MPOt<ITensor> const& H, MPOt<ITensor> const& K,MPSt<ITensor> const& phi);
-template
-Cplx overlapC(MPSt<IQTensor> const& psi, MPOt<IQTensor> const& H, MPOt<IQTensor> const& K,MPSt<IQTensor> const& phi);
 
 } //namespace itensor

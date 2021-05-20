@@ -1,6 +1,17 @@
 //
-// Distributed under the ITensor Library License, Version 1.2
-//    (See accompanying LICENSE file.)
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 #ifndef __ITENSOR_DENSE_H
 #define __ITENSOR_DENSE_H
@@ -25,7 +36,7 @@ class Dense
                   "Template argument to Dense storage should not be const");
     public:
     using value_type = T;
-    using storage_type = std::vector<value_type>;
+    using storage_type = vector_no_init<value_type>;
     using size_type = typename storage_type::size_type;
     using iterator = typename storage_type::iterator;
     using const_iterator = typename storage_type::const_iterator;
@@ -43,7 +54,17 @@ class Dense
     Dense() { }
 
     explicit
-    Dense(size_t size) : store(size) { }
+    Dense(size_t size) : store(size) { std::fill(store.begin(),store.end(),0.); }
+
+    explicit
+    Dense(UndefInitializer, size_t size) : store(size) { }
+
+    // This allows a Dense to be constructed from a std::vector.
+    // TODO: Does this copy?
+    explicit
+    Dense(std::vector<value_type> const& v)
+      : store(v.begin(),v.end())
+      { }
 
     Dense(size_t size, value_type val) 
       : store(size,val)
@@ -199,13 +220,13 @@ doTask(GenerateIT<F,Cplx>& G, Dense<Cplx> & D)
 
 
 Cplx 
-doTask(GetElt<Index> const& g, DenseReal const& d);
+doTask(GetElt const& g, DenseReal const& d);
 Cplx 
-doTask(GetElt<Index> const& g, DenseCplx const& d);
+doTask(GetElt const& g, DenseCplx const& d);
 
 template<typename E, typename T>
 void
-doTask(SetElt<E,Index> const& S, Dense<T> const& d, ManageStore & m);
+doTask(SetElt<E> const& S, Dense<T> const& d, ManageStore & m);
 
 void
 doTask(Fill<Real> const& f, DenseReal & d);
@@ -229,6 +250,11 @@ doTask(Mult<Cplx> const& f, Dense<Real> const& D, ManageStore & m);
 void
 doTask(Mult<Cplx> const& f, Dense<Cplx> & D);
 
+void
+doTask(MakeCplx const&, Dense<Cplx> & D);
+void
+doTask(MakeCplx const&, Dense<Real> const& d, ManageStore & m);
+
 template<typename T>
 Real
 doTask(NormNoScale, Dense<T> const& d);
@@ -251,23 +277,17 @@ doTask(TakeImag, DenseReal & d);
 void
 doTask(TakeImag, DenseCplx const& d, ManageStore & m);
 
-void
-doTask(MakeCplx, DenseReal const& d, ManageStore & m);
-
-void inline
-doTask(MakeCplx, DenseCplx const& d) { }
-
 template<typename T>
 bool constexpr
 doTask(CheckComplex, Dense<T> const& d) { return isCplx(d); }
 
 template<typename T>
 void
-doTask(PrintIT<Index>& P, Dense<T> const& d);
+doTask(PrintIT& P, Dense<T> const& d);
 
 template<typename T>
 Cplx
-doTask(SumEls<Index>, Dense<T> const& d);
+doTask(SumEls, Dense<T> const& d);
 
 auto constexpr inline
 doTask(StorageType const& S, DenseReal const& d) ->StorageType::Type { return StorageType::DenseReal; }
@@ -277,25 +297,37 @@ doTask(StorageType const& S, DenseCplx const& d) ->StorageType::Type { return St
 
 template<typename T1,typename T2>
 void
-doTask(Contract<Index> & C,
+doTask(Contract & C,
        Dense<T1> const& L,
        Dense<T2> const& R,
        ManageStore & m);
 
 template<typename T1, typename T2>
 void
-doTask(NCProd<Index>& NCP,
+doTask(NCProd& NCP,
        Dense<T1> const& D1,
        Dense<T2> const& D2,
        ManageStore& m);
 
 template<typename T1, typename T2>
 void
-doTask(PlusEQ<Index> const& P,
+doTask(PlusEQ const& P,
        Dense<T1> const& D1,
        Dense<T2> const& D2,
        ManageStore & m);
 
+template<typename T>
+void
+doTask(Order const& P,
+       Dense<T> & dA);
+
+template<typename T>
+void
+permuteDense(Permutation const& P,
+             Dense<T>   const& dA,
+             IndexSet   const& Ais,
+             Dense<T>        & dB,
+             IndexSet   const& Bis);
 
 } //namespace itensor
 

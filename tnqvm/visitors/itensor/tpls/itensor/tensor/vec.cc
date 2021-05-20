@@ -1,6 +1,17 @@
 //
-// Distributed under the ITensor Library License, Version 1.2.
-//    (See accompanying LICENSE file.)
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 #include <limits>
 #include "itensor/detail/algs.h"
@@ -67,8 +78,8 @@ multReal(VecRef<V> const& v, Real fac)
     if(isContiguous(v))
         {
 #ifdef DEBUG
-        if(v.size() > std::numeric_limits<LAPACK_INT>::max()) 
-            throw std::runtime_error("VectorRef overflow of size beyond LAPACK_INT range");
+        if(v.size() > std::numeric_limits<unsigned long>::max()) 
+            throw std::runtime_error("VectorRef overflow of size beyond long unsigned int range");
 #endif
         auto d = realData(v);
         dscal_wrapper(d.size(),fac,d.data());
@@ -141,8 +152,8 @@ call_daxpy(VectorRef& A, const VectorRefc& B, Real alpha_)
     LAPACK_INT inc = 1;
     LAPACK_INT size = A.size();
 #ifdef DEBUG
-    if(A.size() > std::numeric_limits<LAPACK_INT>::max()) 
-        throw std::runtime_error("overflow of size beyond LAPACK_INT range");
+    if(A.size() > std::numeric_limits<unsigned long>::max()) 
+        throw std::runtime_error("overflow of size beyond long unsigned int range");
 #endif
     daxpy_wrapper(size,alpha,B.data(),inc,A.data(),inc);
     }
@@ -205,8 +216,8 @@ operator*(VectorRefc a, VectorRefc b)
     {
 #ifdef DEBUG
     if(a.size() != b.size()) throw std::runtime_error("VectorRef dot product: mismatched sizes");
-    if(a.size() > std::numeric_limits<LAPACK_INT>::max()) 
-        throw std::runtime_error("VectorRef dot product: overflow of size beyond LAPACK_INT range");
+    if(a.size() > std::numeric_limits<unsigned long>::max()) 
+        throw std::runtime_error("VectorRef dot product: overflow of size beyond long unsigned int range");
 #endif
     return ddot_wrapper(a.size(),a.data(),stride(a),b.data(),stride(b));
     }
@@ -216,8 +227,8 @@ operator*(CVectorRefc a, CVectorRefc b)
     {
 #ifdef DEBUG
     if(a.size() != b.size()) throw std::runtime_error("VectorRef dot product: mismatched sizes");
-    if(a.size() > std::numeric_limits<LAPACK_INT>::max()) 
-        throw std::runtime_error("VectorRef dot product: overflow of size beyond LAPACK_INT range");
+    if(a.size() > std::numeric_limits<unsigned long>::max()) 
+        throw std::runtime_error("VectorRef dot product: overflow of size beyond long unsigned int range");
 #endif
     return zdotc_wrapper(a.size(),a.data(),stride(a),b.data(),stride(b));
     }

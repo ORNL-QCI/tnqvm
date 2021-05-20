@@ -1,27 +1,41 @@
 //
-// Distributed under the ITensor Library License, Version 1.2
-//    (See accompanying LICENSE file.)
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 #ifndef __ITENSOR_INDEX_H
 #define __ITENSOR_INDEX_H
 #include "itensor/global.h"
-#include "itensor/indextype.h"
-#include "itensor/indexname.h"
+#include "itensor/tagset.h"
 #include "itensor/arrow.h"
+#include "itensor/qn.h"
+#include <thread>
 
 namespace itensor {
 
 //Forward declarations
 class IndexVal;
 
+using QNInt = std::pair<QN,long>;
+
 namespace detail {
     struct RandomID
         {
         using rng_type = std::mt19937_64;
         using result_type = typename rng_type::result_type;
-
+        std::hash<std::thread::id> hasher;
         RandomID()
-            : rng(std::time(NULL) + getpid())
+            : rng(std::clock() + hasher(std::this_thread::get_id()))
             { }
 
         result_type
@@ -58,55 +72,63 @@ namespace detail {
 // Can be compared with == operator (returns true if both
 // are copies of the same Index instance).
 //
-// To make an Index distinct from other copies, increase its primeLevel.
-//
+
+class IQIndexDat;
+
 class Index
     {
     public:
     using IDGenerator = detail::RandomID;
     using id_type = IDGenerator::result_type;
-    using indexval_type = IndexVal;
-    using prime_type = int;
     using extent_type = int;
+
+    using qnstorage = std::vector<QNInt>;
+    using qn_ptr = std::shared_ptr<IQIndexDat>;
+
     private:
     id_type id_;
-    prime_type primelevel_; 
-    extent_type m_;
-    IndexType type_;
-    IndexName name_;
+    extent_type dim_;
+    Arrow dir_ = Out;
+    qn_ptr pd;
+    TagSet tags_;
     public:
 
     Index();
 
-    // Name of Index is used for printing purposes
     explicit
-    Index(std::string const& name, 
-          long m = 1, 
-          IndexType it = Link, 
-          int primelev = 0);
+    Index(long dim, 
+          TagSet const& ts = TagSet("0"));
 
-    // Returns the bond dimension
+    // Deprecated
+    explicit
+    Index(std::string s,
+          long m)
+        {
+        Error("Index(string,int) constructor deprecated, use Index(int,...) instead");
+        }
+
+    template<typename... QN_Sizes>
+    Index(QN const& q1, long size1,
+          QN_Sizes const&... qnsizes);
+
+    Index(qnstorage && qns, 
+          TagSet const& ts = TagSet("0"));
+
+    Index(qnstorage && qns, 
+          Arrow dir,
+          TagSet const& ts = TagSet("0"));
+
+    // Returns the dimension of this Index
     long 
-    m() const { return m_; }
+    dim() const { return dim_; }
 
     // Returns the prime level
     int 
-    primeLevel() const { return primelevel_; }
-    // Sets the prime level to a specified value.
-    Index& 
-    primeLevel(int plev);
+    primeLevel() const { return tags_.primeLevel(); }
 
-    // Returns the IndexType
-    IndexType
-    type() const { return type_; }
-
-    // Returns the name of this Index
-    std::string 
-    name() const;
-
-    // Returns the name of this Index with primes removed
-    std::string
-    rawname() const { return std::string(name_.c_str()); }
+    // Returns the TagSet
+    TagSet
+    tags() const { return tags_; }
 
     id_type
     id() const { return id_; }
@@ -115,56 +137,52 @@ class Index
     explicit operator bool() const;
 
     // (Explicitly) convertible to integer types
-    explicit operator int() const { return m(); }
-    explicit operator long() const { return m(); }
-    explicit operator size_t() const { return m(); }
+    explicit operator int() const { return dim(); }
+    explicit operator long() const { return dim(); }
+    explicit operator size_t() const { return dim(); }
 
-    // Returns the Arrow direction of this Index
-    Arrow 
-    dir() const { return Out; }
-    void 
-    dir(Arrow ndir) const {  }
+    // Add tags
+    Index&
+    addTags(const TagSet& t) { tags_.addTags(t); return *this; }
+
+    // Remove tags
+    Index&
+    removeTags(const TagSet& t) { tags_.removeTags(t); return *this; }
+
+    // Set tags
+    Index&
+    setTags(const TagSet& t) { tags_.setTags(t); return *this; }
+
+    // Remove all tags
+    Index&
+    noTags() { tags_.noTags(); return *this; }
+
+    // Set tags
+    Index&
+    replaceTags(const TagSet& tsold, const TagSet& tsnew) { tags_.replaceTags(tsold,tsnew); return *this; }
+
+    // Sets the prime level to a specified value.
+    Index& 
+    setPrime(int p);
+
+    // Sets the prime level to 0.
+    Index& 
+    noPrime();
 
     // Increase primelevel by 1 (or by optional amount inc)
     Index& 
     prime(int inc = 1);
 
-    // Increase primelevel by 1 (or optional amount inc)
-    // if type matches this Index or type==All
-    Index& 
-    prime(IndexType type, int inc = 1);
-
-    // Set primelevel to zero (optionally only if type matches)
-    Index& 
-    noprime(IndexType type = All) { prime(type,-primelevel_); return *this; }
-
-    // Switch primelevel from plevold to plevnew
-    // Has no effect if plevold doesn't match current primelevel
-    Index& 
-    mapprime(int plevold, int plevnew, IndexType type = All);
-
-    // Check if other Index is a copy of this, ignoring primeLevel
-    bool 
-    noprimeEquals(Index const& other) const;
-
     //Return an IndexVal with specified value
     IndexVal
     operator()(long val) const;
+    IndexVal
+    operator=(long val) const;
 
-    //Return copy of this Index with primelevel plev
-    Index
-    operator[](int plev) const;
-
-    // Conjugate this Index.
-    // Currently has no effect; exists for forward compatibility
-    // with Arrows and interface compatibility with class IQIndex.
-    void 
-    dag() { } //for forward compatibility with arrows
-
-    //define size()==m() in order to do 
+    //define size()==dim() in order to do 
     //for(auto n : range(I)) { ... } for some Index I
     long
-    size() const { return m(); }
+    size() const { return dim(); }
 
     // Write Index to binary output stream.
     void 
@@ -174,10 +192,86 @@ class Index
     Index& 
     read(std::istream& s);
 
+    //
+    // QN related functions
+    // 
+    
+    //number of quantum number blocks
+    long 
+    nblock() const;
+
+    //1-indexed
+    long
+    blocksize(long i) const;
+      
+    //1-indexed
+    QN const& 
+    qn(long i) const;
+
+    Arrow 
+    dir() const { return dir_; }
+
+    void
+    setDir(Arrow ndir) { dir_ = ndir; }
+
+    Index& 
+    dag() { dir_ = -dir_; return *this; }
+
+    qn_ptr const&
+    store() const { return pd; }
+
+    Index&
+    sim(Index const& I)
+      {
+      *this = I;
+      id_ = generateID();
+      return *this;
+      }
+
     private:
+
+    void
+    makeStorage(qnstorage && qi);
 
     Index::id_type 
     generateID();
+
+    public:
+
+    //
+    // Advanced / developer methods.
+    // Not intended for normal usage.
+    //
+
+    // Constructor taking a QN pointer
+    Index(qn_ptr const& p,
+          TagSet const& tags = TagSet());
+
+    Index(qn_ptr const& p,
+          Arrow dir, 
+          TagSet const& tags);
+
+    Index(id_type id,
+          long dim, 
+          Arrow dir, 
+          TagSet const& ts);
+
+    //0-indexed
+    long
+    blocksize0(long i) const;
+
+    void
+    removeQNs() { pd.reset(); }
+
+    public:
+
+    //Deprecated: prefer to use I.dim() or dim(I)
+    //long 
+    //m() const
+    //    {
+    //    Global::warnDeprecated(".m() is deprecated in favor of dim(Index)");
+    //    return this->dim();
+    //    }
 
     }; //class Index
 
@@ -203,7 +297,6 @@ operator>(Index const& i1, Index const& i2);
 class IndexVal
     {
     public:
-    using index_type = Index;
 
     Index index;
     long val;
@@ -213,25 +306,56 @@ class IndexVal
     IndexVal(const Index& index, long val_);
 
     long
-    m() const { return index.m(); }
+    dim() const { return index.dim(); }
 
     explicit operator bool() const { return bool(index); }
 
-    IndexVal& 
+    // Add tags
+    IndexVal&
+    addTags(const TagSet& t) { index.addTags(t); return *this; }
+
+    // Remove tags
+    IndexVal&
+    removeTags(const TagSet& t) { index.removeTags(t); return *this; }
+
+    // Set tags
+    IndexVal&
+    setTags(const TagSet& t) { index.setTags(t); return *this; }
+
+    // Remove all tags
+    IndexVal&
+    noTags() { index.noTags(); return *this; }
+
+    // Set tags
+    IndexVal&
+    replaceTags(const TagSet& tsold, const TagSet& tsnew) { index.replaceTags(tsold,tsnew); return *this; }
+
+    // Sets the prime level to a specified value.
+    IndexVal&
+    setPrime(int p) { index.setPrime(p); return *this; }
+
+    // Sets the prime level to 0.
+    IndexVal&
+    noPrime() { index.noPrime(); return *this; }
+
+    // Increase primelevel by 1 (or by optional amount inc)
+    IndexVal&
     prime(int inc = 1) { index.prime(inc); return *this; }
 
     IndexVal& 
-    prime(IndexType type, int inc = 1) { index.prime(type,inc); return *this; }
+    dag();
 
-    IndexVal& 
-    noprime(IndexType type = All) { index.noprime(type); return *this; }
+    QN const&
+    qn() const;
 
-    IndexVal& 
-    mapprime(int plevold, int plevnew, IndexType type = All) 
-        { index.mapprime(plevold,plevnew,type); return *this; }
 
-    void
-    dag() { }
+    //Deprecated: prefer to use .dim()
+    long
+    m() const 
+      {
+      Global::warnDeprecated(".m() is deprecated in favor of dim(IndexVal)");
+      return this->dim();
+      }
 
     };
 
@@ -245,53 +369,132 @@ operator==(IndexVal const& iv, Index const& I);
 bool
 operator==(Index const& I, IndexVal const& iv);
 
+Index::id_type
+id(Index const& I);
 
-Index inline
-dag(Index res) { res.dag(); return res; }
+long
+dim(Index const& I);
 
-IndexVal inline
-dag(IndexVal res) { res.dag(); return res; }
+long
+dim(IndexVal const& I);
 
-template<typename... VarArgs>
+int
+primeLevel(Index const& I);
+
+TagSet
+tags(Index const& I);
+
+//
+// Check if Index I contains the tags tsmatch.
+//
+bool
+hasTags(Index I, TagSet const& tsmatch);
+
+bool
+hasQNs(Index const& I);
+
 Index
-prime(Index I, VarArgs&&... vargs) { I.prime(std::forward<VarArgs>(vargs)...); return I; }
+removeQNs(Index I);
 
-template<typename... VarArgs>
+bool
+hasQNs(IndexVal const& iv);
+  
 Index
-noprime(Index I, VarArgs&&... vargs) { I.noprime(std::forward<VarArgs>(vargs)...); return I; }
+dag(Index res);
 
-//Return a copy of I with prime level changed to plevnew if
-//old prime level was plevold. Otherwise has no effect.
-Index inline
-mapprime(Index I, int plevold, int plevnew, IndexType type = All)
-    { I.mapprime(plevold,plevnew,type); return I; }
-
-template<typename... VarArgs>
 IndexVal
-prime(IndexVal I, VarArgs&&... vargs) { I.prime(std::forward<VarArgs>(vargs)...); return I; }
+dag(IndexVal res);
 
-template<typename... VarArgs>
+QN const&
+qn(Index const& i, long b);
+
+QN const&
+qn(IndexVal const& iv);
+
+Arrow
+dir(Index const& res);
+
+Arrow
+dir(IndexVal const& res);
+
+Index const&
+index(IndexVal const& res);
+
+long
+val(IndexVal const& res);
+
+long
+nblock(Index const& i);
+
+long
+blocksize(Index const& i, long b);
+
+//
+// Tag functions
+//
+
+Index
+addTags(Index I, TagSet const& t);
+
+Index
+removeTags(Index I, TagSet const& t);
+
+Index
+setTags(Index I, TagSet const& t);
+
+Index
+noTags(Index I);
+
+Index
+replaceTags(Index I, TagSet const& tsold, TagSet const& tsnew);
+
+Index
+prime(Index I, int plinc = 1);
+
+Index
+setPrime(Index I, int plev);
+
+Index
+noPrime(Index I);
+
 IndexVal
-noprime(IndexVal I, VarArgs&&... vargs) { I.noprime(std::forward<VarArgs>(vargs)...); return I; }
+addTags(IndexVal I, TagSet const& t);
 
-//Return a copy of I with prime level changed to plevnew if
-//old prime level was plevold. Otherwise has no effect.
-IndexVal inline
-mapprime(IndexVal I, int plevold, int plevnew, IndexType type = All)
-    { I.mapprime(plevold,plevnew,type); return I; }
+IndexVal
+removeTags(IndexVal I, TagSet const& t);
+
+IndexVal
+setTags(IndexVal I, TagSet const& t);
+
+IndexVal
+noTags(IndexVal I);
+
+IndexVal
+replaceTags(IndexVal I, TagSet const& tsold, TagSet const& tsnew);
+
+IndexVal
+prime(IndexVal I, int plinc = 1); 
+
+IndexVal
+setPrime(IndexVal I, int plev); 
+
+IndexVal
+noPrime(IndexVal I); 
+
+// Get the direct sum of two indices
+Index
+directSum(Index const& i,
+          Index const& j,
+          Args const& args = Args::global());
 
 //Make a new index with same properties as I,
 //but a different id number (will not compare equal)
-//and primelevel zero (or specified value)
 Index
-sim(Index const& I, int plev = 0);
+sim(Index const& I);
 
 //Returns a string version of this Index's bond dimension.
 std::string
-showm(Index const& I);
-
-std::string 
-nameint(std::string const& f, int n);
+showDim(Index const& I);
 
 std::ostream& 
 operator<<(std::ostream & s, Index const& t);
@@ -302,18 +505,44 @@ operator<<(std::ostream& s, IndexVal const& iv);
 void
 add(Args& args, 
     Args::Name const& name, 
-    IndexType it);
+    TagSet const& ts);
 
-IndexType
-getIndexType(Args const& args, 
-             Args::Name const& name);
+TagSet
+getTagSet(Args const& args, 
+          Args::Name const& name);
 
-IndexType
-getIndexType(Args const& args, 
-             Args::Name const& name, 
-             IndexType default_val);
+TagSet
+getTagSet(Args const& args, 
+          Args::Name const& name, 
+          TagSet const& default_val);
 
+long
+QNblock(Index const& I, 
+        QN const& Q);
+
+long
+QNblockSize(Index const& I, 
+            QN const& Q);
+
+void
+write(std::ostream & s, QNInt const& q);
+
+void
+read(std::istream & s, QNInt & q);
+
+bool
+isFermionic(Index const& I);
+
+
+#ifdef ITENSOR_USE_HDF5
+void
+h5_write(h5::group parent, std::string const& name, Index const& I);
+void
+h5_read(h5::group parent, std::string const& name, Index & I);
+#endif
 
 } //namespace itensor
+
+#include "itensor/index_impl.h"
 
 #endif

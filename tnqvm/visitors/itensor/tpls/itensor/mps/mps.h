@@ -1,6 +1,17 @@
 //
-// Distributed under the ITensor Library License, Version 1.2
-//    (See accompanying LICENSE file.)
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 #ifndef __ITENSOR_MPS_H
 #define __ITENSOR_MPS_H
@@ -9,78 +20,58 @@
 
 namespace itensor {
 
-template <class Tensor>
-class MPOt;
-
+// Some forward definitions
 class InitState;
 
-//
-// class MPSt
-// (the lowercase t stands for "template")
-// 
-// Unless there is a need to use MPSt
-// specifically as a templated class,
-// it is recommended to use one of the 
-// typedefs of MPSt:
-//
-//      MPS for ITensors
-//    IQMPS for IQTensors
-//
-
-template <class Tensor> 
-class MPSt;
-
-using MPS = MPSt<ITensor>;
-using IQMPS = MPSt<IQTensor>;
-
-template<class Tensor>
-class MPSt
+class MPS
     {
     protected:
     int N_;
     mutable
-    std::vector<Tensor> A_;
+    std::vector<ITensor> A_;
     int l_orth_lim_,
         r_orth_lim_;
-    SiteSet sites_;
     mutable
     int atb_;
     std::string writedir_;
     bool do_write_;
     public:
-    using TensorT = Tensor;
-    using IndexT = typename Tensor::index_type;
-    using IndexValT = typename Tensor::indexval_type;
-    using MPOType = MPOt<Tensor>;
 
     //
-    // MPSt Constructors
+    // MPS Constructors
     //
 
-    MPSt();
+    MPS();
 
-    MPSt(int N);
+    MPS(int N);
 
-    MPSt(SiteSet const& sites);
+    MPS(SiteSet const& sites, int m = 1);
 
-    MPSt(InitState const& initState);
+    MPS(IndexSet const& sites, int m = 1);
 
-    MPSt(MPSt const& other);
+    MPS(InitState const& initState);
 
-    MPSt&
-    operator=(MPSt const& other);
+    MPS(MPS const& other);
 
-    ~MPSt();
+    MPS&
+    operator=(MPS const& other);
+
+    ~MPS();
 
     //
-    // MPSt Accessor Methods
+    // MPS Accessor Methods
     //
 
     int 
-    N() const { return N_;}
+    length() const { return N_;}
 
-    SiteSet const& 
-    sites() const;
+    // Deprecated in favor of length()
+    int 
+    N() const
+        {
+        Global::warnDeprecated(".N() is deprecated in favor of length(MPS)");
+        return this->length();
+        }
 
     explicit operator bool() const { return (not A_.empty()); }
 
@@ -90,60 +81,317 @@ class MPSt
     int 
     leftLim() const { return l_orth_lim_; }
 
-    //Read-only access to i'th MPS tensor
-    Tensor const& 
-    A(int i) const;
-
-    void
-    setA(int i, Tensor const& nA) { Aref(i) = nA; }
-
-    void
-    setA(int i, Tensor && nA) { Aref(i) = std::move(nA); }
+    // Read-only access to i'th MPS tensor
+    ITensor const&
+    operator()(int i) const;
 
     //Returns reference to i'th MPS tensor
     //which allows reading and writing
-    Tensor& 
-    Aref(int i);
-    Tensor& 
-    Anc(int i) { return Aref(i); }
+    ITensor& 
+    ref(int i);
 
-    MPSt&
-    plusEq(MPSt const& R, 
+    void
+    set(int i, ITensor const& nA) { ref(i) = nA; }
+
+    void
+    set(int i, ITensor && nA) { ref(i) = std::move(nA); }
+
+    Real
+    normalize();
+
+    MPS&
+    plusEq(MPS const& R, 
            Args const& args = Args::global());
 
-    void 
-    mapprime(int oldp, int newp, IndexType type = All);
+    // Dagger all MPS tensors
+    MPS&
+    dag()
+      {
+      for(auto i : range1(N_))
+          A_[i].dag();
+      return *this;
+      }
 
-    void 
-    primelinks(int oldp, int newp);
+    MPS&
+    replaceSiteInds(IndexSet const& sites);
 
-    void 
-    noprimelink();
+    MPS&
+    replaceLinkInds(IndexSet const& links);
+
+    //
+    //MPS Index Methods
+    //
+
+    MPS&
+    setTags(TagSet const& ts, IndexSet const& is)
+        {
+        if(do_write_)
+            Error("setTags not supported if doWrite(true)");
+        for(int i = 1; i <= N_; ++i)
+            A_[i].setTags(ts,is);
+        return *this;
+        }
+
+    template<typename... VarArgs>
+    MPS&
+    setTags(VarArgs&&... vargs)
+        {
+        if(do_write_)
+            Error("setTags not supported if doWrite(true)");
+        for(int i = 1; i <= N_; ++i)
+            A_[i].setTags(std::forward<VarArgs>(vargs)...);
+        return *this;
+        }
+
+    MPS&
+    noTags(IndexSet const& is)
+        {
+        if(do_write_)
+            Error("noTags not supported if doWrite(true)");
+        for(int i = 1; i <= N_; ++i)
+            A_[i].noTags(is);
+        return *this;
+        }
+
+    template<typename... VarArgs>
+    MPS& 
+    noTags(VarArgs&&... vargs)
+        {
+        if(do_write_)
+            Error("noTags not supported if doWrite(true)");
+        for(int i = 1; i <= N_; ++i)
+            A_[i].noTags(std::forward<VarArgs>(vargs)...);
+        return *this;
+        }
+
+    MPS&
+    addTags(TagSet const& ts, IndexSet const& is)
+        {
+        if(do_write_)
+            Error("addTags not supported if doWrite(true)");
+        for(int i = 1; i <= N_; ++i)
+            A_[i].addTags(ts,is);
+        return *this;
+        }
+
+    template<typename... VarArgs>
+    MPS&
+    addTags(VarArgs&&... vargs)
+        {
+        if(do_write_)
+            Error("addTags not supported if doWrite(true)");
+        for(int i = 1; i <= N_; ++i)
+            A_[i].addTags(std::forward<VarArgs>(vargs)...);
+        return *this;
+        }
+
+    MPS&
+    removeTags(TagSet const& ts, IndexSet const& is)
+        {
+        if(do_write_)
+            Error("removeTags not supported if doWrite(true)");
+        for(int i = 1; i <= N_; ++i)
+            A_[i].removeTags(ts,is);
+        return *this;
+        }
+
+    template<typename... VarArgs>
+    MPS&
+    removeTags(VarArgs&&... vargs)
+        {
+        if(do_write_)
+            Error("removeTags not supported if doWrite(true)");
+        for(int i = 1; i <= N_; ++i)
+            A_[i].removeTags(std::forward<VarArgs>(vargs)...);
+        return *this;
+        }
+
+    MPS&
+    replaceTags(TagSet const& ts1, TagSet const& ts2, IndexSet const& is)
+        {
+        if(do_write_)
+            Error("replaceTags not supported if doWrite(true)");
+        for(int i = 1; i <= N_; ++i)
+            A_[i].replaceTags(ts1,ts2,is);
+        return *this;
+        }
+
+    template<typename... VarArgs>
+    MPS&
+    replaceTags(VarArgs&&... vargs)
+        {
+        if(do_write_)
+            Error("replaceTags not supported if doWrite(true)");
+        for(int i = 1; i <= N_; ++i)
+            A_[i].replaceTags(std::forward<VarArgs>(vargs)...);
+        return *this;
+        }
+
+    MPS&
+    swapTags(TagSet const& ts1, TagSet const& ts2, IndexSet const& is)
+        {
+        if(do_write_)
+            Error("swapTags not supported if doWrite(true)");
+        for(int i = 1; i <= N_; ++i)
+            A_[i].swapTags(ts1,ts2,is);
+        return *this;
+        }
+
+    template<typename... VarArgs>
+    MPS&
+    swapTags(VarArgs&&... vargs)
+        {
+        if(do_write_)
+            Error("swapTags not supported if doWrite(true)");
+        for(int i = 1; i <= N_; ++i)
+            A_[i].swapTags(std::forward<VarArgs>(vargs)...);
+        return *this;
+        }
+
+    MPS&
+    prime(int plev, IndexSet const& is)
+        {
+        if(do_write_)
+            Error("prime not supported if doWrite(true)");
+        for(int i = 1; i <= N_; ++i)
+            A_[i].prime(plev,is);
+        return *this;
+        }
+
+    MPS&
+    prime(IndexSet const& is)
+        {
+        if(do_write_)
+            Error("prime not supported if doWrite(true)");
+        for(int i = 1; i <= N_; ++i)
+            A_[i].prime(is);
+        return *this;
+        }
+
+    template<typename... VarArgs>
+    MPS&
+    prime(VarArgs&&... vargs)
+        {
+        if(do_write_)
+            Error("prime not supported if doWrite(true)");
+        for(int i = 1; i <= N_; ++i)
+            A_[i].prime(std::forward<VarArgs>(vargs)...);
+        return *this;
+        }
+
+    MPS&
+    setPrime(int plev, IndexSet const& is)
+        {
+        if(do_write_)
+            Error("setPrime not supported if doWrite(true)");
+        for(int i = 1; i <= N_; ++i)
+            A_[i].setPrime(plev,is);
+        return *this;
+        }
+
+    template<typename... VarArgs>
+    MPS&
+    setPrime(VarArgs&&... vargs)
+        {
+        if(do_write_)
+            Error("setPrime not supported if doWrite(true)");
+        for(int i = 1; i <= N_; ++i)
+            A_[i].setPrime(std::forward<VarArgs>(vargs)...);
+        return *this;
+        }
+
+    MPS&
+    mapPrime(int plevold, int plevnew, IndexSet const& is)
+        {
+        if(do_write_)
+            Error("mapPrime not supported if doWrite(true)");
+        for(int i = 1; i <= N_; ++i)
+            A_[i].mapPrime(plevold,plevnew,is);
+        return *this;
+        }
+
+    template<typename... VarArgs>
+    MPS&
+    mapPrime(VarArgs&&... vargs)
+        {
+        if(do_write_)
+            Error("mapPrime not supported if doWrite(true)");
+        for(int i = 1; i <= N_; ++i)
+            A_[i].mapPrime(std::forward<VarArgs>(vargs)...);
+        return *this;
+        }
+
+    MPS&
+    swapPrime(int plevold, int plevnew, IndexSet const& is)
+        {
+        if(do_write_)
+            Error("swapPrime not supported if doWrite(true)");
+        for(int i = 1; i <= N_; ++i)
+            A_[i].swapPrime(plevold,plevnew,is);
+        return *this;
+        }
+
+    template<typename... VarArgs>
+    MPS&
+    swapPrime(VarArgs&&... vargs)
+        {
+        if(do_write_)
+            Error("swapPrime not supported if doWrite(true)");
+        for(int i = 1; i <= N_; ++i)
+            A_[i].swapPrime(std::forward<VarArgs>(vargs)...);
+        return *this;
+        }
+
+    MPS&
+    noPrime(IndexSet const& is)
+        {
+        if(do_write_)
+            Error("noPrime not supported if doWrite(true)");
+        for(int i = 1; i <= N_; ++i)
+            A_[i].noPrime(is);
+        return *this;
+        }
+
+    template<typename... VarArgs>
+    MPS&
+    noPrime(VarArgs&&... vargs)
+        {
+        if(do_write_)
+            Error("noPrime not supported if doWrite(true)");
+        for(int i = 1; i <= N_; ++i)
+            A_[i].noPrime(std::forward<VarArgs>(vargs)...);
+        return *this;
+        }
+
+    // Randomize the tensors of the MPS
+    // Right now, only supports randomizing dim = 1 MPS
+    MPS&
+    randomize(Args const& args = Args::global());
 
     Spectrum 
     svdBond(int b, 
-            Tensor const& AA, 
+            ITensor const& AA, 
             Direction dir, 
-            Args const& args = Args::global());
+            Args args = Args::global());
 
     template<class LocalOpT>
     Spectrum 
     svdBond(int b, 
-            Tensor const& AA, 
+            ITensor const& AA, 
             Direction dir, 
             LocalOpT const& PH, 
-            Args const& args = Args::global());
+            Args args = Args::global());
 
     //Move the orthogonality center to site i 
     //(leftLim() == i-1, rightLim() == i+1, orthoCenter() == i)
-    void 
-    position(int i, Args const& args = Args::global());
+    MPS& 
+    position(int i, Args args = Args::global());
 
-    void 
-    orthogonalize(Args const& args = Args::global());
+    MPS& 
+    orthogonalize(Args args = Args::global());
 
     void
-    swap(MPSt& other);
+    swap(MPS & other);
 
     bool
     doWrite() const { return do_write_; }
@@ -168,7 +416,7 @@ class MPSt
     protected:
 
     //
-    //MPSt methods for writing to disk
+    //MPS methods for writing to disk
     //
 
     //if doWrite(true) is called
@@ -196,25 +444,7 @@ class MPSt
     //
 
     void 
-    new_tensors(std::vector<ITensor>& A_);
-
-    void 
-    random_tensors(std::vector<ITensor>& A_);
-
-    void 
-    random_tensors(std::vector<IQTensor>& A_) { }
-
-    void 
     init_tensors(std::vector<ITensor>& A_, const InitState& initState);
-
-    void 
-    init_tensors(std::vector<IQTensor>& A_, const InitState& initState);
-
-
-    private:
-
-    friend class MPSt<ITensor>;
-    friend class MPSt<IQTensor>;
 
     public:
 
@@ -229,95 +459,77 @@ class MPSt
     void 
     leftLim(int val) { l_orth_lim_ = val; }
 
+    //Returns an unsafe reference to i'th MPS tensor
+    //which allows reading and writing
+    //Modifying this reference may break orthogonality!
+    ITensor&
+    uref(int i);
 
     //
-    // Deprecated methods
-    // 
+    // Deprecated
+    //
 
-    //prefer function norm(psi) instead
-    Real 
-    norm() const;
+    void
+    setA(int i, ITensor const& nA) { this->set(i,nA); }
 
-    //prefer function normalize(psi) instead
-    Real 
-    normalize();
+    void
+    setA(int i, ITensor && nA) { this->set(i,nA); }
 
+    ITensor const& 
+    A(int i) const;
 
-    //prefer isOrtho(psi) instead
-    bool 
-    isOrtho() const { return leftLim()+1 == rightLim()-1; }
+    ITensor& 
+    Aref(int i);
 
-    //prefer orthoCenter(psi) instead
-    int 
-    orthoCenter() const;
+    }; //class MPS
 
-    //prefer isComplex(psi) instead
-    bool 
-    isComplex() const;
-
-    }; //class MPSt<Tensor>
-
-template <class MPSType>
+template <typename MPSType>
 MPSType&
 addAssumeOrth(MPSType      & L,
               MPSType const& R, 
               Args const& args = Args::global());
 
-//void 
-//convertToIQ(const SiteSet& sites, const std::vector<ITensor>& A, 
-//            std::vector<IQTensor>& qA, QN totalq = QN(), Real cut = 1E-12);
+MPS& 
+operator*=(MPS & x, Real a);
 
-template<class T>
-MPSt<T>& 
-operator*=(MPSt<T> & psi, Real a) { psi.Aref(psi.leftLim()+1) *= a; return psi; }
+MPS& 
+operator/=(MPS & x, Real a);
 
-template<class T>
-MPSt<T>& 
-operator/=(MPSt<T> & psi, Real a) { psi.Aref(psi.leftLim()+1) /= a; return psi; }
+MPS
+operator*(MPS x, Real r);
 
-template<class T>
-MPSt<T>
-operator*(MPSt<T> psi, Real r) { psi *= r; return psi; }
+MPS
+operator*(Real r, MPS x);
 
-template <class T>
-MPSt<T>
-operator*(Real r, MPSt<T> psi) { psi *= r; return psi; }
+MPS& 
+operator*=(MPS & x, Cplx z);
 
-template<class T>
-MPSt<T>& 
-operator*=(MPSt<T> & psi, Cplx z) { psi.Aref(psi.leftLim()+1) *= z; return psi; }
+MPS& 
+operator/=(MPS & x, Cplx z);
 
-template<class T>
-MPSt<T>& 
-operator/=(MPSt<T> & psi, Cplx z) { psi.Aref(psi.leftLim()+1) /= z; return psi; }
+MPS
+operator*(MPS x, Cplx z);
 
-template <class T>
-MPSt<T>
-operator*(MPSt<T> psi, Cplx z) { psi *= z; return psi; }
-
-template <class T>
-MPSt<T>
-operator*(Cplx z, MPSt<T> psi) { psi *= z; return psi; }
+MPS
+operator*(Cplx z, MPS x);
 
 class InitState
     {
     public:
-
-    using Storage = std::vector<IQIndexVal>;
-
+    using Storage = std::vector<IndexVal>;
     using String = std::string;
 
-    InitState(const SiteSet& sites);
+    InitState(SiteSet const& sites);
 
-    InitState(const SiteSet& sites, const String& state);
-
-    InitState& 
-    set(int i, const String& state);
+    InitState(SiteSet const& sites, String const& state);
 
     InitState& 
-    setAll(const String& state);
+    set(int i, String const& state);
 
-    const IQIndexVal&
+    InitState& 
+    setAll(String const& state);
+
+    IndexVal const&
     operator()(int i) const { checkRange(i); return state_.at(i); }
 
     SiteSet const&
@@ -332,50 +544,245 @@ class InitState
     checkRange(int i) const;
     }; 
 
+MPS
+dag(MPS A);
 
 //
-// Other Methods Related to MPSt
+// MPS tag functions
 //
 
-template<typename T>
+MPS
+setTags(MPS A, TagSet const& ts, IndexSet const& is);
+
+template<typename... VarArgs>
+MPS
+setTags(MPS A,
+        VarArgs&&... vargs)
+    {
+    A.setTags(std::forward<VarArgs>(vargs)...);
+    return A;
+    }
+
+MPS
+noTags(MPS A, IndexSet const& is);
+
+template<typename... VarArgs>
+MPS
+noTags(MPS A,
+       VarArgs&&... vargs)
+    {
+    A.noTags(std::forward<VarArgs>(vargs)...);
+    return A;
+    }
+
+MPS
+addTags(MPS A, TagSet const& ts, IndexSet const& is);
+
+template<typename... VarArgs>
+MPS
+addTags(MPS A,
+        VarArgs&&... vargs)
+    {
+    A.addTags(std::forward<VarArgs>(vargs)...);
+    return A;
+    }
+    
+MPS
+removeTags(MPS A, TagSet const& ts, IndexSet const& is);
+
+template<typename... VarArgs>
+MPS
+removeTags(MPS A,
+           VarArgs&&... vargs)
+    {
+    A.removeTags(std::forward<VarArgs>(vargs)...);
+    return A;
+    }
+
+MPS
+replaceTags(MPS A, TagSet const& ts1, TagSet const& ts2, IndexSet const& is);
+
+template<typename... VarArgs>
+MPS
+replaceTags(MPS A,
+            VarArgs&&... vargs)
+    {
+    A.replaceTags(std::forward<VarArgs>(vargs)...);
+    return A;
+    }
+
+MPS
+swapTags(MPS A, TagSet const& ts1, TagSet const& ts2, IndexSet const& is);
+
+template<typename... VarArgs>
+MPS
+swapTags(MPS A,
+         VarArgs&&... vargs)
+    {
+    A.swapTags(std::forward<VarArgs>(vargs)...);
+    return A;
+    }
+
+MPS
+prime(MPS A, int plev, IndexSet const& is);
+
+MPS
+prime(MPS A, IndexSet const& is);
+
+template<typename... VarArgs>
+MPS
+prime(MPS A,
+      VarArgs&&... vargs)
+    {
+    A.prime(std::forward<VarArgs>(vargs)...);
+    return A; 
+    }
+
+MPS
+setPrime(MPS A, int plev, IndexSet const& is);
+
+template<typename... VarArgs>
+MPS
+setPrime(MPS A,
+         VarArgs&&... vargs)
+    {
+    A.setPrime(std::forward<VarArgs>(vargs)...);
+    return A;
+    }
+
+MPS
+mapPrime(MPS A, int plevold, int plevnew, IndexSet const& is);
+
+template<typename... VarArgs>
+MPS
+mapPrime(MPS A,
+         VarArgs&&... vargs)
+    {
+    A.mapPrime(std::forward<VarArgs>(vargs)...);
+    return A;
+    }
+
+MPS
+swapPrime(MPS A, int plevold, int plevnew, IndexSet const& is);
+
+template<typename... VarArgs>
+MPS
+swapPrime(MPS A,
+          VarArgs&&... vargs)
+    {
+    A.swapPrime(std::forward<VarArgs>(vargs)...);
+    return A;
+    }
+
+MPS
+noPrime(MPS A, IndexSet const& is);
+
+template<typename... VarArgs>
+MPS
+noPrime(MPS A,
+        VarArgs&&... vargs)
+    {
+    A.noPrime(std::forward<VarArgs>(vargs)...);
+    return A;
+    }
+
+//
+// Other Methods Related to MPS
+//
+
+int 
+length(MPS const& W);
+
 bool
-isComplex(MPSt<T> const& psi);
+hasQNs(InitState const& initstate);
 
-template<typename T>
+template <class MPSType>
 bool
-isOrtho(MPSt<T> const& psi);
+hasQNs(MPSType const& x);
 
-template<typename T>
+//Create a random MPS
+MPS
+randomMPS(SiteSet const& sites,
+          int m = 1,
+          Args const& args = Args::global());
+
+MPS
+randomMPS(SiteSet const& sites,
+          Args const& args);
+
+MPS
+randomMPS(InitState const& initstate,
+          Args const& args = Args::global());
+
+//Remove the QNs of each tensor of the MPS
+template <class MPSType>
+MPSType
+removeQNs(MPSType const& x);
+
+bool
+isComplex(MPS const& x);
+
+bool
+isOrtho(MPS const& x);
+
 int
-orthoCenter(MPSt<T> const& psi);
+orthoCenter(MPS const& x);
 
-template<typename T>
-Real
-norm(MPSt<T> const& psi);
-
-template<typename T>
-Real
-normalize(MPSt<T> & psi);
-
-template <typename MPST>
-typename MPST::IndexT 
-linkInd(MPST const& psi, int b);
-
-template <typename MPST>
-typename MPST::IndexT 
-rightLinkInd(MPST const& psi, int i);
-
-template <typename MPST>
-typename MPST::IndexT 
-leftLinkInd(MPST const& psi, int i);
-
-template <typename MPST>
-Real
-averageM(MPST const& psi);
-
-template <typename MPST>
 int
-maxM(MPST const& psi);
+rightLim(MPS const& x);
+
+int
+leftLim(MPS const& x);
+
+Real
+norm(MPS const& x);
+
+bool
+hasSiteInds(MPS const& x, IndexSet const& sites);
+
+template <class MPSType>
+IndexSet
+siteInds(MPSType const& W, int b);
+
+IndexSet
+siteInds(MPS const& x);
+
+MPS
+replaceSiteInds(MPS x, IndexSet const& sites);
+
+MPS
+replaceLinkInds(MPS x, IndexSet const& links);
+
+Index
+siteIndex(MPS const& x, int j);
+
+template<typename MPSType>
+Index
+leftLinkIndex(MPSType const& x, int b);
+
+template<typename MPSType>
+Index
+rightLinkIndex(MPSType const& x, int b);
+
+template<typename MPSType>
+Index
+linkIndex(MPSType const& x, int b);
+
+template<typename MPSType>
+IndexSet
+linkInds(MPSType const& x, int b);
+
+template<typename MPSType>
+IndexSet
+linkInds(MPSType const& x);
+
+template<typename MPSType>
+Real
+averageLinkDim(MPSType const& x);
+
+template<typename MPSType>
+int
+maxLinkDim(MPSType const& x);
 
 //
 // Applies a bond gate to the bond that is currently
@@ -389,65 +796,59 @@ maxM(MPST const& psi);
 //
 // Does not normalize the resulting wavefunction unless 
 // Args("DoNormalize",true) is included in args.
-template <class Tensor>
 void 
-applyGate(const Tensor& gate, 
-          MPSt<Tensor>& psi,
-          const Args& args = Args::global());
+applyGate(ITensor const& gate, 
+          MPS & x,
+          Args const& args = Args::global());
 
 //Checks if A_[i] is left (left == true) 
 //or right (left == false) orthogonalized
-template <class Tensor>
+template <typename MPSType>
 bool 
-checkOrtho(const MPSt<Tensor>& psi,
+checkOrtho(MPSType const& A,
            int i, 
-           bool left);
+           bool left,
+           Real threshold = 1E-13);
 
-template <class T>
-bool 
-checkOrtho(MPSt<T> const& psi);
+template <typename MPSType>
+bool
+checkOrtho(MPSType const& A,
+           Real threshold = 1E-13);
 
 int 
-findCenter(IQMPS const& psi);
-
-bool inline
-checkQNs(MPS const& psi) { return true; }
+findCenter(MPS const& x);
 
 bool 
-checkQNs(IQMPS const& psi);
+checkQNs(MPS const& x);
 
 QN
-totalQN(IQMPS const& psi);
+totalQN(MPS const& x);
 
-// Re[<psi|phi>]
-template <class MPSType>
+// Re[<x|y>]
 Real 
-overlap(MPSType const& psi, MPSType const& phi);
+inner(MPS const& x, MPS const& y);
 
-// <psi|phi>
-template <class MPSType>
+// <x|y>
 Cplx 
-overlapC(MPSType const& psi, 
-         MPSType const& phi);
+innerC(MPS const& x, 
+       MPS const& y);
 
-// <psi|phi>
+// <x|y>
+void 
+inner(MPS const& x,
+      MPS const& y, 
+      Real& re, Real& im);
+
+//Computes an MPS which has the same overlap with x_basis as x_to_fit,
+//but which differs from x_basis only on the first site, and has same index
+//structure as x_basis. Result is stored to x_to_fit on return.
+void 
+fitWF(MPS const& x_basis, MPS & x_to_fit);
+
 template <class MPSType>
-void 
-overlap(MPSType const& psi,
-        MPSType const& phi, 
-        Real& re, Real& im);
-
-//Computes an MPS which has the same overlap with psi_basis as psi_to_fit,
-//but which differs from psi_basis only on the first site, and has same index
-//structure as psi_basis. Result is stored to psi_to_fit on return.
-template <class Tensor>
-void 
-fitWF(const MPSt<Tensor>& psi_basis, MPSt<Tensor>& psi_to_fit);
-
-template <class Tensor>
-MPSt<Tensor>
-sum(MPSt<Tensor> const& L, 
-    MPSt<Tensor> const& R, 
+MPSType
+sum(MPSType const& L, 
+    MPSType const& R, 
     Args const& args = Args::global());
 
 
@@ -459,21 +860,52 @@ sum(MPSt<Tensor> const& L,
 //
 // Assumes terms are zero-indexed
 //
-template<typename MPSType>
-MPSType 
+template <class MPSType>
+MPSType
 sum(std::vector<MPSType> const& terms, 
     Args const& args = Args::global());
 
-template<class Tensor>
 std::ostream& 
-operator<<(std::ostream& s, const MPSt<Tensor>& M);
+operator<<(std::ostream& s, MPS const& M);
 
 std::ostream& 
-operator<<(std::ostream& s, const InitState& state);
+operator<<(std::ostream& s, InitState const& state);
+
+//
+// Deprecated
+//
+
+int
+maxM(MPS const& x);
+
+Real
+averageM(MPS const& x);
+
+// Deprecated in favor of x.normalize()
+Real
+normalize(MPS & x);
+
+template <class MPSType>
+Real 
+overlap(MPSType const& psi, MPSType const& phi);
+
+template <class MPSType>
+Cplx 
+overlapC(MPSType const& psi, 
+         MPSType const& phi);
+
+template <class MPSType>
+void 
+overlap(MPSType const& psi,
+        MPSType const& phi, 
+        Real& re, Real& im);
+
+Spectrum
+orthMPS(ITensor& A1, ITensor& A2, Direction dir, Args const& args);
 
 } //namespace itensor
 
-#include "mps.ih"
+#include "mps_impl.h"
 
 
 #endif

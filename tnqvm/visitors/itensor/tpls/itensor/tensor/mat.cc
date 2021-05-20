@@ -1,9 +1,20 @@
 //
-// Distributed under the ITensor Library License, Version 1.2.
-//    (See accompanying LICENSE file.)
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 #include <limits>
-#include "itensor/util/range.h"
+#include "itensor/util/iterate.h"
 #include "itensor/util/timers.h"
 #include "itensor/tensor/lapack_wrap.h"
 #include "itensor/tensor/mat.h"
@@ -49,7 +60,28 @@ operator&=(MatrixRef const& a, MatrixRefc const& b)
     if(a.range()==b.range() && isContiguous(b))
         {
         auto pa = MAKE_SAFE_PTR(a.data(),a.store().size());
-        auto pae = MAKE_SAFE_PTR_OFFSET(a.data(),area(a.range()),a.store().size());
+        auto pae = MAKE_SAFE_PTR_OFFSET(a.data(),dim(a.range()),a.store().size());
+        auto pb = MAKE_SAFE_PTR(b.data(),b.store().size());
+        apply(pa,pae,pb,assign);
+        }
+    else
+        {
+        apply(a,b.cbegin(),assign);
+        }
+    }
+
+void
+operator&=(CMatrixRef const& a, MatrixRefc const& b)
+    {
+#ifdef DEBUG
+    if(!(nrows(b)==nrows(a) && ncols(b)==ncols(a)))
+        throw std::runtime_error("mismatched sizes in MatrixRef operator&=");
+#endif
+    auto assign = [](Cplx& x, Real y) { x = y; };
+    if(a.range()==b.range() && isContiguous(b))
+        {
+        auto pa = MAKE_SAFE_PTR(a.data(),a.store().size());
+        auto pae = MAKE_SAFE_PTR_OFFSET(a.data(),dim(a.range()),a.store().size());
         auto pb = MAKE_SAFE_PTR(b.data(),b.store().size());
         apply(pa,pae,pb,assign);
         }
@@ -66,8 +98,8 @@ multReal(MatRef<V> const& M, Real fac)
     if(isContiguous(M))
         {
 #ifdef DEBUG
-        if(M.size() > std::numeric_limits<LAPACK_INT>::max()) 
-            throw std::runtime_error("MatrixRef overflow of size beyond LAPACK_INT range");
+        if(M.size() > std::numeric_limits<unsigned long>::max()) 
+            throw std::runtime_error("MatrixRef overflow of size beyond long unsigned int range");
 #endif
         auto d = realData(M);
         dscal_wrapper(d.size(),fac,d.data());
@@ -78,6 +110,12 @@ multReal(MatRef<V> const& M, Real fac)
         }
     }
 
+void
+multCplx(CMatrixRef const& M, Cplx fac)
+    {
+    for(auto& el : M) el *= fac;
+    } 
+
 void 
 operator*=(MatrixRef const& M, Real fac)
     {
@@ -87,6 +125,12 @@ void
 operator*=(CMatrixRef const& M, Real fac)
     {
     multReal(M,fac);
+    }
+
+void
+operator*=(CMatrixRef const& M, Cplx fac)
+    {
+    multCplx(M,fac);
     }
 
 template<typename V>
@@ -130,8 +174,8 @@ call_daxpy(MatT1& A, MatT2 const& B, Real alpha_)
 #ifdef DEBUG
     if(Ad.size() != Bd.size())
         throw std::runtime_error("mismatched sizes in MatrixRef/Matrix call_daxpy");
-    if(Ad.size() > std::numeric_limits<LAPACK_INT>::max()) 
-        throw std::runtime_error("overflow of size beyond LAPACK_INT range");
+    if(Ad.size() > std::numeric_limits<unsigned long>::max()) 
+        throw std::runtime_error("overflow of size beyond long unsigned int range");
 #endif
     daxpy_wrapper(Ad.size(),alpha,Bd.data(),inc,Ad.data(),inc);
     }

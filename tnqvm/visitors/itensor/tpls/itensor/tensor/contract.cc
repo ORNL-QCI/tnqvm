@@ -1,3 +1,18 @@
+//
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
 //TODO: replace unordered_map with a simpler container (small_map? or jump directly to location?)
 #include <unordered_map>
 #include <future>
@@ -725,14 +740,14 @@ contract(CProps const& p,
          Real beta = 0.)
     {
     using VC = common_type<VA,VB>;
-    auto Apsize = p.permuteA() ? area(p.newArange) : 0ul;
-    auto Bpsize = p.permuteB() ? area(p.newBrange) : 0ul;
-    auto Cpsize = p.permuteC() ? area(p.newCrange) : 0ul;
+    auto Apsize = p.permuteA() ? dim(p.newArange) : 0ul;
+    auto Bpsize = p.permuteB() ? dim(p.newBrange) : 0ul;
+    auto Cpsize = p.permuteC() ? dim(p.newCrange) : 0ul;
     auto Abufsize = isCplx(A) ? 2ul*Apsize : Apsize;
     auto Bbufsize = isCplx(B) ? 2ul*Bpsize : Bpsize;
     auto Cbufsize = isCplx(C) ? 2ul*Cpsize : Cpsize;
 
-    auto d = std::vector<Real>(Abufsize+Bbufsize+Cbufsize);
+    auto d = vector_no_init<Real>(Abufsize+Bbufsize+Cbufsize);
     auto ab = MAKE_SAFE_PTR(d.data(),d.size());
     auto bb = ab+Abufsize;
     auto cb = bb+Bbufsize;
@@ -740,7 +755,6 @@ contract(CProps const& p,
     MatRefc<VA> aref;
     if(p.permuteA())
         {
-        SCOPED_TIMER(12)
         auto aptr = SAFE_REINTERPRET(VA,ab);
         auto tref = makeTenRef(SAFE_PTR_GET(aptr,Apsize),Apsize,&p.newArange);
         tref &= permute(A,p.PA);
@@ -761,7 +775,6 @@ contract(CProps const& p,
     MatRefc<VB> bref;
     if(p.permuteB())
         {
-        SCOPED_TIMER(13)
         auto bptr = SAFE_REINTERPRET(VB,bb);
         auto tref = makeTenRef(SAFE_PTR_GET(bptr,Bpsize),Bpsize,&p.newBrange);
         tref &= permute(B,p.PB);
@@ -799,13 +812,10 @@ contract(CProps const& p,
             }
         }
 
-    START_TIMER(11)
     gemm(aref,bref,cref,alpha,beta);
-    STOP_TIMER(11)
 
     if(p.permuteC())
         {
-        SCOPED_TIMER(14)
 #ifdef DEBUG
         if(isTrivial(p.PC)) Error("Calling permute in contract with a trivial permutation");
 #endif
@@ -1133,7 +1143,7 @@ contractDiagFull(VectorRefc        A, Labels const& ai,
 // 
 // o Identify common index to A,B,C with largest
 //   extent and make this the innermost loop
-//   (similar to big index in transform method in ten.ih)
+//   (similar to big index in transform method in ten_impl.h)
 // o If A and B sufficiently small, permute one or both
 //   to group merged/unmerged indices together
 // o Move merged indices to front and parallelize similar

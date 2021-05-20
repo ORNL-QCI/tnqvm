@@ -1,10 +1,23 @@
 //
-// Distributed under the ITensor Library License, Version 1.2
-// (See accompanying LICENSE file.)
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
 //
-#ifndef __ITENSOR_SPINTWO_H
-#define __ITENSOR_SPINTWO_H
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+#pragma once
+
 #include "itensor/mps/siteset.h"
+#include "itensor/mps/sites/spinhalf.h"
+#include "itensor/util/str.h"
 
 // Code written by Samuel Gozel
 
@@ -27,27 +40,36 @@ class SpinTwo : public SiteSet
 
 class SpinTwoSite
 	{
-    IQIndex s;
+  Index s;
 	public:
 
-    SpinTwoSite() { }
+    SpinTwoSite(Index I) : s(I) { }
 
-    SpinTwoSite(IQIndex I) : s(I) { }
+    SpinTwoSite(Args const& args = Args::global())
+        {
+        auto ts = TagSet("Site,S=2");
+        if( args.defined("SiteNumber") )
+          ts.addTags("n="+str(args.getInt("SiteNumber")));
+        auto conserveQNs = args.getBool("ConserveQNs",true);
+        auto conserveSz = args.getBool("ConserveSz",conserveQNs);
+        if(conserveSz)
+            {
+            s = Index{QN({"Sz",+4}),1,
+                      QN({"Sz",+2}),1,
+                      QN({"Sz",0}),1,
+                      QN({"Sz",-2}),1,
+                      QN({"Sz",-4}),1,Out,ts};
+            }
+        else
+            {
+            s = Index{5,ts};
+            }
+        }
 
-    SpinTwoSite(int n, Args const& args = Args::global())
-		{
-        s = IQIndex{nameint("S=2 site=",n),
-            Index(nameint("Up:site",n),1,Site),QN("Sz=",+4),
-            Index(nameint("Upi:site",n),1,Site),QN("Sz=",+2),
-            Index(nameint("Z0:site",n),1,Site),QN("Sz=",0),
-            Index(nameint("Dni:site",n),1,Site),QN("Sz=",-2),
-            Index(nameint("Dn:site",n),1,Site),QN("Sz=",-4)};
-		}
-
-    IQIndex
+    Index
     index() const { return s; }
 
-    IQIndexVal
+    IndexVal
     state(std::string const& state)
 		{
         if (state == "Up" || state == "4") 
@@ -72,15 +94,15 @@ class SpinTwoSite
             }
         else
             {
-            Error("State " + state + " not recognized");
+            throw ITError("State " + state + " not recognized");
             }
-        return IQIndexVal{};
+        return IndexVal{};
 		}
 
-    IQTensor
+    ITensor
     op(std::string const& opname,
        Args const& args) const
-		{
+        {
         const Real val1 = std::sqrt(6.0)/2.0;
         const Real val2 = std::sqrt(6.0);
 
@@ -97,7 +119,7 @@ class SpinTwoSite
         auto Dn  = s(5);
         auto DnP = sP(5);
 
-        auto Op = IQTensor(dag(s),sP);
+        auto Op = ITensor(dag(s),sP);
 
         if (opname == "Sz")
             {
@@ -108,10 +130,6 @@ class SpinTwoSite
             }
         else if (opname == "Sx")
             {
-            //mixedIQTensor call needed here
-            //because as an IQTensor, Op would
-            //not have a well defined QN flux
-            Op = mixedIQTensor(s,sP);
             Op.set(Up,UpiP,1.0);
             Op.set(Upi,UpP,1.0);
             Op.set(Upi,Z0P,val1); // val1 = sqrt(6)/2 = = 1.2247...
@@ -123,10 +141,6 @@ class SpinTwoSite
             }
         else if (opname == "ISy") // defined as i*Sy
             {
-            //mixedIQTensor call needed here
-            //because as an IQTensor, Op would
-            //not have a well defined QN flux
-            Op = mixedIQTensor(s,sP);
             Op.set(Up,UpiP,-1.0);
             Op.set(Upi,UpP,1.0);
             Op.set(Upi,Z0P,-val1);
@@ -138,10 +152,6 @@ class SpinTwoSite
             }
         else if (opname == "Sy")
             {
-            //mixedIQTensor call needed here
-            //because as an IQTensor, Op would
-            //not have a well defined QN flux
-            Op = mixedIQTensor(s,sP);
             Op.set(Up,UpiP,1.0*Cplx_i);
             Op.set(Upi,UpP,-1.0*Cplx_i);
             Op.set(Upi,Z0P,val1*Cplx_i);
@@ -230,12 +240,22 @@ class SpinTwoSite
             }
         else
             {
-            Error("Operator " + opname + " name not recognized");
+            throw ITError("Operator " + opname + " name not recognized");
             }
 
         return Op;
-		}
-	}; //SpinTwoSite
+        }
+
+    //
+    // Deprecated, for backwards compatibility
+    //
+
+    SpinTwoSite(int n, Args const& args = Args::global())
+        {
+        *this = SpinTwoSite({args,"SiteNumber=",n});
+        }
+
+    }; //SpinTwoSite
 
 inline SpinTwo::
 SpinTwo(int N, 
@@ -250,23 +270,23 @@ SpinTwo(int N,
     if(shedge || Lshedge)
         {
         if(args.getBool("Verbose",false)) println("Placing a S=1/2 at site 1");
-        sites.set(1,SpinHalfSite(1));
+        sites.set(1,SpinHalfSite({args,"SiteNumber=",1}));
         start = 2;
         }
 
     for(int j = start; j < N; ++j)
         {
-        sites.set(j,SpinTwoSite(j));
+        sites.set(j,SpinTwoSite({args,"SiteNumber=",j}));
         }
 
     if(shedge)
         {
         if(args.getBool("Verbose",false)) println("Placing a S=1/2 at site N=",N);
-        sites.set(N,SpinHalfSite(N));
+        sites.set(N,SpinHalfSite({args,"SiteNumber=",N}));
         }
     else
         {
-        sites.set(N,SpinTwoSite(N));
+        sites.set(N,SpinTwoSite({args,"SiteNumber=",N}));
         }
 
     SiteSet::init(std::move(sites));
@@ -281,11 +301,11 @@ read(std::istream& s)
         auto store = SiteStore(N);
         for(int j = 1; j <= N; ++j) 
             {
-            auto I = IQIndex{};
+            auto I = Index{};
             I.read(s);
-            if(I.m() == 3) store.set(j,SpinTwoSite(I));
-            else if(I.m() == 2) store.set(j,SpinHalfSite(I));
-            else Error(format("SpinTwo cannot read index of size %d",I.m()));
+            if(dim(I) == 5) store.set(j,SpinTwoSite(I));
+            else if(dim(I) == 2) store.set(j,SpinHalfSite(I));
+            else throw ITError(format("SpinTwo cannot read index of size %d",dim(I)));
             }
         init(std::move(store));
         }
@@ -293,4 +313,3 @@ read(std::istream& s)
 
 } //namespace itensor
 
-#endif

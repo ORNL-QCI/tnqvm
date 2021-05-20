@@ -1,10 +1,23 @@
 //
-// Distributed under the ITensor Library License, Version 1.2
-// (See accompanying LICENSE file.)
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
 //
-#ifndef __ITENSOR_SPINONE_H
-#define __ITENSOR_SPINONE_H
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+#pragma once
+
 #include "itensor/mps/siteset.h"
+#include "itensor/mps/sites/spinhalf.h"
+#include "itensor/util/str.h"
 
 namespace itensor {
 
@@ -17,7 +30,7 @@ class SpinOne : public SiteSet
     SpinOne(int N, 
             Args const& args = Args::global());
 
-    SpinOne(std::vector<IQIndex> const& inds);
+    SpinOne(std::vector<Index> const& inds);
 
     void
     read(std::istream& s);
@@ -27,25 +40,34 @@ class SpinOne : public SiteSet
 
 class SpinOneSite
     {
-    IQIndex s;
+    Index s;
     public:
 
-    SpinOneSite() { }
+    SpinOneSite(Index I) : s(I) { }
 
-    SpinOneSite(IQIndex I) : s(I) { }
-
-    SpinOneSite(int n, Args const& args = Args::global())
+    SpinOneSite(Args const& args = Args::global())
         {
-        s = IQIndex{nameint("S=1 site=",n),
-            Index(nameint("Up:site",n),1,Site),QN("Sz=",+2),
-            Index(nameint("Z0:site",n),1,Site),QN("Sz=", 0),
-            Index(nameint("Dn:site",n),1,Site),QN("Sz=",-2)};
+        auto ts = TagSet("Site,S=1");
+        if( args.defined("SiteNumber") )
+          ts.addTags("n="+str(args.getInt("SiteNumber")));
+        auto conserveqns = args.getBool("ConserveQNs",true);
+        auto conserveSz = args.getBool("ConserveSz",conserveqns);
+        if(conserveSz)
+            {
+            s = Index(QN({"Sz",+2}),1,
+                      QN({"Sz", 0}),1,
+                      QN({"Sz",-2}),1,Out,ts);
+            }
+        else
+            {
+            s = Index(3,ts);
+            }
         }
 
-    IQIndex
+    Index
     index() const { return s; }
 
-    IQIndexVal
+    IndexVal
     state(std::string const& state)
         {
         if(state == "Up" || state == "+") 
@@ -64,12 +86,12 @@ class SpinOneSite
             }
         else
             {
-            Error("State " + state + " not recognized");
+            throw ITError("State " + state + " not recognized");
             }
-        return IQIndexVal{};
+        return IndexVal{};
         }
 
-	IQTensor
+	ITensor
 	op(std::string const& opname,
 	   Args const& args) const
         {
@@ -79,10 +101,10 @@ class SpinOneSite
         auto UpP = sP(1);
         auto Z0  = s(2);
         auto Z0P = sP(2);
-        auto Dn  = s(s.m());
-        auto DnP = sP(s.m());
+        auto Dn  = s(dim(s));
+        auto DnP = sP(dim(s));
 
-        auto Op = IQTensor(dag(s),sP);
+        auto Op = ITensor(dag(s),sP);
 
         if(opname == "Sz")
             {
@@ -92,10 +114,6 @@ class SpinOneSite
         else
         if(opname == "Sx")
             {
-            //mixedIQTensor call needed here
-            //because as an IQTensor, Op would
-            //not have a well defined QN flux
-            Op = mixedIQTensor(dag(s),sP);
             Op.set(Up,Z0P,ISqrt2); 
             Op.set(Z0,UpP,ISqrt2);
             Op.set(Z0,DnP,ISqrt2); 
@@ -104,10 +122,6 @@ class SpinOneSite
         else
         if(opname == "ISy")
             {
-            //mixedIQTensor call needed here
-            //because as an IQTensor, Op would
-            //not have a well defined QN flux
-            Op = mixedIQTensor(dag(s),sP);
             Op.set(Up,Z0P,-ISqrt2); 
             Op.set(Z0,UpP,+ISqrt2);
             Op.set(Z0,DnP,-ISqrt2); 
@@ -116,10 +130,6 @@ class SpinOneSite
         else
         if(opname == "Sy")
             {
-            //mixedIQTensor call needed here
-            //because as an IQTensor, Op would
-            //not have a well defined QN flux
-            Op = mixedIQTensor(dag(s),sP);
             Op.set(Up,Z0P,+ISqrt2*1_i); 
             Op.set(Z0,UpP,-ISqrt2*1_i);
             Op.set(Z0,DnP,+ISqrt2*1_i); 
@@ -180,7 +190,7 @@ class SpinOneSite
         if(opname == "XUp")
             {
             //m = +1 state along x axis
-            Op = IQTensor(s);
+            Op = ITensor(s);
             Op.set(Up,0.5);
             Op.set(Z0,ISqrt2);
             Op.set(Dn,0.5);
@@ -189,7 +199,7 @@ class SpinOneSite
         if(opname == "XZ0")
             {
             //m = 0 state along x axis
-            Op = IQTensor(s);
+            Op = ITensor(s);
             Op.set(Up,+ISqrt2);
             Op.set(Dn,-ISqrt2);
             }
@@ -197,7 +207,7 @@ class SpinOneSite
         if(opname == "XDn")
             {
             //m = -1 state along x axis
-            Op = IQTensor(s);
+            Op = ITensor(s);
             Op.set(Up,0.5);
             Op.set(Z0,-ISqrt2);
             Op.set(Dn,0.5);
@@ -205,33 +215,43 @@ class SpinOneSite
         else
         if(opname == "S2")
             {
-            auto ssp1 = (s.m()==2 ? 0.75 : 2.);
+            auto ssp1 = (dim(s)==2 ? 0.75 : 2.);
             Op.set(Up,UpP,ssp1); 
             Op.set(Dn,DnP,ssp1);
-            if(s.m() > 2)
+            if(dim(s) > 2)
                 Op.set(Z0,Z0P,ssp1);
             }
         else
             {
-            Error("Operator \"" + opname + "\" name not recognized");
+            throw ITError("Operator \"" + opname + "\" name not recognized");
             }
 
         return Op;
         }
+
+    //
+    // Deprecated, for backwards compatibility
+    //
+
+    SpinOneSite(int n, Args const& args = Args::global())
+        {
+        *this = SpinOneSite({args,"SiteNumber=",n});
+        }
+
     };
 
 inline SpinOne::
-SpinOne(std::vector<IQIndex> const& inds)
+SpinOne(std::vector<Index> const& inds)
     {
     int N = inds.size();
     auto sites = SiteStore(N);
     for(int j = 1, i = 0; j <= N; ++j, ++i)
         {
         auto& Ii = inds.at(i);
-        if(Ii.m() != 3)
+        if(dim(Ii) != 3)
             {
-            printfln("IQIndex at entry %d = %s",i,Ii);
-            Error("Only S=1 IQIndices allowed in SpinOne(vector<IQIndex>) constructor");
+            printfln("Index at entry %d = %s",i,Ii);
+            throw ITError("Only S=1 IQIndices allowed in SpinOne(vector<Index>) constructor");
             }
         sites.set(j,SpinOneSite(Ii));
         }
@@ -251,23 +271,23 @@ SpinOne(int N,
     if(shedge || Lshedge)
         {
         if(args.getBool("Verbose",false)) println("Placing a S=1/2 at site 1");
-        sites.set(1,SpinHalfSite(1));
+        sites.set(1,SpinHalfSite(1,args));
         start = 2;
         }
 
     for(int j = start; j < N; ++j)
         {
-        sites.set(j,SpinOneSite(j));
+        sites.set(j,SpinOneSite(j,args));
         }
 
     if(shedge)
         {
         if(args.getBool("Verbose",false)) println("Placing a S=1/2 at site N=",N);
-        sites.set(N,SpinHalfSite(N));
+        sites.set(N,SpinHalfSite(N,args));
         }
     else
         {
-        sites.set(N,SpinOneSite(N));
+        sites.set(N,SpinOneSite(N,args));
         }
 
     SiteSet::init(std::move(sites));
@@ -282,16 +302,14 @@ read(std::istream& s)
         auto store = SiteStore(N);
         for(int j = 1; j <= N; ++j) 
             {
-            auto I = IQIndex{};
+            auto I = Index{};
             I.read(s);
-            if(I.m() == 3) store.set(j,SpinOneSite(I));
-            else if(I.m() == 2) store.set(j,SpinHalfSite(I));
-            else Error(format("SpinOne cannot read index of size %d",I.m()));
+            if(dim(I) == 3) store.set(j,SpinOneSite(I));
+            else if(dim(I) == 2) store.set(j,SpinHalfSite(I));
+            else throw ITError(format("SpinOne cannot read index of size %d",dim(I)));
             }
         init(std::move(store));
         }
     }
 
 } //namespace itensor
-
-#endif

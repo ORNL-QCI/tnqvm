@@ -1,6 +1,17 @@
 //
-// Distributed under the ITensor Library License, Version 1.2
-//    (See accompanying LICENSE file.)
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 #ifndef __ITENSOR_DIAG_H
 #define __ITENSOR_DIAG_H
@@ -20,7 +31,7 @@ class Diag
     {
     public:
     using value_type = stdx::decay_t<T>;
-    using storage_type = std::vector<value_type>;
+    using storage_type = vector_no_init<value_type>;
     using size_type = typename storage_type::size_type;
     using iterator = typename storage_type::iterator;
     using const_iterator = typename storage_type::const_iterator;
@@ -49,6 +60,14 @@ class Diag
       : store(b,e),
         length(store.size())
         { }
+
+    // This allows a Diag to be constructed from a std::vector.
+    // TODO: Does this copy?
+    explicit
+    Diag(std::vector<value_type> const& v)
+      : store(v.begin(),v.end()),
+        length(store.size())
+      { }
 
     explicit
     Diag(storage_type&& data)
@@ -157,30 +176,55 @@ doTask(ApplyIT<F>& A, Diag<T> const& d, ManageStore & m)
         }
     }
 
+template<typename F, typename T>
+void
+doTask(VisitIT<F>& V, Diag<T> const& d)
+    { 
+    if(d.allSame()) 
+        {
+        for(decltype(d.length) j = 0; j < d.length; ++j) 
+            {
+            detail::call<void>(V.f,V.scale_fac * d.val);
+            }
+        }
+    else
+        {
+        for(auto& elt : d) 
+            {
+            detail::call<void>(V.f,V.scale_fac * elt);
+            }
+        }
+    }
+
 template <typename T>
 Cplx
-doTask(GetElt<Index> const& g, Diag<T> const& d);
+doTask(GetElt const& g, Diag<T> const& d);
 
 template<typename T1, typename T2>
 void
-doTask(Contract<Index> & C,
+doTask(Contract & C,
        Dense<T1>  const& t,
        Diag<T2>   const& d,
        ManageStore     & m);
 
 template<typename T1, typename T2>
 void
-doTask(Contract<Index> & C,
+doTask(Contract & C,
        Diag<T1>   const& d,
        Dense<T2>  const& t,
        ManageStore     & m);
 
 template<typename T1, typename T2>
 void
-doTask(PlusEQ<Index> const& P,
+doTask(PlusEQ const& P,
        Diag<T1> const& D1,
        Diag<T2> const& D2,
        ManageStore & m);
+
+template<typename T>
+void
+doTask(Order const& P,
+       Diag<T> & dA) { }
 
 template<typename N, typename T>
 void
@@ -217,7 +261,7 @@ doTask(TakeImag, DiagCplx const& D, ManageStore& m);
 
 template<typename T>
 void
-doTask(PrintIT<Index> & P, Diag<T> const& d);
+doTask(PrintIT & P, Diag<T> const& d);
 
 template<typename T>
 bool
@@ -225,13 +269,17 @@ doTask(CheckComplex, Diag<T> const& d) { return isCplx<T>(); }
 
 template <class T>
 Cplx
-doTask(SumEls<Index> S, Diag<T> const& d);
+doTask(SumEls S, Diag<T> const& d);
 
 auto inline
 doTask(StorageType const& S, DiagReal const& d) ->StorageType::Type { return StorageType::DiagReal; }
 
 auto inline
 doTask(StorageType const& S, DiagCplx const& d) ->StorageType::Type { return StorageType::DiagCplx; }
+
+template<typename T>
+void
+doTask(ToDense &, Diag<T> const&, ManageStore &);
 
 } //namespace itensor
 

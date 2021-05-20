@@ -1,6 +1,17 @@
 //
-// Distributed under the ITensor Library License, Version 1.2.
-//    (See accompanying LICENSE file.)
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 #ifndef __ITENSOR_RANGEITER_H_
 #define __ITENSOR_RANGEITER_H_
@@ -35,7 +46,7 @@ class RangeIter
     RangeIter(range_type const& R) 
       : prange_(&R),
         off_(0),
-        ind_(R.r(),R.start())
+        ind_(R.order(),R.start())
         { }
 
 
@@ -96,9 +107,9 @@ class RangeIter
         {
         using rextent = decltype(range().extent(0));
 #ifdef DEBUG
-        if(range().r() == 0) Error("Can't increment RangeIter made from rank 0 range");
+        if(range().order() == 0) Error("Can't increment RangeIter made from order 0 range");
 #endif
-        auto r = range().r();
+        auto r = range().order();
         ind_[0] += 1;
         off_ += range().stride(0);
         if(rextent(ind_[0]-range().start()) == range().extent(0))
@@ -132,7 +143,7 @@ std::ostream&
 operator<<(std::ostream & s,
            RangeIter<R> const& it)
     {
-    auto r = it.range().r();
+    auto r = it.range().order();
     s << format("%*d",3,it.offset()) << " (";
     for(decltype(r) j = 0; j < r; ++j)
         {

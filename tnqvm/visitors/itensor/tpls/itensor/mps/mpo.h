@@ -1,6 +1,17 @@
 //
-// Distributed under the ITensor Library License, Version 1.2
-//    (See accompanying LICENSE file.)
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 #ifndef __ITENSOR_MPO_H
 #define __ITENSOR_MPO_H
@@ -12,51 +23,33 @@ namespace itensor {
 
 const Real DefaultLogRefScale = 2.0255;
 
-template<class Tensor> 
-class MPOt;
-
-using MPO = MPOt<ITensor>;
-using IQMPO = MPOt<IQTensor>;
-
-//
-// class MPOt
-//
-// (defines MPO and IQMPO via above typedefs)
-//
-template<class Tensor>
-class MPOt : private MPSt<Tensor>
+class MPO : protected MPS
     {
-    using Parent = MPSt<Tensor>;
+    using Parent = MPS;
     using Parent::N_;
     using Parent::A_;
     using Parent::l_orth_lim_;
     using Parent::r_orth_lim_;
-    using Parent::sites_;
     Real logrefNorm_;
     public:
-    using TensorT = Tensor;
-    using IndexT = typename Tensor::index_type;
-    using IndexValT = typename Tensor::indexval_type;
 
-    MPOt();
+    MPO();
 
-    MPOt(int N);
+    MPO(int N);
 
-    MPOt(SiteSet const& sites, 
+    MPO(SiteSet const& sites, 
          Real _refNorm = DefaultLogRefScale);
 
     explicit operator bool() const { return Parent::operator bool(); }
 
-    using Parent::N;
-    using Parent::sites;
+    using Parent::length;
 
     using Parent::rightLim;
     using Parent::leftLim;
 
-    using Parent::A;
-    using Parent::Aref;
-    using Parent::Anc;
-    using Parent::setA;
+    using Parent::operator();
+    using Parent::ref;
+    using Parent::set;
 
     using Parent::doWrite;
 
@@ -65,37 +58,41 @@ class MPOt : private MPSt<Tensor>
 
     Real
     logRefNorm() const { return logrefNorm_; }
+    void
+    logRefNorm(Real lrn) { logrefNorm_ = lrn; }
 
-    MPOt&
-    plusEq(const MPOt& R,
-           const Args& args = Args::global());
+    MPO&
+    plusEq(MPO const& R,
+           Args const& args = Args::global());
 
+    using Parent::dag;
+    using Parent::replaceLinkInds;
+    using Parent::setTags;
+    using Parent::noTags;
+    using Parent::addTags;
+    using Parent::removeTags;
+    using Parent::replaceTags;
+    using Parent::swapTags;
+    using Parent::prime;
+    using Parent::setPrime;
+    using Parent::mapPrime;
+    using Parent::swapPrime;
+    using Parent::noPrime;
 
-    MPOt<ITensor>
-    toMPO() const;
+    // Replace the site indices of MPO A from sites_old
+    // to sites_new (replaces one site index per MPO tensor)
+    MPO&
+    replaceSiteInds(IndexSet const& sites_old, IndexSet const& sites_new);
 
-    //MPOt<IQTensor>
-    //toIQMPO() const;
-
-    //MPOt: index methods --------------------------------------------------
-
-    using Parent::mapprime;
-    using Parent::primelinks;
-    using Parent::noprimelink;
+    // Swap the bra and ket indices of the MPO (i.e. transpose the MPO)
+    MPO&
+    swapSiteInds();
 
     void 
-    primeall()	// sites i,i' -> i',i'';  link:  l -> l'
-        {
-        for(int i = 1; i <= this->N(); i++)
-            {
-            Anc(i).mapprime(0,1,Link);
-            Anc(i).mapprime(1,2,Site);
-            Anc(i).mapprime(0,1,Site);
-            }
-        }
-
-    void 
-    svdBond(int b, const Tensor& AA, Direction dir, const Args& args = Args::global())
+    svdBond(int b, 
+            ITensor const& AA, 
+            Direction dir, 
+            Args const& args = Args::global())
         { 
         Parent::svdBond(b,AA,dir,args + Args("UseSVD",true,"LogRefNorm",logrefNorm_)); 
         }
@@ -103,7 +100,11 @@ class MPOt : private MPSt<Tensor>
     //Move the orthogonality center to site i 
     //(l_orth_lim_ = i-1, r_orth_lim_ = i+1)
     void 
-    position(int i, const Args& args = Args::global()) { Parent::position(i,args + Args("UseSVD")); }
+    position(int i, 
+             Args const& args = Args::global()) 
+        { 
+        Parent::position(i,args + Args("UseSVD")); 
+        }
 
     void 
     orthogonalize(Args const& args = Args::global()) 
@@ -111,298 +112,416 @@ class MPOt : private MPSt<Tensor>
         Parent::orthogonalize(args + Args("UseSVD")); 
         }
 
+    //
+    // Developer level methods
+    //
 
-    private:
-
-
-    friend class MPOt<ITensor>;
-    friend class MPOt<IQTensor>;
-    
-    public:
-
+    using Parent::uref;
 
     //
-    // Deprecated methods
+    // Deprecations
     //
-    //use isOrtho(W) instead
-    using Parent::isOrtho;
-    //use orthoCenter(W) instead
-    using Parent::orthoCenter;
-    //use isComplex(W) instead
-    using Parent::isComplex;
 
-    //void 
-    //toIQ(QN totalq, MPOt<IQTensor>& res, Real cut = 1E-12) const
-    //    {
-    //    res = MPOt<IQTensor>(*sites_,logrefNorm_);
-    //    convertToIQ(*sites_,A_,res.A_,totalq,cut);
-    //    }
+    using Parent::N;
+    using Parent::A;
+    using Parent::Aref;
+    using Parent::setA;
 
-    }; //class MPOt<Tensor>
+    }; //class MPO<Tensor>
 
-//template<typename T>
-//MPOt<T>&
-//addAssumeOrth(MPOt<T> & L, MPOt<T> const& R, Args const& args = Args::global()) 
-//    { 
-//    MPSt<T>::addAssumeOrth(L,R,{args,"UseSVD",true,"LogRefNorm",L.logRefNorm()}); 
-//    return L;
-//    }
+MPO& 
+operator*=(MPO & W, Real a);
 
+MPO& 
+operator*=(MPO & W, Cplx a);
 
-template<class T>
-MPOt<T>& 
-operator*=(MPOt<T> & W, Real a) { W.Anc(W.leftLim()+1) *= a; return W; }
+MPO& 
+operator/=(MPO & W, Real a);
 
-template<class T>
-MPOt<T>& 
-operator*=(MPOt<T> & W, Cplx a) { W.Anc(W.leftLim()+1) *= a; return W; }
+MPO& 
+operator/=(MPO & W, Cplx a);
 
-template<class T>
-MPOt<T>& 
-operator/=(MPOt<T> & W, Real a) { W.Anc(W.leftLim()+1) /= a; return W; }
+MPO
+operator*(MPO W, Real r);
 
-template<class T>
-MPOt<T>& 
-operator/=(MPOt<T> & W, Cplx a) { W.Anc(W.leftLim()+1) /= a; return W; }
+MPO
+operator*(Real r, MPO W);
 
-template<typename T>
-MPOt<T>
-operator*(MPOt<T> W, Real r) { return W *= r; }
+MPO
+operator*(MPO W, Cplx z);
 
-template<typename T>
-MPOt<T>
-operator*(Real r, MPOt<T> W) { return W *= r; }
-
-template<typename T>
-MPOt<T>
-operator*(MPOt<T> W, Cplx z) { return W *= z; }
-
-template<typename T>
-MPOt<T>
-operator*(Cplx z, MPOt<T> W) { return W *= z; }
-
-template<typename T>
-bool
-isComplex(MPOt<T> const& W);
-
-template<typename T>
-bool
-isOrtho(MPOt<T> const& W);
-
-template<typename T>
-int
-orthoCenter(MPOt<T> const& W);
+MPO
+operator*(Cplx z, MPO W);
 
 int
-findCenter(IQMPO const& psi);
+length(MPO const& W);
 
-void inline 
-checkQNs(MPO const& psi) { }
+MPO
+dag(MPO W);
+
+//
+// MPO Index functions
+//
+
+// Check if the MPO A has the site indices
+// sites
+bool
+hasSiteInds(MPO const& A, IndexSet const& sites);
+
+//
+// Find site indices
+//
+
+// Find a site index of the MPO by matching the tag 'tsmatch'
+Index
+siteIndex(MPO const& A, int b, TagSet const& tsmatch = TagSet("0"));
+
+// Get the site Indices of the MPO A*B at site b
+// as if MPO A and MPO B were contracted
+IndexSet
+siteInds(MPO const& A, MPO const& B, int b);
+
+// Get the site Index of the MPS A|x>
+// as if MPO A was applied to MPS x
+Index
+uniqueSiteIndex(MPO const& A, MPS const& x, int b);
+
+// Find the site Index of the bth MPO tensor of W
+// that is not the input site Index s
+Index
+uniqueSiteIndex(MPO const& W, IndexSet const& s, int b);
+
+// Get the site Indices that are unique to A
+IndexSet
+uniqueSiteInds(MPO const& A, MPS const& x);
+
+// Get the site Indices that are unique to A
+// (not in the IndexSet of site indices sites)
+IndexSet
+uniqueSiteInds(MPO const& A, IndexSet const& sites);
+
+// Get the site Index that is unique to A
+Index
+uniqueSiteIndex(MPO const& A, MPO const& B, int b);
+
+// Get the site Indices that are unique to the MPO A
+// If both indices are shared by A and B, they will 
+// be default valued indices (Index())
+IndexSet
+uniqueSiteInds(MPO const& A, MPO const& B);
+
+//
+// Modify site indices
+//
+
+// Replace the site indices of MPO A from sites_old
+// to sites_new (replaces one site index per MPO tensor)
+MPO
+replaceSiteInds(MPO A, IndexSet const& sites_old, IndexSet const& sites_new);
+
+// Swap the bra and ket indices of the MPO (i.e. transpose the MPO)
+MPO
+swapSiteInds(MPO A);
+
+//
+// MPO tag functions
+//
+
+MPO
+setTags(MPO A, TagSet const& ts, IndexSet const& is);
+
+template <typename... VarArgs>
+MPO
+setTags(MPO A,
+        VarArgs&&... vargs)
+    {
+    A.setTags(std::forward<VarArgs>(vargs)...);
+    return A;
+    }
+
+MPO
+noTags(MPO A, IndexSet const& is);
+
+template <typename... VarArgs>
+MPO
+noTags(MPO A,
+       VarArgs&&... vargs)
+    {
+    A.noTags(std::forward<VarArgs>(vargs)...);
+    return A;
+    }
+
+MPO
+addTags(MPO A, TagSet const& ts, IndexSet const& is);
+
+template <typename... VarArgs>
+MPO
+addTags(MPO A,
+        VarArgs&&... vargs)
+    {
+    A.addTags(std::forward<VarArgs>(vargs)...);
+    return A;
+    }
+   
+MPO
+removeTags(MPO A, TagSet const& ts, IndexSet const& is);
+
+template <typename... VarArgs>
+MPO
+removeTags(MPO A,
+           VarArgs&&... vargs)
+    {
+    A.removeTags(std::forward<VarArgs>(vargs)...);
+    return A;
+    }
+
+MPO
+replaceTags(MPO A, TagSet const& ts1, TagSet const& ts2, IndexSet const& is);
+
+template <typename... VarArgs>
+MPO
+replaceTags(MPO A,
+            VarArgs&&... vargs)
+    {
+    A.replaceTags(std::forward<VarArgs>(vargs)...);
+    return A;
+    }
+
+MPO
+swapTags(MPO A, TagSet const& ts1, TagSet const& ts2, IndexSet const& is);
+
+template <typename... VarArgs>
+MPO
+swapTags(MPO A,
+         VarArgs&&... vargs)
+    {
+    A.swapTags(std::forward<VarArgs>(vargs)...);
+    return A;
+    }
+
+MPO
+prime(MPO A, int plev, IndexSet const& is);
+
+MPO
+prime(MPO A, IndexSet const& is);
+
+template <typename... VarArgs>
+MPO
+prime(MPO A,
+      VarArgs&&... vargs)
+    {
+    A.prime(std::forward<VarArgs>(vargs)...);
+    return A;
+    }
+
+MPO
+setPrime(MPO A, int plev, IndexSet const& is);
+
+template <typename... VarArgs>
+MPO
+setPrime(MPO A,
+         VarArgs&&... vargs)
+    {
+    A.setPrime(std::forward<VarArgs>(vargs)...);
+    return A;
+    }
+
+MPO
+mapPrime(MPO A, int plevold, int plevnew, IndexSet const& is);
+
+template <typename... VarArgs>
+MPO
+mapPrime(MPO A,
+         VarArgs&&... vargs)
+    {
+    A.mapPrime(std::forward<VarArgs>(vargs)...);
+    return A;
+    }
+
+MPO
+swapPrime(MPO A, int plevold, int plevnew, IndexSet const& is);
+
+template <typename... VarArgs>
+MPO
+swapPrime(MPO A,
+         VarArgs&&... vargs)
+    {
+    A.swapPrime(std::forward<VarArgs>(vargs)...);
+    return A;
+    }
+
+MPO
+noPrime(MPO A, IndexSet const& is);
+
+template <typename... VarArgs>
+MPO
+noPrime(MPO A,
+        VarArgs&&... vargs)
+    {
+    A.noPrime(std::forward<VarArgs>(vargs)...);
+    return A;
+    }
+
+bool
+isComplex(MPO const& W);
+
+bool
+isOrtho(MPO const& W);
+
+int
+orthoCenter(MPO const& W);
+
+int
+findCenter(MPO const& psi);
 
 void
-checkQNs(IQMPO const& psi);
+checkQNs(MPO const& psi);
 
-template <class Tensor>
-MPOt<Tensor>
-sum(MPOt<Tensor> L, 
-    MPOt<Tensor> const& R, 
-    Args const& args = Args::global());
+// Re[Tr(A)]
+Real
+trace(MPO const& A);
 
-//<psi|H|phi>
-template <class Tensor>
+// Tr(A)
+Cplx
+traceC(MPO const& A);
+
+// Tr(A)
+void
+trace(MPO const& A,
+      Real& re, Real& im);
+
+// Re[Tr(AB)]
+Real
+trace(MPO const& A,
+      MPO const& B);
+
+// Tr(AB)
+Cplx
+traceC(MPO const& A,
+       MPO const& B);
+
+// Tr(AB)
+void
+trace(MPO const& A,
+      MPO const& B,
+      Real& re, Real& im);
+
+// Calculate <x|A|y>
 void 
-overlap(MPSt<Tensor> const& psi, 
-        MPOt<Tensor> const& H, 
-        MPSt<Tensor> const& phi, 
-        Real& re, 
-        Real& im);
+inner(MPS const& x,
+      MPO const& A, 
+      MPS const& y, 
+      Real& re, 
+      Real& im);
 
-template <class Tensor>
+// Calculate <x|A|y>
 Real 
-overlap(MPSt<Tensor> const& psi, 
-        MPOt<Tensor> const& H, 
-        MPSt<Tensor> const& phi);
+inner(MPS const& x, 
+      MPO const& A, 
+      MPS const& y);
 
-template <class Tensor>
+// Calculate <x|A|y>
 Complex 
-overlapC(MPSt<Tensor> const& psi, 
-         MPOt<Tensor> const& H, 
-         MPSt<Tensor> const& phi);
+innerC(MPS const& x,
+       MPO const& A, 
+       MPS const& y);
 
-template<class Tensor>
+// Calculate <Ax|By>
 void
-overlap(MPSt<Tensor> const& psi, 
-        MPOt<Tensor> const& H, 
-        Tensor const& LB, 
-        Tensor const& RB, 
-        MPSt<Tensor> const& phi, 
-        Real& re, 
-        Real& im);
+inner(MPO const& A, 
+      MPS const& x,
+      MPO const& B,
+      MPS const& y, 
+      Real& re, 
+      Real& im);
 
-template <class Tensor>
+// Calculate <Ax|By>
 Real
-overlap(MPSt<Tensor> const& psi, 
-        MPOt<Tensor> const& H, 
-        Tensor const& LB, 
-        Tensor const& RB, 
-        MPSt<Tensor> const& phi);
+inner(MPO const& A, 
+      MPS const& x, 
+      MPO const& B,
+      MPS const& y);
 
-template <class Tensor>
-void
-overlap(MPSt<Tensor> const& psi, 
-         MPOt<Tensor> const& H, 
-         MPOt<Tensor> const& K,
-         MPSt<Tensor> const& phi, 
-         Real& re, 
-         Real& im);
-
-template <class Tensor>
-Real
-overlap(MPSt<Tensor> const& psi, 
-        MPOt<Tensor> const& H, 
-        MPOt<Tensor> const& K,
-        MPSt<Tensor> const& phi);
-
-template <class Tensor>
+// Calculate <Ax|By>
 Complex
-overlapC(MPSt<Tensor> const& psi, 
-         MPOt<Tensor> const& H, 
-         MPOt<Tensor> const& K,
-         MPSt<Tensor> const& phi);
+innerC(MPO const& A,
+       MPS const& x, 
+       MPO const& B,
+       MPS const& y);
 
-template<class MPOType>
+// Calculate <x|AB|y>
+void
+inner(MPS const& x,
+      MPO const& A,
+      MPO const& B,
+      MPS const& y,
+      Real& re,
+      Real& im);
+
+// Calculate <x|AB|y>
+Real
+inner(MPS const& x,
+      MPO const& A,
+      MPO const& B,
+      MPS const& y);
+
+// Calculate <x|AB|y>
+Complex
+innerC(MPS const& x,
+       MPO const& A,
+       MPO const& B,
+       MPS const& y);
+
+// Calculate AB
 void 
-nmultMPO(MPOType const& Aorig, 
-         MPOType const& Borig, 
-         MPOType& res,
+nmultMPO(MPO const& Aorig, 
+         MPO const& Borig, 
+         MPO & res,
+         Args args = Args::global());
+
+// Calculate AB
+MPO
+nmultMPO(MPO const& A,
+         MPO const& B,
          Args args = Args::global());
 
 //
-// Applies an MPO to an MPS using the zip-up method described
-// more fully in Stoudenmire and White, New. J. Phys. 12, 055026 (2010).
+//{"Method=","DensityMatrix"}:
+//Applies an MPO K to an MPS x (K|x>) with no approximation
+//made in the application of K to x. Compresses
+//the result back into an MPS whose bond dimension
+//is at most the product of the bond dimension of K
+//and the bond dimension of x. The result can 
+//be controllably truncated further by providing
+//optional truncation args "Cutoff" and "MaxDim"
 //
-// This method applies the MPO to an MPS one site at a time,
-// with the new MPS being calculated at each step via an
-// SVD of the MPO-MPS product.
-//
-// Uses cutoff and max of MPS psi unless specified.
-//
-template<class Tensor>
-void 
-zipUpApplyMPO(MPSt<Tensor> const& psi, 
-              MPOt<Tensor> const& K, 
-              MPSt<Tensor>& res, 
-              Args const& args = Args::global());
-
-//Applies an MPO K to an MPS x with no approximation (|res>=K|x>)
-//The bond dimension of res will be the product of bond dimensions
-//of x and K.
-template<class Tensor>
-void 
-exactApplyMPO(MPSt<Tensor> const& x, 
-              MPOt<Tensor> const& K, 
-              MPSt<Tensor>      & res,
-              Args const& args = Args::global());
-
-//Applies an MPO K to an MPS x with no approximation (|res>=K|x>)
-//Returns the result.
-template<class Tensor>
-MPSt<Tensor>
-exactApplyMPO(MPSt<Tensor> const& x,
-              MPOt<Tensor> const& K,
-              Args const& args = Args::global());
-
+//{"Method=","Fit"}
 //Applies an MPO K to an MPS psi (|res>=K|psi>) using a sweeping/DMRG-like
 //fitting approach. Warning: this method can get stuck i.e. fail to converge
 //if the initial value of res is too different from the product K|psi>.
 //List of options recognized:
 //   Normalize (default: true) - normalize state to 1 after applying MPO
 //   Nsweep (default: 1) - number of sweeps to use
-//   Maxm (default: res.maxm()) - maximum number of states to keep
-//   Minm (default: res.minm()) - minimum number of states to keep
+//   MaxDim (default: res.maxdim()) - maximum number of states to keep
+//   MinDim (default: res.mindim()) - minimum number of states to keep
 //   Cutoff (default: res.cutoff()) - maximum truncation error goal
-template<class Tensor>
-void
-fitApplyMPO(MPSt<Tensor> const& psi,
-            MPOt<Tensor> const& K,
-            MPSt<Tensor>& res,
-            Args const& args = Args::global());
-
-//Applies an MPO K to an MPS psi including an overall scalar factor (|res>=fac*K|psi>) 
-//using a sweeping/DMRG-like fitting approach. 
-//Warning: this method can get stuck i.e. fail to converge
-//if the initial value of res is too different from the product fac*K|psi>.
-//   Normalize (default: true) - normalize state to 1 after applying MPO
-//   Nsweep (default: 1) - number of sweeps to use
-//   Maxm (default: res.maxm()) - maximum number of states to keep
-//   Minm (default: res.minm()) - minimum number of states to keep
-//   Cutoff (default: res.cutoff()) - maximum truncation error goal
-template<class Tensor>
-void
-fitApplyMPO(Real fac,
-            MPSt<Tensor> const& psi,
-            MPOt<Tensor> const& K,
-            MPSt<Tensor>& res,
-            Args const& args = Args::global());
-
-//Applies an MPO K to an MPS psi including an overall scalar factor (|res>=fac*K|psi>) 
-//using a sweeping/DMRG-like fitting approach. 
-//Warning: this method can get stuck i.e. fail to converge
-//if the initial value of res is too different from the product fac*K|psi>.
-//Try setting noise > 0 in the Sweeps argument to overcome this.
-//Arguments recognized:
-//   Verbose (default: false): print out extra information
-//   Normalize (default: true): normalize the state to 1 after applying MPO
 //
-template<class Tensor>
-void
-fitApplyMPO(Real fac,
-            MPSt<Tensor> const& psi,
-            MPOt<Tensor> const& K,
-            MPSt<Tensor>& res,
-            Sweeps const& sweeps,
-            Args args);
+MPS
+applyMPO(MPO const& K,
+         MPS const& x,
+         Args args = Args::global());
 
-//Computes |res> = |psiA> + mpofac*H*|psiB>
-//using a sweeping/DMRG-like fitting approach. 
-//Warning: this method can get stuck i.e. fail to converge
-//if the initial value of res is too different from desired exact result.
-//   Nsweep (default: 1) - number of sweeps to use
-//   Maxm (default: res.maxm()) - maximum number of states to keep
-//   Minm (default: res.minm()) - minimum number of states to keep
-//   Cutoff (default: res.cutoff()) - maximum truncation error goal
-template<class Tensor>
-Real
-fitApplyMPO(MPSt<Tensor> const& psiA, 
-            Real mpofac,
-            MPSt<Tensor> const& psiB,
-            MPOt<Tensor> const& H,
-            MPSt<Tensor>& res,
-            Args const& args = Args::global());
-
-//Computes |res> = mpsfac*|psiA> + mpofac*H*|psiB>
-//using a sweeping/DMRG-like fitting approach. 
-//Warning: this method can get stuck i.e. fail to converge
-//if the initial value of res is too different from desired exact result.
-//   Nsweep (default: 1) - number of sweeps to use
-//   Maxm (default: res.maxm()) - maximum number of states to keep
-//   Minm (default: res.minm()) - minimum number of states to keep
-//   Cutoff (default: res.cutoff()) - maximum truncation error goal
-template<class Tensor>
-Real
-fitApplyMPO(Real mpsfac,
-            MPSt<Tensor> const& psiA, 
-            Real mpofac,
-            MPSt<Tensor> const& psiB,
-            MPOt<Tensor> const& H,
-            MPSt<Tensor>& res,
-            Args const& args = Args::global());
+//Takes a starting guess wavefunction (only for {"Method=","Fit"})
+MPS
+applyMPO(MPO const& K,
+         MPS const& x,
+         MPS const& x0,
+         Args args = Args::global());
 
 //Computes the exponential of the MPO H: K=exp(-tau*(H-Etot))
-template<class Tensor>
 void 
-expH(MPOt<Tensor> const& H, 
-     MPOt<Tensor>& K, 
+expH(MPO const& H, 
+     MPO & K, 
      Real tau, 
      Real Etot,
      Real Kcutoff, 
@@ -417,32 +536,82 @@ expH(MPOt<Tensor> const& H,
 //List of named arguments recognized:
 //   "Order" : order of Taylor series expansion of exp(-tau*H)
 //   "Cutoff": maximum truncation error allowed
-//   "Maxm"  : maximum number of states after truncation
-//   "Minm"  : minimum number of states after truncation
+//   "MaxDim"  : maximum number of states after truncation
+//   "MinDim"  : minimum number of states after truncation
 //   "Nsweep": number of sweeps used to apply H MPO to intermediate MPS
 //
-template<class Tensor>
 void
-applyExpH(MPSt<Tensor> const& psi, 
-          MPOt<Tensor> const& H, 
+applyExpH(MPS const& psi, 
+          MPO const& H, 
           Real tau, 
-          MPSt<Tensor>& res, 
+          MPS & res, 
           Args const& args = Args::global());
 
 //Given an MPO with no Link indices between site operators,
 //put in links (of bond dimension 1).
-//In the IQMPO case ensure that links carry the proper QNs.
+//In the QN conserving case ensure that links carry the proper QNs.
 void
 putMPOLinks(MPO& W, Args const& args = Args::global());
-void
-putMPOLinks(IQMPO& W, Args const& args = Args::global());
 
-template <class Tensor>
 std::ostream& 
-operator<<(std::ostream& s, MPOt<Tensor> const& M);
+operator<<(std::ostream& s, MPO const& M);
+
+Real
+errorMPOProd(MPS const& psi2,
+             MPO const& K, 
+             MPS const& psi1);
+
+//
+// Deprecated
+//
+
+
+Real 
+overlap(MPS const& psi, 
+        MPO const& H, 
+        MPS const& phi);
+
+Complex 
+overlapC(MPS const& psi, 
+         MPO const& H, 
+         MPS const& phi);
+
+void
+overlap(MPS const& psi, 
+        MPO const& H, 
+        ITensor const& LB, 
+        ITensor const& RB, 
+        MPS const& phi, 
+        Real& re, 
+        Real& im);
+
+Real
+overlap(MPS const& psi, 
+        MPO const& H, 
+        ITensor const& LB, 
+        ITensor const& RB, 
+        MPS const& phi);
+
+void
+overlap(MPS const& psi, 
+        MPO const& H, 
+        MPO const& K,
+        MPS const& phi, 
+        Real& re, 
+        Real& im);
+
+Real
+overlap(MPS const& psi, 
+        MPO const& H, 
+        MPO const& K,
+        MPS const& phi);
+
+Complex
+overlapC(MPS const& psi, 
+         MPO const& H, 
+         MPO const& K,
+         MPS const& phi);
 
 } //namespace itensor
-
-#include "mpo.ih"
 
 #endif

@@ -1,8 +1,8 @@
 #ifndef __ITENSOR_CONFIG_H
 #define __ITENSOR_CONFIG_H
 
-#ifndef PLATFORM_lapack
-#define PLATFORM_lapack
+#ifndef PLATFORM_macos
+#define PLATFORM_macos
 #endif
 
 #ifndef __ASSERT_MACROS_DEFINE_VERSIONS_WITHOUT_UNDERSCORES

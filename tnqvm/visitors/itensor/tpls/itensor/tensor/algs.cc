@@ -1,13 +1,24 @@
 //
-// Distributed under the ITensor Library License, Version 1.2.
-//    (See accompanying LICENSE file.)
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 #include <limits>
 #include <stdexcept>
 #include <tuple>
 #include "itensor/tensor/lapack_wrap.h"
 #include "itensor/tensor/algs.h"
-#include "itensor/util/range.h"
+#include "itensor/util/iterate.h"
 #include "itensor/global.h"
 
 using std::move;
@@ -19,18 +30,98 @@ using std::tie;
 namespace itensor {
 
 namespace detail {
+
     int
     hermitianDiag(int N, Real *Udata, Real *ddata)
         {
+        LAPACK_INT _N = N;
         LAPACK_INT info = 0;
-        dsyev_wrapper('V','U',N,Udata,ddata,info);
+        dsyev_wrapper('V','U',_N,Udata,ddata,info);
         return info;
         }
     int
     hermitianDiag(int N, Cplx *Udata,Real *ddata)
         {
-        return zheev_wrapper(N,Udata,ddata);
+        LAPACK_INT _N = N;
+        return zheev_wrapper(_N,Udata,ddata);
         }
+
+    int
+    QR(int M, int N, int Rrows, Real *Qdata, Real *Rdata)
+        {
+        LAPACK_INT _M = M, _N = N, _Rrows = Rrows;
+        LAPACK_INT info = 0;
+        std::vector<LAPACK_REAL> tau(_N);
+        dgeqrf_wrapper(&_M, &_N, Qdata, &_M, tau.data(), &info);
+        for(LAPACK_INT i = 0; i < _Rrows; i++)
+        for(LAPACK_INT j = i; j < _N; j++) 
+            {
+            Rdata[i + j*_Rrows] = Qdata[i+j*_M];
+            }
+        LAPACK_INT min = _M < _N ? _M : _N;
+        dorgqr_wrapper(&_M, &_Rrows, &min, Qdata, &_M, tau.data(), &info);
+        return info;
+        }
+
+    int
+    QR(int M, int N, int Rrows, Cplx *Qdata, Cplx *Rdata)
+        {
+        LAPACK_INT _M = M, _N = N, _Rrows = Rrows;
+        LAPACK_INT info = 0;
+        std::vector<LAPACK_COMPLEX> tau(N);
+        zgeqrf_wrapper(&_M, &_N, Qdata, &_M, tau.data(), &info);
+        for(LAPACK_INT i = 0; i < _Rrows; i++)
+        for(LAPACK_INT j = i; j < _N; j++) 
+            {
+            Rdata[i + j*_Rrows] = Qdata[i+j*_M];
+            }
+        LAPACK_INT min = _M < _N ? _M : _N;
+        zungqr_wrapper(&_M, &_Rrows, &min, Qdata, &_M, tau.data(), &info);
+        return info;
+        }
+
+
+  int
+  SVD_gesdd(int M, int N, Cplx * Adata, Cplx * Udata, Real * Ddata, Cplx * Vdata)
+    {
+    LAPACK_INT _M = M, _N = N;
+    LAPACK_INT info = 0;
+    char S = 'S';
+    zgesdd_wrapper(&S, &_M, &_N, Adata, Ddata,  Udata, Vdata, &info);
+    return info;
+    }
+
+    int
+    SVD_gesdd(int M, int N, Real * Adata, Real * Udata, Real * Ddata, Real * Vdata)
+    {
+    LAPACK_INT _M = M, _N = N;
+    LAPACK_INT info = 0;
+    char S = 'S';
+    dgesdd_wrapper(&S, &_M, &_N, Adata, Ddata,  Udata, Vdata, &info);
+    return info;
+    }
+
+  
+    int
+    SVD_gesvd(int M, int N, Cplx * Adata, Cplx * Udata, Real * Ddata, Cplx * Vdata)
+        {
+        LAPACK_INT _M = M, _N = N;
+        LAPACK_INT info = 0;
+        char S = 'S';
+        zgesvd_wrapper(&S, &_M, &_N, Adata, Ddata,  Udata, Vdata, &info);
+        return info;
+        }
+
+    int
+    SVD_gesvd(int M, int N, Real * Adata, Real * Udata, Real * Ddata, Real * Vdata)
+        {
+        LAPACK_INT _M = M, _N = N;
+        LAPACK_INT info = 0;
+        char S = 'S';
+        dgesvd_wrapper(&S, &_M, &_N, Adata, Ddata,  Udata, Vdata, &info);
+        return info;
+        }
+
 } //namespace detail
 
 //void
@@ -421,35 +512,14 @@ SVDRefImpl(MatRefc<T> const& M,
            MatRef<T>  const& U, 
            VectorRef  const& D, 
            MatRef<T>  const& V,
-           Real thresh,
-           int depth = 0)
+           const Args & args)
     {
-    auto Mr = nrows(M), 
-         Mc = ncols(M);
+    auto Mr = nrows(M); 
 
-    if(Mr > Mc)
-        {
-        SVDRefImpl(transpose(M),V,D,U,thresh,depth);
-        conjugate(V);
-        conjugate(U);
-#ifdef CHKSVD
-        checksvd(M,U,D,V);
-#endif
-        return;
-        }
-
-#ifdef DEBUG
-    if(!(nrows(U)==Mr && ncols(U)==Mr)) 
-        throw std::runtime_error("SVD (ref version), wrong size of U");
-    if(!(nrows(V)==Mc && ncols(V)==Mr)) 
-        throw std::runtime_error("SVD (ref version), wrong size of V");
-    if(D.size()!=Mr)
-        throw std::runtime_error("SVD (ref version), wrong size of D");
-#endif
+    auto thresh = args.getReal("SVDThreshold",SVD_THRESH);
 
     //Form 'density matrix' rho
-    Mat<T> rho,
-           Mconj;
+    Mat<T> rho, Mconj, tempV, R;
     if(isCplx(M)) 
         {
         Mconj = conj(M);
@@ -463,49 +533,18 @@ SVDRefImpl(MatRefc<T> const& M,
     //Diagonalize rho: evals are squares of singular vals
     diagHermitian(rho,U,D);
 
-    for(auto& el : D)
+    //Put result of Mt*U==(V*D) in V storage
+    if(isCplx(M)) mult(transpose(Mconj),U,V);
+    else          mult(transpose(M),U,V);
+
+    QR(V, tempV, R, {"Complete=",false, "PositiveDiagonal=",true});
+    V &= std::move(tempV);
+    for(decltype(D.size()) i = 0; i < D.size(); ++i)
         {
-        if(el < 0) el = 0.;
-        else       el = std::sqrt(el);
+        D(i) = std::real(R(i,i));
         }
 
-
-    //Put result of Mt*U==(V*D) in V storage
-    if(isCplx(M))
-        mult(transpose(Mconj),U,V);
-    else
-        mult(transpose(M),U,V);
-
-    //size_t nlarge = 0;
-    //auto rthresh = D(0)*thresh;
-    //for(decltype(Mr) n = 0; n < Mr; ++n)
-    //    {
-    //    if(D(n) < rthresh)
-    //        {
-    //        nlarge = n;
-    //        break;
-    //        }
-    //    }
-    //for(decltype(nlarge) n = 0; n < nlarge; ++n)
-    //    {
-    //    column(V,n) /= D(n);
-    //    }
-    //if(nlarge < Mr)
-    //    {
-    //    //Much more accurate than dividing
-    //    //by smallest singular values
-    //    //TODO: buggy however, orthog may
-    //    //      not respect orthogonality
-    //    //      of "nlarge" columns relative
-    //    //      to rest of columns
-    //    orthog(columns(V,nlarge,Mr),2);
-    //    }
-
-    orthog(V,2);
-
-    bool done = false;
-    size_t start = 1;
-    tie(done,start) = checkSVDDone(D,thresh);
+    auto [done,start] = checkSVDDone(D,thresh);
 
     if(done) return;
 
@@ -515,30 +554,6 @@ SVDRefImpl(MatRefc<T> const& M,
     //
 
     auto n = Mr-start;
-
-     //   {
-     //   //println("Method 1");
-     //   //TEST VERSION - SLOW!
-     //   auto B = transpose(U)*M*V;
-     //   auto b = Matrix{subMatrix(B,start,Mr,start,Mr)};
-
-     //   auto d = subVector(D,start,Mr);
-     //   Matrix u(n,n),
-     //          v(n,n);
-     //   SVDRefImpl(b,u,d,v,thresh,1+depth);
-
-     //   auto ns = d.size();
-     //   auto dd = Matrix(ns,ns);
-     //   diagonal(dd) &= d;
-
-     //   auto nu = columns(U,start,Mr);
-     //   auto tmpu = nu * u;
-     //   nu &= tmpu;
-
-     //   auto nv = columns(V,start,Mr);
-     //   auto tmpv = nv * v;
-     //   nv &= tmpv;
-     //   }
 
     //reuse rho's storage to avoid allocation
     auto mv = move(rho);
@@ -557,7 +572,7 @@ SVDRefImpl(MatRefc<T> const& M,
     auto d = subVector(D,start,Mr);
     Mat<T> bu(n,n),
            bv(n,n);
-    SVDRef(makeRef(b),makeRef(bu),d,makeRef(bv),thresh);
+    SVDRefImpl(makeRef(b),makeRef(bu),d,makeRef(bv),args);
 
     //reuse mv's storage to avoid allocation
     auto W = move(mv);
@@ -566,12 +581,6 @@ SVDRefImpl(MatRefc<T> const& M,
 
     auto X = v*bv;
     v &= X;
-
-#ifdef CHKSVD
-	checksvd(M,U,D,V);
-#endif
-
-    return;
     }
 
 template<typename T>
@@ -580,12 +589,49 @@ SVDRef(MatRefc<T> const& M,
        MatRef<T>  const& U, 
        VectorRef  const& D, 
        MatRef<T>  const& V,
-       Real thresh)
+       const Args & args)
     {
-    SVDRefImpl(M,U,D,V,thresh);
+    auto Mr = nrows(M), Mc = ncols(M);
+  
+    if(Mr > Mc)
+        {
+        SVDRef(transpose(M),V,D,U,args);
+        conjugate(V);
+        conjugate(U);
+        }
+    else
+        {
+#ifdef DEBUG
+        if(!(nrows(U)==Mr && ncols(U)==Mr)) 
+            throw std::runtime_error("SVD (ref version), wrong size of U");
+        if(!(nrows(V)==Mc && ncols(V)==Mr)) 
+            throw std::runtime_error("SVD (ref version), wrong size of V");
+        if(D.size()!=Mr)
+            throw std::runtime_error("SVD (ref version), wrong size of D");
+#endif
+
+        auto svdMethod = args.getString("SVDMethod", "automatic");
+        if(svdMethod=="ITensor")
+            {
+            SVDRefImpl(M,U,D,V,args);
+            }
+        else if(svdMethod == "automatic" or svdMethod == "gesdd" or svdMethod == "gesvd")
+            {
+            SVDRefLAPACK(M,U,D,V,args);
+            }
+        else 
+            {
+            throw std::runtime_error("Unsupported SVD method: "+svdMethod);
+            }
+        }
+    
+#ifdef CHKSVD
+    checksvd(M,U,D,V);
+#endif
     }
-template void SVDRef(MatRefc<Real> const&,MatRef<Real> const&, VectorRef const&, MatRef<Real> const&,Real);
-template void SVDRef(MatRefc<Cplx> const&,MatRef<Cplx> const&, VectorRef const&, MatRef<Cplx> const&,Real);
+  
+template void SVDRef(MatRefc<Real> const&,MatRef<Real> const&, VectorRef const&, MatRef<Real> const&,const Args&);
+template void SVDRef(MatRefc<Cplx> const&,MatRef<Cplx> const&, VectorRef const&, MatRef<Cplx> const&, const Args&);
 
 
 
@@ -776,5 +822,236 @@ template void SVDRef(MatRefc<Cplx> const&,MatRef<Cplx> const&, VectorRef const&,
 //    SVDRef(Mre,Mim,Ure,Uim,D,Vre,Vim,thresh);
 //    }
 
+namespace exptH_detail {
+    int 
+    expPade(MatRef<Real> const& F, int N, int ideg)
+        {
+        LAPACK_INT info = 0;
+		
+        //
+        // Scaling: seek ns such that ||F/2^ns|| < 1/2
+        // and set scale = 1/2^ns
+        //
+        auto ns = dlange_wrapper('I',N,N,F.data());// infinite norm of the matrix to be exponentiated
+#ifdef DEBUG
+        if(ns == 0) throw std::runtime_error("padeExp: null input matrix");
+#endif
+        ns = std::max(0,(int)(std::log(ns)/log(2))+2);
+        Real scale = std::pow(2,-ns);
+        Real scale2 = scale*scale;
+
+        //
+        // Compute Pade coefficient
+        //
+        std::vector<Real> coef(ideg+1);
+        coef[0] = 1.0;
+        for(int k = 1; k <= ideg; ++k)
+            {
+            coef[k] = coef[k-1]*((double)(ideg+1-k)/(double)(k*(2*ideg+1-k)));
+            }	
+
+        //
+        // H^2 = scale2*F*F
+        //
+        auto F2 = Mat<Real>(N,N);
+        gemm(F,F,makeRef(F2),scale2,0);
+
+        //
+        // Initialize P and Q
+        //
+        auto P = Mat<Real>(N,N);
+        auto Q = Mat<Real>(N,N);
+        for(auto j : range(N))
+            {
+            Q(j,j) = coef[ideg];
+            P(j,j) = coef[ideg-1];
+            }
+
+        //
+        // Horner evaluation of the irreducible fraction:
+        // Apply Horner rule
+        //
+        bool odd = true;
+        for(int k = ideg-1; k > 0; --k)
+            {
+            if(odd)
+                {
+                Q = Q*F2;
+                for(auto j : range(N))
+                    {
+                    Q(j,j) += coef[k-1];
+                    }
+                }
+            else
+                {
+                P = P*F2;
+                for(auto j : range(N))
+                    {
+                    P(j,j) += coef[k-1];
+                    }
+                }
+            odd = !odd;
+        }
+
+        //
+        // Horner evaluation of the irreducible fraction:
+        // Obtain (+/-)(I+2*(P\Q))
+        //
+        if(odd)
+            {
+            Q = scale*Q*F;
+            }
+        else
+            {
+            P = scale*P*F;
+            }
+        Q -= P;
+        info = dgesv_wrapper(N,N,Q.data(),P.data());
+        if(info != 0) return info;
+        P *= 2.0;
+        for(auto j : range(N))
+            {
+            P(j,j) += 1.0;
+            }
+        if(ns == 0 && odd) 
+            {
+            P *= -1.0;
+            }
+
+        //
+        // Squaring: exp(F) = (exp(F))^(2^ns)
+        //
+        for(int k = 1; k <= ns; ++k)
+            {
+            P = P*P;
+            }
+		
+        //auto pend = P.data()+P.size();
+        //auto f = Fdata;
+        //for(auto p = P.data(); p != pend; ++p,++f)
+        //	{
+        //	*f = *p;
+        //	}
+        F &= P;//deep copy
+
+        return info;
+        }
+
+    int
+    expPade(MatRef<Cplx> const& F, int N, int ideg)
+        {
+        LAPACK_INT info = 0;
+
+        //
+        // Scaling: seek ns such that ||F/2^ns|| < 1/2
+        // and set scale = 1/2^ns
+        //
+        auto ns = zlange_wrapper('I',N,N,F.data());
+#ifdef DEBUG
+        if(ns == 0) throw std::runtime_error("padeExp: null input matrix");
+#endif
+        ns = std::max(0,(int)(std::log(ns)/log(2))+2);
+        Real scale = std::pow(2,-ns);
+        Real scale2 = scale*scale;
+
+        //
+        // Compute Pade coefficient
+        //
+        std::vector<Real> coef(ideg+1);
+        coef[0] = 1.0;
+        for(int k = 1; k <= ideg; ++k)
+            {
+            coef[k] = coef[k-1]*((double)(ideg+1-k)/(double)(k*(2*ideg+1-k)));
+            }	
+
+        //
+        // H^2 = scale2*F*F
+        //
+        auto F2 = Mat<Cplx>(N,N);
+        gemm(F,F,makeRef(F2),scale2,0);
+
+        //
+        // Initialize P and Q
+        //
+        auto P = Mat<Cplx>(N,N);
+        auto Q = Mat<Cplx>(N,N);
+        for(auto j : range(N))
+            {
+            Q(j,j) = coef[ideg];
+            P(j,j) = coef[ideg-1];
+            }
+
+        //
+        // Horner evaluation of the irreducible fraction:
+        // Apply Horner rule
+        //
+        bool odd = true;
+        for(int k = ideg-1; k > 0; --k)
+            {
+            if(odd)
+                {
+                Q = Q*F2;
+                for(auto j : range(N))
+                    {
+                    Q(j,j) += coef[k-1];
+                    }
+                }
+            else
+                {
+                P = P*F2;
+                for(auto j : range(N))
+                    {
+                    P(j,j) += coef[k-1];
+                    }
+                }
+            odd = !odd;
+            }
+
+        //
+        // Horner evaluation of the irreducible fraction:
+        // Obtain (+/-)(I+2*(P\Q))
+        //
+        if(odd)
+            {
+            Q = scale*Q*F;
+            }
+        else
+            {
+            P = scale*P*F;
+            }
+		
+        Q -= P;
+        info = zgesv_wrapper(N,N,Q.data(),P.data());
+        if(info != 0) return info;
+        P *= 2.0;
+        for(auto j : range(N))
+            {
+            P(j,j) += 1.0;
+            }
+        if(ns == 0 && odd) 
+            {
+            P *= -1.0;
+            }
+
+        //
+        // Squaring: exp(F) = (exp(F))^(2^ns)
+        //
+        for(int k = 1; k <= ns; ++k)
+            {
+            P = P*P;
+            }
+		
+        //auto pend = P.data()+P.size();
+        //auto f = Fdata;
+        //for(auto p = P.data(); p != pend; ++p,++f)
+        //	{
+        //	*f = *p;
+        //	}
+        F &= P;//deep copy;
+
+        return info;
+        }
+
+    } //namespace exptH_detail
 
 } //namespace itensor

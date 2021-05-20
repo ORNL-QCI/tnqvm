@@ -1,6 +1,17 @@
 //
-// Distributed under the ITensor Library License, Version 1.2
-//    (See accompanying LICENSE file.)
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 #ifndef __ITENSOR_AUTOMPO_H
 #define __ITENSOR_AUTOMPO_H
@@ -15,17 +26,16 @@ class AutoMPO;
 
 //
 // Given an AutoMPO representing a Hamiltonian H,
-// returns an exact IQMPO form of H.
+// returns an exact MPO form of H.
 //
-template <typename Tensor>
-MPOt<Tensor>
+MPO
 toMPO(AutoMPO const& a,
       Args const& args = Args::global());
 
 
 //
 // Given an AutoMPO representing a Hamiltonian H,
-// returns an IQMPO which approximates exp(-tau*H)
+// returns an MPO which approximates exp(-tau*H)
 //
 // Although the tau argument is of Complex type, passing a Real
 // tau (Real is auto convertible to Complex) will 
@@ -35,20 +45,11 @@ toMPO(AutoMPO const& a,
 // o "Approx":
 //   - (Default) "ZW1" - Zaletel et al. "W1" approximation
 //
-template <typename Tensor>
-MPOt<Tensor>
+MPO
 toExpH(AutoMPO const& a,
        Cplx tau,
        Args const& args = Args::global());
 
-
-
-//Instantiations of templates to allow us to define them
-//later in autompo.cc
-template<> MPO toMPO<ITensor>(AutoMPO const& a, Args const& args);
-template<> IQMPO toMPO<IQTensor>(AutoMPO const& a, Args const& args);
-template<> MPO toExpH<ITensor>(AutoMPO const& a, Cplx tau, Args const& args);
-template<> IQMPO toExpH<IQTensor>(AutoMPO const& a, Cplx tau, Args const& args);
 
 
 struct SiteTerm
@@ -190,6 +191,8 @@ class AutoMPO
 
     public:
 
+    AutoMPO() { }
+
     AutoMPO(SiteSet const& sites) 
       : sites_(sites)
         { }
@@ -200,9 +203,8 @@ class AutoMPO
     storage const&
     terms() const { return terms_; }
 
-    operator MPO() const { return toMPO<ITensor>(*this); }
-
-    operator IQMPO() const { return toMPO<IQTensor>(*this); }
+    int
+    size() const { return terms_.size(); }
 
     template <typename T>
     Accumulator
@@ -213,6 +215,15 @@ class AutoMPO
 
     void
     reset() { terms_.clear(); }
+
+    //Type conversion AutoMPO -> MPO
+    //This is deprecated in favor of toMPO(AutoMPO)
+    operator MPO() const 
+        { 
+        Global::warnDeprecated("MPO(AutoMPO) is deprecated in favor of toMPO(AutoMPO)"); 
+        return toMPO(*this); 
+        }
+
     };
 
 std::ostream& 

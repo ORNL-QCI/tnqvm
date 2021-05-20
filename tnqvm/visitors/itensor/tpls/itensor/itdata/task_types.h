@@ -1,6 +1,17 @@
 //
-// Distributed under the ITensor Library License, Version 1.2
-//    (See accompanying LICENSE file.)
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 #ifndef __ITENSOR_TASK_TYPES_H_
 #define __ITENSOR_TASK_TYPES_H_
@@ -27,53 +38,57 @@ template<typename T>
 const char*
 typeNameOf(Mult<T> const&) { return "Mult"; }
 
-template<typename IndexT>
+
+struct MakeCplx { };
+
+inline const char*
+typeNameOf(MakeCplx const&) { return "MakeCplx"; }
+
+
 struct GetElt
     {
-    IndexSetT<IndexT> const& is;
+    IndexSet const& is;
     IntArray const& inds;
 
-    GetElt(IndexSetT<IndexT> const& is_,
+    GetElt(IndexSet const& is_,
            IntArray const& inds_);
     };
 
-template<typename I>
-const char*
-typeNameOf(GetElt<I> const&) { return "GetElt"; }
+inline const char*
+typeNameOf(GetElt const&) { return "GetElt"; }
 
-template<typename T, typename IndexT>
+template<typename T>
 struct SetElt
     {
     T elt;
-    IndexSetT<IndexT> const& is;
+    IndexSet const& is;
     IntArray const& inds;
 
     SetElt(T elt_,
-           IndexSetT<IndexT> const& is_,
+           IndexSet const& is_,
            IntArray const& inds_);
     };
 
-template<typename T, typename I>
+template<typename T>
 const char*
-typeNameOf(SetElt<T,I> const&) { return "SetElt"; }
+typeNameOf(SetElt<T> const&) { return "SetElt"; }
 
 struct NormNoScale { };
 
 inline const char*
 typeNameOf(NormNoScale const&) { return "NormNoScale"; }
 
-template<typename IndexT>
 struct PrintIT
     {
     std::ostream& s;
     LogNum const& x;
-    IndexSetT<IndexT> const& is;
-    Real scalefac;
+    IndexSet const& is;
+    Real scalefac = 1.;
     bool print_data;
 
     PrintIT(std::ostream& s_,
             LogNum const& x_,
-            IndexSetT<IndexT> const& is_,
+            IndexSet const& is_,
             bool print_data_)
         : s(s_), x(x_), is(is_), scalefac(1.), print_data(print_data_)
         { 
@@ -86,6 +101,9 @@ struct PrintIT
               std::string type_name,
               Real nrm_no_scale = -1)
         {
+#ifndef USESCALE
+        s << format("{norm=%.2f (%s)}\n",std::fabs(scalefac)*nrm_no_scale,type_name);
+#else
         s << "{log(scale)=" << format("%.2f",x.logNum());
         if(nrm_no_scale > 0)
             {
@@ -94,12 +112,12 @@ struct PrintIT
             s << format("%.2f",std::fabs(scalefac)*nrm_no_scale);
             }
         s << " (" << type_name << ")}\n";
+#endif
         }
     };
 
-template<typename I>
-const char*
-typeNameOf(PrintIT<I> const&) { return "PrintIT"; }
+inline const char*
+typeNameOf(PrintIT const&) { return "PrintIT"; }
 
 struct Conj { };
 
@@ -111,16 +129,14 @@ struct CheckComplex { };
 inline const char*
 typeNameOf(CheckComplex const&) { return "CheckComplex"; }
 
-template<typename IndexT>
 struct SumEls
     {
-    const IndexSetT<IndexT>& is;
-    SumEls(IndexSetT<IndexT> const& is_) : is(is_) { }
+    IndexSet const& is;
+    SumEls(IndexSet const& is_) : is(is_) { }
     };
 
-template<typename I>
-const char*
-typeNameOf(SumEls<I> const&) { return "SumEls"; }
+inline const char*
+typeNameOf(SumEls const&) { return "SumEls"; }
 
 
 template<typename F>
@@ -238,8 +254,8 @@ template <typename F>
 struct VisitIT
     {
     F& f;
-    Real scale_fac;
-    VisitIT(F&& f_, const LogNum& scale)
+    Real scale_fac = 1.;
+    VisitIT(F&& f_, LogNum const& scale)
         : f(f_), scale_fac(scale.real0())
         { }
     };
@@ -247,6 +263,15 @@ struct VisitIT
 template<typename F>
 const char*
 typeNameOf(VisitIT<F> const&) { return "VisitIT"; }
+
+struct NNZBlocks { };
+
+struct NNZ { };
+
+struct IsDense { };
+
+inline const char*
+typeNameOf(NNZBlocks) { return "NNZBlocks"; }
 
 template<typename T>
 struct Fill
@@ -261,55 +286,82 @@ typeNameOf(Fill<T> const&) { return "Fill"; }
 
 struct TakeReal { };
 struct TakeImag { };
-struct MakeCplx { };
 
 inline const char*
 typeNameOf(TakeReal const&) { return "TakeReal"; }
 inline const char*
 typeNameOf(TakeImag const&) { return "TakeImag"; }
 
-template<typename IndexT>
 struct PlusEQ
     {
     using permutation = Permutation;
-    using index_type = IndexT;
-    using iset_type = IndexSetT<index_type>;
     private:
     const Permutation *perm_ = nullptr;
-    const iset_type *is1_ = nullptr,
-                    *is2_ = nullptr;
-    Real fac_ = NAN;
+    const IndexSet *is1_ = nullptr,
+                   *is2_ = nullptr;
+    Real alpha_ = NAN;
     public:
 
 
     PlusEQ(Permutation const& P,
-           iset_type const& is1,
-           iset_type const& is2,
-           Real fac) :
+           IndexSet const& is1,
+           IndexSet const& is2,
+           Real alpha) :
         perm_(&P),
         is1_(&is1),
         is2_(&is2),
-        fac_(fac)
+        alpha_(alpha)
         { }
 
     Real
-    fac() const { return fac_; }
+    alpha() const { return alpha_; }
 
     Permutation const&
     perm() const { return *perm_; }
 
-    iset_type const&
+    IndexSet const&
     is1() const { return *is1_; }
 
-    iset_type const&
+    IndexSet const&
     is2() const { return *is2_; }
     };
 
-template<typename I>
-const char*
-typeNameOf(PlusEQ<I> const&) { return "PlusEQ"; }
+inline const char*
+typeNameOf(PlusEQ const&) { return "PlusEQ"; }
+
+class Order
+    {
+    using permutation = Permutation;
+    private:
+    const Permutation *perm_ = nullptr;
+    const IndexSet *is1_ = nullptr,
+                   *is2_ = nullptr;
+    public:
 
 
+    Order(Permutation const& P,
+          IndexSet const& is1,
+          IndexSet const& is2) :
+        perm_(&P),
+        is1_(&is1),
+        is2_(&is2)
+        { }
+
+    Permutation const&
+    perm() const { return *perm_; }
+
+    IndexSet const&
+    is1() const { return *is1_; }
+
+    IndexSet const&
+    is2() const { return *is2_; }
+
+    };
+
+inline const char*
+typeNameOf(Order const&) { return "Order"; }
+
+#ifdef USESCALE
 //
 // Helper for Contract and NCProd
 //
@@ -331,28 +383,25 @@ computeScalefac(Storage & dat)
     doTask(Mult<Real>{1./scalefac},dat);
     return scalefac;
     }
+#endif
 
-template<typename IndexT>
 struct Contract
     {
-    using index_type = IndexT;
-    using iset_type = IndexSetT<IndexT>;
-
-    iset_type const& Lis;
-    iset_type const& Ris;
-    iset_type Nis; //new IndexSet
+    IndexSet const& Lis;
+    IndexSet const& Ris;
+    IndexSet Nis; //new IndexSet
     Real scalefac = NAN;
     bool needresult = false;
 
-    Contract(const iset_type& Lis_,
-             const iset_type& Ris_)
+    Contract(const IndexSet& Lis_,
+             const IndexSet& Ris_)
       : Lis(Lis_),
         Ris(Ris_)
         { }
 
-    Contract(const iset_type& Lis_,
-             const iset_type& Ris_,
-             const iset_type& Nis_,
+    Contract(const IndexSet& Lis_,
+             const IndexSet& Ris_,
+             const IndexSet& Nis_,
              bool needresult_ = false)
       : Lis(Lis_),
         Ris(Ris_),
@@ -372,24 +421,19 @@ struct Contract
 
     };
 
-template<typename I>
-const char*
-typeNameOf(Contract<I> const&) { return "Contract"; }
+inline const char*
+typeNameOf(Contract const&) { return "Contract"; }
 
 //Non-contracting product
-template<typename IndexT>
 struct NCProd
     {
-    using index_type = IndexT;
-    using iset_type = IndexSetT<IndexT>;
-
-    iset_type const& Lis;
-    iset_type const& Ris;
-    iset_type Nis; //new IndexSet
+    IndexSet const& Lis;
+    IndexSet const& Ris;
+    IndexSet Nis; //new IndexSet
     Real scalefac = NAN;
 
-    NCProd(iset_type const& Lis_,
-           iset_type const& Ris_)
+    NCProd(IndexSet const& Lis_,
+           IndexSet const& Ris_)
       : Lis(Lis_),
         Ris(Ris_)
         { }
@@ -404,9 +448,8 @@ struct NCProd
         { }
     };
 
-template<typename I>
-const char*
-typeNameOf(NCProd<I> const&) { return "NCProd"; }
+inline const char*
+typeNameOf(NCProd const&) { return "NCProd"; }
 
 struct StorageType
     {
@@ -445,9 +488,8 @@ typeNameOf(StorageType const&) { return "StorageType"; }
 
 namespace detail {
 
-template<typename I>
-void
-checkEltInd(IndexSetT<I> const& is,
+void inline
+checkEltInd(IndexSet const& is,
             IntArray const& inds)
     {
     for(auto k : range(inds))
@@ -458,23 +500,22 @@ checkEltInd(IndexSetT<I> const& is,
             print("inds = ");
             for(auto j : inds) print(1+j," ");
             println();
-            Error("Out of range: IndexVals/IQIndexVals are 1-indexed for getting tensor elements");
+            Error("Out of range: IndexVals are 1-indexed for getting tensor elements");
             }
-        if(i >= is[k].m())
+        if(i >= dim(is[k]))
             {
             print("inds = ");
             for(auto j : inds) print(1+j," ");
             println();
-            Error(format("Out of range: IndexVal/IQIndexVal at position %d has val %d > %s",1+k,1+i,Index(is[k])));
+            Error(format("Out of range: IndexVal at position %d has val %d > %s",1+k,1+i,Index(is[k])));
             }
         }
     }
 
 } //namespace detail
 
-template<typename IndexT>
-GetElt<IndexT>::
-GetElt(IndexSetT<IndexT> const& is_,
+inline GetElt::
+GetElt(IndexSet const& is_,
        IntArray const& inds_)
   : is(is_),
     inds(inds_)
@@ -484,10 +525,10 @@ GetElt(IndexSetT<IndexT> const& is_,
 #endif
     }
 
-template<typename T, typename IndexT>
-SetElt<T,IndexT>::
+template<typename T>
+SetElt<T>::
 SetElt(T elt_,
-       IndexSetT<IndexT> const& is_,
+       IndexSet const& is_,
        IntArray const& inds_)
     : elt(elt_), is(is_), inds(inds_)
     { 
@@ -498,27 +539,48 @@ SetElt(T elt_,
 
 struct CalcDiv 
     { 
-    IQIndexSet const& is;
-    CalcDiv(IQIndexSet const& is_) : is(is_) { }
+    IndexSet const& is;
+    CalcDiv(IndexSet const& is_) : is(is_) { }
     };
 
 inline const char*
 typeNameOf(CalcDiv const&) { return "CalcDiv"; }
 
-struct ToITensor
-    {
-    IQIndexSet const& is;
-    LogNum const& scale;
+struct IsEmpty { };
+inline const char*
+typeNameOf(IsEmpty const&) { return "IsEmpty"; }
 
-    ToITensor(IQIndexSet const& is_,
-              LogNum const& scale_)
-      : is(is_),
-        scale(scale_)
-        { }
+template<typename V>
+struct GetBlock
+    {
+    IndexSet const& is;
+    Block const& block_ind;
+    GetBlock(IndexSet const& is_,
+             Block const& bi)
+        : is(is_), block_ind(bi) { }
+    };
+inline const char*
+typeNameOf(GetBlock<Real>) { return "GetBlock<Real>";}
+inline const char*
+typeNameOf(GetBlock<Cplx>) { return "GetBlock<Cplx>";}
+
+struct RemoveQNs 
+    {
+    IndexSet const& is;
+    RemoveQNs(IndexSet const& is_) : is(is_) {}
     };
 
 inline const char*
-typeNameOf(ToITensor const&) { return "ToITensor"; }
+typeNameOf(RemoveQNs) { return "RemoveQNs";}
+
+struct ToDense
+    {
+    IndexSet const& is;
+    ToDense(IndexSet const& is_) : is(is_) {}
+    };
+
+inline const char*
+typeNameOf(ToDense) { return "ToDense";}
 
 } //namespace itensor 
 

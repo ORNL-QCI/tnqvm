@@ -1,7 +1,7 @@
 #include "itensor/itdata/diag.h"
 #include "itensor/tensor/lapack_wrap.h"
 #include "itensor/tensor/contract.h"
-#include "itensor/util/range.h"
+#include "itensor/util/iterate.h"
 
 using std::vector;
 
@@ -14,7 +14,7 @@ typeNameOf(DiagCplx const& d) { return "DiagCplx"; }
 
 template <typename T>
 Cplx
-doTask(GetElt<Index> const& g, Diag<T> const& d)
+doTask(GetElt const& g, Diag<T> const& d)
     {
     auto first_i = (g.inds.empty() ? 0 : g.inds.front());
     //Check if inds_ reference an
@@ -24,8 +24,8 @@ doTask(GetElt<Index> const& g, Diag<T> const& d)
     if(d.allSame()) return d.val;
     return d.store.at(first_i);
     }
-template Cplx doTask(GetElt<Index> const&, DiagReal const&);
-template Cplx doTask(GetElt<Index> const&, DiagCplx const&);
+template Cplx doTask(GetElt const&, DiagReal const&);
+template Cplx doTask(GetElt const&, DiagCplx const&);
 
 template<typename T>
 class UnifVecWrapper
@@ -67,7 +67,7 @@ contractDiagDense(Diag<T1>  const& d,
 
     if(t_has_uncontracted)
         {
-        auto nd = m.makeNewData<Dense<T3>>(area(Nis),0.);
+        auto nd = m.makeNewData<Dense<T3>>(dim(Nis),0.);
         auto Nref = makeTenRef(nd->data(),nd->size(),&Nis);
         if(d.allSame())
             {
@@ -111,7 +111,7 @@ contractDiagDense(Diag<T1>  const& d,
                              Tref,tind,
                              Nref,Nind);
             }
-        if(rank(Nis)==1)
+        if(order(Nis)==1)
             {
             m.makeNewData<Dense<T3>>(std::move(nstore));
             }
@@ -125,45 +125,86 @@ contractDiagDense(Diag<T1>  const& d,
         }
     }
 
+template<typename T>
+bool
+isReplaceDelta(Diag<T> const& d, IndexSet const& dis, Labels const& l)
+    {
+    if( (order(dis) == 2) && d.allSame() 
+         && (d.val == 1.) && (dim(dis[0]) == dim(dis[1])) )
+        {
+        bool i1_is_contracted = (l[0] < 0);
+        bool i2_is_contracted = (l[1] < 0);
+        return (i1_is_contracted != i2_is_contracted);
+        }
+    return false;
+    }
+
 template<typename T1, typename T2>
 void
-doTask(Contract<Index> & C,
+doTask(Contract & C,
        Dense<T1>  const& t,
        Diag<T2>   const& d,
        ManageStore     & m)
     { 
     Labels Lind,
-          Rind,
-          Nind;
-    computeLabels(C.Lis,C.Lis.r(),C.Ris,C.Ris.r(),Lind,Rind);
-    bool sortIndices = false;
-    contractIS(C.Lis,Lind,C.Ris,Rind,C.Nis,Nind,sortIndices);
-    contractDiagDense(d,C.Ris,Rind,t,C.Lis,Lind,Nind,C.Nis,m);
+           Rind,
+           Nind;
+    computeLabels(C.Lis,C.Lis.order(),C.Ris,C.Ris.order(),Lind,Rind);
+    //TODO: add a case where there is a scaled delta function,
+    //so the data also gets scaled
+    if( isReplaceDelta(d,C.Ris,Rind) )
+        {
+        //println("doTask(Contract,Dense,Diag): isReplaceDelta = true");
+        // We are contracting with a delta function that is replacing
+        // a single index
+        contractISReplaceIndex(C.Lis,Lind,C.Ris,Rind,C.Nis);
+        }
+    else
+        {
+        bool sortIndices = false;
+        contractIS(C.Lis,Lind,C.Ris,Rind,C.Nis,Nind,sortIndices);
+        contractDiagDense(d,C.Ris,Rind,t,C.Lis,Lind,Nind,C.Nis,m);
+        }
     }
-template void doTask(Contract<Index>&, Dense<Real> const&, Diag<Real> const&, ManageStore&);
-template void doTask(Contract<Index>&, Dense<Real> const&, Diag<Cplx> const&, ManageStore&);
-template void doTask(Contract<Index>&, Dense<Cplx> const&, Diag<Real> const&, ManageStore&);
-template void doTask(Contract<Index>&, Dense<Cplx> const&, Diag<Cplx> const&, ManageStore&);
+template void doTask(Contract&, Dense<Real> const&, Diag<Real> const&, ManageStore&);
+template void doTask(Contract&, Dense<Real> const&, Diag<Cplx> const&, ManageStore&);
+template void doTask(Contract&, Dense<Cplx> const&, Diag<Real> const&, ManageStore&);
+template void doTask(Contract&, Dense<Cplx> const&, Diag<Cplx> const&, ManageStore&);
 
 template<typename T1, typename T2>
 void
-doTask(Contract<Index> & C,
+doTask(Contract & C,
        Diag<T1>   const& d,
        Dense<T2>  const& t,
        ManageStore     & m)
     {
     Labels Lind,
-          Rind,
-          Nind;
-    computeLabels(C.Lis,C.Lis.r(),C.Ris,C.Ris.r(),Lind,Rind);
-    bool sortIndices = false;
-    contractIS(C.Lis,Lind,C.Ris,Rind,C.Nis,Nind,sortIndices);
-    contractDiagDense(d,C.Lis,Lind,t,C.Ris,Rind,Nind,C.Nis,m);
+           Rind,
+           Nind;
+    computeLabels(C.Lis,C.Lis.order(),C.Ris,C.Ris.order(),Lind,Rind);
+    //TODO: add a case where there is a scaled delta function,
+    //so the data also gets scaled
+    if( isReplaceDelta(d,C.Lis,Lind) )
+        {
+        //println("doTask(Contract,Diag,Dense): isReplaceDelta = true");
+        // We are contracting with a delta function that is replacing
+        // a single index
+        contractISReplaceIndex(C.Ris,Rind,C.Lis,Lind,C.Nis);
+
+        // Output data is the dense storage
+        m.makeNewData<Dense<T2>>(t.begin(),t.end());
+        }
+    else
+        {
+        bool sortIndices = false;
+        contractIS(C.Lis,Lind,C.Ris,Rind,C.Nis,Nind,sortIndices);
+        contractDiagDense(d,C.Lis,Lind,t,C.Ris,Rind,Nind,C.Nis,m);
+        }
     }
-template void doTask(Contract<Index>&, Diag<Real> const&, Dense<Real> const&, ManageStore&);
-template void doTask(Contract<Index>&, Diag<Real> const&, Dense<Cplx> const&, ManageStore&);
-template void doTask(Contract<Index>&, Diag<Cplx> const&, Dense<Real> const&, ManageStore&);
-template void doTask(Contract<Index>&, Diag<Cplx> const&, Dense<Cplx> const&, ManageStore&);
+template void doTask(Contract&, Diag<Real> const&, Dense<Real> const&, ManageStore&);
+template void doTask(Contract&, Diag<Real> const&, Dense<Cplx> const&, ManageStore&);
+template void doTask(Contract&, Diag<Cplx> const&, Dense<Real> const&, ManageStore&);
+template void doTask(Contract&, Diag<Cplx> const&, Dense<Cplx> const&, ManageStore&);
 
 struct Adder
     {
@@ -176,7 +217,7 @@ struct Adder
 
 template<typename T1, typename T2>
 void
-add(PlusEQ<Index> const& P,
+add(PlusEQ const& P,
     Diag<T1>          & D1,
     Diag<T2>     const& D2)
     {
@@ -189,19 +230,19 @@ add(PlusEQ<Index> const& P,
         {
         auto d1 = realData(D1);
         auto d2 = realData(D2);
-        daxpy_wrapper(d1.size(),P.fac(),d2.data(),1,d1.data(),1);
+        daxpy_wrapper(d1.size(),P.alpha(),d2.data(),1,d1.data(),1);
         }
     else
         {
         auto ref1 = makeVecRef(D1.data(),D1.size());
         auto ref2 = makeVecRef(D2.data(),D2.size());
-        transform(ref2,ref1,Adder{P.fac()});
+        transform(ref2,ref1,Adder{P.alpha()});
         }
     }
 
 template<typename T1, typename T2>
 void
-doTask(PlusEQ<Index> const& P,
+doTask(PlusEQ const& P,
        Diag<T1> const& D1,
        Diag<T2> const& D2,
        ManageStore & m)
@@ -217,10 +258,10 @@ doTask(PlusEQ<Index> const& P,
         add(P,*ncD1,D2);
         }
     }
-template void doTask(PlusEQ<Index> const&,Diag<Real> const&,Diag<Real> const&,ManageStore &);
-template void doTask(PlusEQ<Index> const&,Diag<Real> const&,Diag<Cplx> const&,ManageStore &);
-template void doTask(PlusEQ<Index> const&,Diag<Cplx> const&,Diag<Real> const&,ManageStore &);
-template void doTask(PlusEQ<Index> const&,Diag<Cplx> const&,Diag<Cplx> const&,ManageStore &);
+template void doTask(PlusEQ const&,Diag<Real> const&,Diag<Real> const&,ManageStore &);
+template void doTask(PlusEQ const&,Diag<Real> const&,Diag<Cplx> const&,ManageStore &);
+template void doTask(PlusEQ const&,Diag<Cplx> const&,Diag<Real> const&,ManageStore &);
+template void doTask(PlusEQ const&,Diag<Cplx> const&,Diag<Cplx> const&,ManageStore &);
 
 template<typename N, typename T>
 void
@@ -329,13 +370,13 @@ doTask(TakeImag, DiagCplx const& D, ManageStore& m)
 
 template<typename T>
 void
-doTask(PrintIT<Index>& P, Diag<T> const& d)
+doTask(PrintIT& P, Diag<T> const& d)
     {
     auto type = std::is_same<T,Real>::value ? "Real" : "Cplx";
     P.printInfo(d,format("Diag %s%s",type,d.allSame()?", all same":""),
               doTask(NormNoScale{},d));
 
-    auto r = P.is.r();
+    auto r = P.is.order();
 
     if(r == 0) 
         {
@@ -361,20 +402,45 @@ doTask(PrintIT<Index>& P, Diag<T> const& d)
             }
         }
     }
-template void doTask(PrintIT<Index>& P, DiagReal const& d);
-template void doTask(PrintIT<Index>& P, DiagCplx const& d);
+template void doTask(PrintIT& P, DiagReal const& d);
+template void doTask(PrintIT& P, DiagCplx const& d);
 
 template <class T>
 Cplx
-doTask(SumEls<Index> S, Diag<T> const& d) 
+doTask(SumEls S, Diag<T> const& d) 
     { 
-    if(d.allSame()) return Real(minM(S.is))*d.val;
+    if(d.allSame()) return Real(minDim(S.is))*d.val;
     T sum = 0;
     for(const auto& elt : d.store)
         sum += elt;
     return sum;
     }
-template Cplx doTask(SumEls<Index> S, DiagReal const& d);
-template Cplx doTask(SumEls<Index> S, DiagCplx const& d);
+template Cplx doTask(SumEls S, DiagReal const& d);
+template Cplx doTask(SumEls S, DiagCplx const& d);
+
+template<typename V>
+void
+doTask(ToDense & R,
+       Diag<V> const& d,
+       ManageStore & m)
+    {
+    auto nd = m.makeNewData<Dense<V>>(dim(R.is),0.);
+    auto Nref = makeTenRef(nd->data(),nd->size(),&R.is);
+    long tot_stride = 0; //total strides
+    for(auto i : range(length(R.is)))
+      tot_stride += R.is.stride(i);
+    if(d.allSame())
+      {
+      for(auto i : range(d.length))
+        Nref[i*tot_stride] = d.val;
+      }
+    else
+      {
+      for(auto i : range(d.length))
+        Nref[i*tot_stride] = d.store[i];
+      }
+    }
+template void doTask(ToDense &, Diag<Real> const&, ManageStore &);
+template void doTask(ToDense &, Diag<Cplx> const&, ManageStore &);
 
 } //namespace itensor

@@ -1,6 +1,17 @@
 //
-// Distributed under the ITensor Library License, Version 1.2.
-//    (See accompanying LICENSE file.)
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 #ifndef __ITENSOR_MAT__H_
 #define __ITENSOR_MAT__H_
@@ -61,6 +72,9 @@ void
 operator*=(CMatrixRef const& M, Real fac);
 
 void
+operator*=(CMatrixRef const& M, Cplx fac);
+
+void
 operator/=(MatrixRef const& M, Real fac);
 void
 operator/=(CMatrixRef const& M, Real fac);
@@ -86,6 +100,9 @@ operator-=(CMatrixRef const& A, CMatrix && B);
 //Copy data referenced by B to memory referenced by A
 void
 operator&=(MatrixRef const& A, MatrixRefc const& B);
+
+void
+operator&=(CMatrixRef const& A, MatrixRefc const& B);
 
 //Copy data of B to memory referenced by A
 void inline
@@ -195,16 +212,32 @@ Mat<V>
 operator*(MatRefc<V> const& A, Real fac);
 
 template<typename V>
+Mat<V>
+operator*(MatRefc<V> const& A, Cplx fac);
+
+template<typename V>
 Mat<V> 
 operator*(Real fac, MatRefc<V> const& A);
+
+template<typename V>
+Mat<V>
+operator*(Cplx fac, MatRefc<V> const& A);
 
 template<typename V>
 Mat<V> 
 operator*(Mat<V> && A, Real fac);
 
 template<typename V>
+Mat<V>
+operator*(Mat<V> && A, Cplx fac);
+
+template<typename V>
 Mat<V> 
 operator*(Real fac, Mat<V> && A);
+
+template<typename V>
+Mat<V>
+operator*(Cplx fac, Mat<V> && A);
 
 template<typename V>
 Mat<V> 
@@ -268,6 +301,20 @@ randomMat(CtrArgs&&... args);
 template<typename... CtrArgs>
 CMatrix
 randomMatC(CtrArgs&&... args);
+
+
+//
+// Generate a random matrix
+// with normally distributed
+// elements: M(i,j) ~ N(0,1)
+// 
+template<typename... CtrArgs>
+Matrix
+randn(CtrArgs&&... args);
+
+template<typename... CtrArgs>
+CMatrix
+randnC(CtrArgs&&... args);
 
 template<>
 std::ostream&
@@ -356,6 +403,6 @@ makeMatRefc(DataRange<T> const& D,
 
 } //namespace itensor
 
-#include "mat.ih"
+#include "mat_impl.h"
 
 #endif

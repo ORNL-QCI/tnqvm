@@ -1,6 +1,17 @@
 //
-// Distributed under the ITensor Library License, Version 1.2.
-//    (See accompanying LICENSE file.)
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 #ifndef __ITENSOR_MATRIX_MATRANGE_H_
 #define __ITENSOR_MATRIX_MATRANGE_H_
@@ -61,7 +72,11 @@ struct MatRangeT : public MatRangeType
         }
 
     size_type
-    r() const { return 2; }
+    order() const { return 2; }
+
+    // Deprecated
+    size_type
+    r() const { return this->order(); }
 
     iterator
     begin() const;
@@ -75,11 +90,27 @@ struct MatRangeT : public MatRangeType
         rn = 0; rs = 0; cn = 0; cs = 0;
         }
 
+    void
+    write(std::ostream& s) const
+        {
+        itensor::write(s,rn);
+        itensor::write(s,rs);
+        itensor::write(s,cn);
+        itensor::write(s,cs);
+        }
+    void
+    read(std::istream& s)
+        {
+        itensor::read(s,rn);
+        itensor::read(s,rs);
+        itensor::read(s,cn);
+        itensor::read(s,cs);
+        }
     };
 
 template<size_t S>
 size_t
-rank(MatRangeT<S> const& R) { return 2ul; }
+order(MatRangeT<S> const& R) { return 2ul; }
 
 //make MatRange with same extents 
 //but usual strides
@@ -118,7 +149,7 @@ transpose(MatRangeT<S> const& mr)
 
 template<size_t S>
 auto
-area(MatRangeT<S> const& mr)
+dim(MatRangeT<S> const& mr)
     -> typename MatRangeT<S>::size_type
     {
     return mr.rn * mr.cn;

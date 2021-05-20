@@ -1,6 +1,17 @@
 //
-// Distributed under the ITensor Library License, Version 1.2
-//    (See accompanying LICENSE file.)
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 #ifndef __ITENSOR_STDX
 #define __ITENSOR_STDX
@@ -292,6 +303,30 @@ max_element(Container && C)
     std::max_element(std::begin(C),std::end(C));
     }
 
+// Adapted from:
+// https://stackoverflow.com/questions/18017543/c11-variable-number-of-arguments-same-specific-type
+template<typename...>
+  struct and_;
+
+template<>
+struct and_<>
+  : public std::true_type
+    { };
+
+template<typename B1>
+  struct and_<B1>
+    : public B1
+      { };
+
+template<typename B1, typename B2>
+  struct and_<B1, B2>
+    : public std::conditional<B1::value, B2, B1>::type
+      { };
+
+template<typename B1, typename B2, typename B3, typename... Bn>
+  struct and_<B1, B2, B3, Bn...>
+    : public std::conditional<B1::value, and_<B2, B3, Bn...>, B1>::type
+      { };
 
 } //namespace stdx
 
