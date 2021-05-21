@@ -109,7 +109,7 @@ void TNQVM::execute(std::shared_ptr<xacc::AcceleratorBuffer> buffer,
   // *nearest* neighbor only (distance = 1 for two-qubit gates).
   if (visitor->name() == "itensor-mps" || visitor->name() == "exatn-mps" ||
       visitor->name() == "exatn-pmps") {
-    auto opt = xacc::getService<xacc::IRTransformation>("lnn-transform");
+    auto opt = xacc::getService<xacc::IRTransformation>("nnizer");
     opt->apply(kernel, nullptr, {std::make_pair("max-distance", 1)});
     // std::cout << "After LNN transform: \n" << kernel->toString() << "\n";
   }
