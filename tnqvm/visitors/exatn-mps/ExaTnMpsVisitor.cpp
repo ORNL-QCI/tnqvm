@@ -649,7 +649,7 @@ void ExatnMpsVisitor::finalize()
 
         // const auto stateVecNorm = computeStateVectorNorm(*m_tensorNetwork, exatn::getCurrentProcessGroup());
         // Small-circuit case: just reconstruct the full wavefunction
-        if (m_buffer->size() < MAX_NUMBER_QUBITS_FOR_STATE_VEC) 
+        if (m_buffer->size() < MAX_NUMBER_QUBITS_FOR_STATE_VEC && !options.keyExists<std::vector<int>>("bitstring")) 
         {
             // DEBUG:
             // printStateVec();
