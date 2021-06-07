@@ -519,6 +519,37 @@ TEST(ITensorMPSVisitorTester, testDeuteronVqeH3) {
   EXPECT_NEAR((*buffer)["opt-val"].as<double>(), -2.04482, 1e-4);
 }
 
+TEST(ITensorMPSVisitorTester, testAmplitudeCalcByConjCircuit) {
+  auto gateRegistry = xacc::getIRProvider("quantum");
+  auto xasmCompiler = xacc::getCompiler("xasm");
+
+  auto conj_circ = gateRegistry->createComposite("temp_circuit");
+  conj_circ->addInstruction(gateRegistry->createInstruction("X", {0}));
+  conj_circ->addInstruction(gateRegistry->createInstruction("X", {1}));
+  conj_circ->addInstruction(gateRegistry->createInstruction("X", {2}));
+
+  auto accelerator = xacc::getAccelerator(
+      "tnqvm", {{"conjugate-circuit-inner-product", conj_circ}});
+
+  auto program = xasmCompiler
+                     ->compile(R"(__qpu__ void ghz(qbit q, double t) {
+      H(q[0]);
+      Z(q[0]);
+      CX(q[0], q[1]);
+      CX(q[1], q[2]);
+  })",
+                               accelerator)
+                     ->getComposites()[0];
+
+  auto buffer = xacc::qalloc(3);
+  accelerator->execute(buffer, program);
+  buffer->print();
+  const double realAmpl = (*buffer)["amplitude-real"].as<double>();
+  const double imagAmpl = (*buffer)["amplitude-imag"].as<double>();
+  EXPECT_NEAR(realAmpl, -1.0/std::sqrt(2.0), 1e-6);
+  EXPECT_NEAR(imagAmpl, 0.0, 1e-6);
+}
+
 int main(int argc, char **argv) {
   xacc::Initialize(argc, argv);
   ::testing::InitGoogleTest(&argc, argv);

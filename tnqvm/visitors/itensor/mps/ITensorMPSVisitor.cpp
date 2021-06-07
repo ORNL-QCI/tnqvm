@@ -140,6 +140,15 @@ void ITensorMPSVisitor::initialize(
   }
   // Debug
   // itensor::PrintData(m_mps);
+  // Option to provide a circuit to construct the conjugate state for inner
+  // product calculation.
+  m_conjCircuit.reset();
+  if (options.pointerLikeExists<xacc::CompositeInstruction>(
+          "conjugate-circuit-inner-product")) {
+    m_conjCircuit =
+        xacc::as_shared_ptr(options.getPointerLike<xacc::CompositeInstruction>(
+            "conjugate-circuit-inner-product"));
+  }
 }
 
 itensor::Index ITensorMPSVisitor::getSiteIndex(size_t site_id) {
@@ -193,6 +202,35 @@ double ITensorMPSVisitor::compute_expectation_z(
 }
 
 void ITensorMPSVisitor::finalize() {
+  if (m_conjCircuit) {
+    itensor::SpinHalf sites(m_buffer->size(), {"ConserveQNs=", false});
+    // Set all spins to be Up
+    itensor::InitState state(sites, "Up");
+    auto bra_mps = itensor::MPS(state);
+    // Cache the ket MPS
+    auto ket_mps = m_mps;
+
+    // Set the running MPS to bra and visit the conj. circuit:
+    m_mps = bra_mps;
+    InstructionIterator it(m_conjCircuit);
+    while (it.hasNext()) {
+      auto nextInst = it.next();
+      if (nextInst->isEnabled() && !nextInst->isComposite()) {
+        if (nextInst->name() != "Measure") {
+          nextInst->accept(this);
+        } else {
+          xacc::error("Illegal Measure instructions in conjugate circuit.");
+        }
+      }
+    }
+
+    const std::complex<double> inner_product = itensor::innerC(ket_mps, m_mps);
+    // std::cout << "Inner product = " << inner_product << "\n";
+    m_buffer->addExtraInfo("amplitude-real", inner_product.real());
+    m_buffer->addExtraInfo("amplitude-imag", inner_product.imag());
+    return;
+  }
+
   // Assign the exp-val-z (single Composite mode)
   m_buffer->addExtraInfo("exp-val-z", compute_expectation_z(m_measureBits));
 }

@@ -112,6 +112,7 @@ private:
   // SVD options
   double m_svdCutoff;
   int m_maxDim;
+  std::shared_ptr<CompositeInstruction> m_conjCircuit;
 };
 
 } // namespace tnqvm
