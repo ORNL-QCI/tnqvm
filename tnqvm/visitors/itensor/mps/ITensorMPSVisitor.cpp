@@ -176,28 +176,71 @@ double ITensorMPSVisitor::compute_expectation_z(
     auto Z_op = singleQubitTensor(getSiteIndex(site_idx), Z(in_measureBits[0]));
     return itensor::eltC(bra * Z_op * ket).real();
   } else {
-    auto hamOp = xacc::container::contains(in_measureBits, 0)
-                     ? singleQubitTensor(getSiteIndex(1), Z(0))
-                     : singleQubitTensor(getSiteIndex(1), Identity(0));
+    // Follow the recipe here:
+    // https://www.itensor.org/docs.cgi?vers=cppv3&page=tutorials/correlations
+    //'gauge' the MPS to site i
+    // any 'position' between i and j, inclusive, would work here
+    auto sortedMeasureBits = in_measureBits;
+    std::sort(sortedMeasureBits.begin(), sortedMeasureBits.end());
+    const auto site_idx = sortedMeasureBits[0] + 1;
+    m_mps.position(site_idx);
 
-    for (size_t i = 2; i <= m_buffer->size(); ++i) {
-      if (xacc::container::contains(in_measureBits, i - 1)) {
-        Z obsGate(i - 1);
-        auto Op = singleQubitTensor(getSiteIndex(i), obsGate);
-        hamOp *= Op;
+    auto &psi = m_mps;
+    // Create the bra/dual version of the MPS psi
+    auto psidag = itensor::dag(m_mps);
+
+    // Prime the link indices to make them distinct from
+    // the original ket links
+    psidag.prime("Link");
+    auto i = site_idx;
+    // Handle first qubit: either has measure or not
+    auto C = [&]() {
+      Z obsGate(site_idx - 1);
+      auto op_i = singleQubitTensor(getSiteIndex(site_idx), obsGate);
+      if (site_idx != 1) {
+        // No measure at q[0]: need to get left link:
+        auto li_1 = itensor::leftLinkIndex(psi, site_idx);
+        auto Cval = itensor::prime(psi(i), li_1) * op_i;
+        Cval *= itensor::prime(psidag(i), "Site");
+        return Cval;
       } else {
-        Identity obsGate(i - 1);
-        auto Op = singleQubitTensor(getSiteIndex(i), obsGate);
-        hamOp *= Op;
+        auto Cval = psi(i) * op_i;
+        Cval *= itensor::prime(psidag(i), "Site");
+        return Cval;
       }
+    }();
+    for (int obs_id = 1; obs_id < sortedMeasureBits.size() - 1; ++obs_id) {
+      auto j = sortedMeasureBits[obs_id] + 1;
+      for (int k = i + 1; k < j; ++k) {
+        C *= psi(k);
+        C *= psidag(k);
+      }
+      Z obsGateJ(sortedMeasureBits[obs_id]);
+      auto op_j = singleQubitTensor(getSiteIndex(j), obsGateJ);
+      C *= psi(j) * op_j;
+      C *= prime(psidag(j), "Site");
+      i = j;
     }
-
-    auto bond_ket = m_mps(1);
-    for (size_t i = 2; i <= m_buffer->size(); ++i) {
-      bond_ket *= m_mps(i);
+    // Last measure bit:
+    i = sortedMeasureBits[sortedMeasureBits.size() - 2] + 1;
+    auto j = sortedMeasureBits[sortedMeasureBits.size() - 1] + 1;
+    for (int k = i + 1; k < j; ++k) {
+      C *= psi(k);
+      C *= psidag(k);
     }
-    auto bond_bra = itensor::dag(itensor::prime(bond_ket, "Site"));
-    return itensor::eltC(bond_bra * hamOp * bond_ket).real();
+    Z obsGateJ(j - 1);
+    auto op_j = singleQubitTensor(getSiteIndex(j), obsGateJ);
+    if (j < m_buffer->size()) {
+      auto lj = itensor::rightLinkIndex(psi, j);
+      C *= prime(psi(j), lj) * op_j;
+      C *= prime(psidag(j), "Site");
+    } else {
+      C *= psi(j) * op_j;
+      C *= prime(psidag(j), "Site");
+    }
+    const auto result = itensor::eltC(C);
+    // std::cout << "Result = " << result << "\n";
+    return result.real();
   }
 }
 
@@ -232,7 +275,9 @@ void ITensorMPSVisitor::finalize() {
   }
 
   // Assign the exp-val-z (single Composite mode)
-  m_buffer->addExtraInfo("exp-val-z", compute_expectation_z(m_measureBits));
+  if (!m_measureBits.empty()) {
+    m_buffer->addExtraInfo("exp-val-z", compute_expectation_z(m_measureBits));
+  }
 }
 
 void ITensorMPSVisitor::applySingleQubitGate(xacc::Instruction &in_gate) {
