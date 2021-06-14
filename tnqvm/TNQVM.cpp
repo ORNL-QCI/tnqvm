@@ -56,6 +56,13 @@ void TNQVM::execute(
     options.insert("vqe-execution-context", kernelDecomposed);
     visitor->setOptions(options);
 
+    // Nearest neighbor transform:
+    if (visitor->name() == "itensor-mps" || visitor->name() == "exatn-mps" ||
+        visitor->name() == "exatn-pmps") {
+      auto opt = xacc::getService<xacc::IRTransformation>("nnizer");
+      opt->apply(kernelDecomposed.getBase(), nullptr,
+                 {std::make_pair("max-distance", 1)});
+    }
     // Initialize the visitor
     visitor->initialize(buffer, getShotCountOption(options));
     visitor->setKernelName(kernelDecomposed.getBase()->name());
