@@ -113,6 +113,7 @@ private:
   double m_svdCutoff;
   int m_maxDim;
   std::shared_ptr<CompositeInstruction> m_conjCircuit;
+  bool m_logSvd = false;
 };
 
 } // namespace tnqvm

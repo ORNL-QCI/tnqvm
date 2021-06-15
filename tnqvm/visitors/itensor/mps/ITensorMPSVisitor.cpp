@@ -149,6 +149,11 @@ void ITensorMPSVisitor::initialize(
         xacc::as_shared_ptr(options.getPointerLike<xacc::CompositeInstruction>(
             "conjugate-circuit-inner-product"));
   }
+
+  m_logSvd = false;
+  if (options.keyExists<bool>("log-svd")) {
+    m_logSvd = options.get<bool>("log-svd");
+  }
 }
 
 itensor::Index ITensorMPSVisitor::getSiteIndex(size_t site_id) {
@@ -316,8 +321,11 @@ void ITensorMPSVisitor::applyTwoQubitGate(itensor::ITensor &in_gateTensor,
   // itensor::PrintData(wf);
   auto [U, S, V] = itensor::svd(wf, itensor::inds(m_mps(in_siteId1)),
                                 {"Cutoff=", m_svdCutoff, "MaxDim=", m_maxDim});
-  // std::cout << "Singular values:\n";
-  // itensor::PrintData(S);
+  if (m_logSvd) {
+    std::cout << "Singular values ";
+    itensor::PrintData(S);
+  }
+
   m_mps.set(in_siteId1, U);
   m_mps.set(in_siteId2, S * V);
 }
@@ -362,6 +370,9 @@ void ITensorMPSVisitor::visit(CNOT &gate) {
   Op.set(Up1, Dn2, UpP1, DnP2, 1.0);
   Op.set(Dn1, Up2, DnP1, DnP2, 1.0);
   Op.set(Dn1, Dn2, DnP1, UpP2, 1.0);
+  if (m_logSvd) {
+    std::cout << "Gate: " << gate.toString() << "\n";
+  }
   applyTwoQubitGate(Op, bit_loc1, bit_loc2);
 }
 
@@ -378,6 +389,9 @@ void ITensorMPSVisitor::visit(Swap &gate) {
   // Swap: up-down => down-up and vice-versa
   Op.set(Up1, Dn2, DnP1, UpP2, 1.0);
   Op.set(Dn1, Up2, UpP1, DnP2, 1.0);
+  if (m_logSvd) {
+    std::cout << "Gate: " << gate.toString() << "\n";
+  }
   applyTwoQubitGate(Op, bit_loc1, bit_loc2);
 }
 
@@ -393,7 +407,9 @@ void ITensorMPSVisitor::visit(CZ &gate) {
   Op.set(Dn1, Up2, DnP1, UpP2, 1.0);
   // -1 the last one
   Op.set(Dn1, Dn2, DnP1, DnP2, -1.0);
-
+  if (m_logSvd) {
+    std::cout << "Gate: " << gate.toString() << "\n";
+  }
   applyTwoQubitGate(Op, bit_loc1, bit_loc2);
 }
 
@@ -410,7 +426,9 @@ void ITensorMPSVisitor::visit(CPhase &cp) {
   Op.set(Dn1, Up2, DnP1, UpP2, 1.0);
   // exp(itheta) the last one
   Op.set(Dn1, Dn2, DnP1, DnP2, std::exp(std::complex<double>(0.0, theta)));
-
+  if (m_logSvd) {
+    std::cout << "Gate: " << cp.toString() << "\n";
+  }
   applyTwoQubitGate(Op, bit_loc1, bit_loc2);
 }
 
