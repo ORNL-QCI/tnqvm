@@ -164,6 +164,16 @@ std::vector<std::complex<double>> getGateMatrix(const xacc::Instruction& in_gate
             case CommonGates::Tdg:
               return GetGateMatrix<CommonGates::Tdg>();
             case CommonGates::CNOT: return GetGateMatrix<CommonGates::CNOT>();
+            case CommonGates::CY:
+              return GetGateMatrix<CommonGates::CY>();
+            case CommonGates::CZ:
+              return GetGateMatrix<CommonGates::CZ>();
+            case CommonGates::CH:
+              return GetGateMatrix<CommonGates::CH>();
+            case CommonGates::CRZ:
+              return GetGateMatrix<CommonGates::CRZ>(in_gate.getParameter(0).as<double>());
+            case CommonGates::CPhase:
+              return GetGateMatrix<CommonGates::CPhase>(in_gate.getParameter(0).as<double>());
             case CommonGates::Swap: return GetGateMatrix<CommonGates::Swap>();
             case CommonGates::iSwap: return GetGateMatrix<CommonGates::iSwap>();
             case CommonGates::fSim: return GetGateMatrix<CommonGates::fSim>(in_gate.getParameter(0).as<double>(), in_gate.getParameter(1).as<double>());
