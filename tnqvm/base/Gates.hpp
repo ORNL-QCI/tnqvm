@@ -246,6 +246,61 @@ namespace tnqvm {
     }
 
     template <> 
+    std::vector<std::vector<std::complex<double>>> GetGateMatrix<CommonGates::CZ>() {
+        return 
+        {
+            { 1.0, 0.0, 0.0 , 0.0 },
+            { 0.0, 1.0, 0.0 , 0.0 },
+            { 0.0, 0.0, 1.0 , 0.0 },
+            { 0.0, 0.0, 0.0 , -1.0 }
+        };    
+    }
+    
+    template <> 
+    std::vector<std::vector<std::complex<double>>> GetGateMatrix<CommonGates::CY>() {
+        return 
+        {
+            { 1.0, 0.0, 0.0 , 0.0 },
+            { 0.0, 1.0, 0.0 , 0.0 },
+            { 0.0, 0.0, 0.0, std::complex<double>(0, -1) },
+            { 0.0, 0.0, std::complex<double>(0, 1), 0.0 }
+        };    
+    }
+
+    template <> 
+    std::vector<std::vector<std::complex<double>>> GetGateMatrix<CommonGates::CH>() {
+        return 
+        {
+            { 1.0, 0.0, 0.0 , 0.0 },
+            { 0.0, 1.0, 0.0 , 0.0 },
+            { 0.0, 0.0, M_SQRT1_2, M_SQRT1_2 },
+            { 0.0, 0.0, M_SQRT1_2, -M_SQRT1_2 }
+        };    
+    }
+
+    template <> 
+    std::vector<std::vector<std::complex<double>>> GetGateMatrix<CommonGates::CRZ>(double in_theta) {
+        return 
+        {
+            { 1.0, 0.0, 0.0 , 0.0 },
+            { 0.0, 1.0, 0.0 , 0.0 },
+            { 0.0, 0.0, std::exp(std::complex<double>(0, -0.5 * in_theta)) , 0.0 },
+            { 0.0, 0.0, 0.0 , std::exp(std::complex<double>(0, 0.5 * in_theta)) }
+        };    
+    }
+
+    template <> 
+    std::vector<std::vector<std::complex<double>>> GetGateMatrix<CommonGates::CPhase>(double in_theta) {
+        return 
+        {
+            { 1.0, 0.0, 0.0 , 0.0 },
+            { 0.0, 1.0, 0.0 , 0.0 },
+            { 0.0, 0.0, 1.0 , 0.0 },
+            { 0.0, 0.0, 0.0 , std::exp(std::complex<double>(0, in_theta)) }
+        };    
+    }
+
+    template <> 
     std::vector<std::vector<std::complex<double>>> GetGateMatrix<CommonGates::Swap>() {
         return 
         {
