@@ -920,7 +920,7 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::visit(Tdg &in_TdgGate) {
 template<typename TNQVM_COMPLEX_TYPE>
 void ExatnVisitor<TNQVM_COMPLEX_TYPE>::visit(CPhase &in_CPhaseGate) {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
-  appendGateTensor<CommonGates::CPhase>(in_CPhaseGate);
+  appendGateTensor<CommonGates::CPhase>(in_CPhaseGate, in_CPhaseGate.getParameter(0).as<double>());
 }
 
 template<typename TNQVM_COMPLEX_TYPE>

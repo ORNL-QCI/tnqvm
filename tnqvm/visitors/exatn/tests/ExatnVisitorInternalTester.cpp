@@ -269,6 +269,22 @@ TEST(ExatnVisitorInternalTester, testSequentialCollapse)
   EXPECT_TRUE(areAllBitsEqual);
 }
 
+TEST(ExatnVisitorInternalTester, testMissingGates) {
+  auto xasmCompiler = xacc::getCompiler("xasm");
+  // TNQVM assert if gate matrix not found.
+  auto ir = xasmCompiler->compile(R"(__qpu__ void test3(qbit q) {
+    CNOT(q[0], q[1]);
+    CY(q[0], q[2]);
+    CZ(q[0], q[3]);
+    CPhase(q[0], q[4], 1.234);
+  })");
+  auto program = ir->getComposite("test3");
+  std::cout << "HOWDY: \n" << program->toString() << "\n";
+  auto buffer = xacc::qalloc(5);
+  auto qpu = xacc::getAccelerator("tnqvm:exatn");
+  qpu->execute(buffer, program);
+}
+
 int main(int argc, char **argv)
 {
   ::testing::InitGoogleTest(&argc, argv);
