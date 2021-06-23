@@ -10,7 +10,7 @@ TEST(NoiseModelTester, checkReadout)
     inFile.open(BACKEND_JSON_FILE);
     std::stringstream strStream;
     strStream << inFile.rdbuf();
-    const std::string json = strStream.str();  
+    const std::string json = strStream.str();
     auto xasmCompiler = xacc::getCompiler("xasm");
     auto ir = xasmCompiler->compile(R"(__qpu__ void testPrep0(qbit q) {
         Measure(q[0]);
@@ -23,7 +23,7 @@ TEST(NoiseModelTester, checkReadout)
     qreg->print();
     // Expected error: prob_meas1_prep0 = 0.01539999999999997
     EXPECT_NEAR(qreg->computeMeasurementProbability("1"), 0.01539999999999997, 0.01);
-} 
+}
 
 TEST(NoiseModelTester, checkGateTime)
 {
@@ -32,7 +32,7 @@ TEST(NoiseModelTester, checkGateTime)
     inFile.open(BACKEND_JSON_FILE);
     std::stringstream strStream;
     strStream << inFile.rdbuf();
-    const std::string json = strStream.str();  
+    const std::string json = strStream.str();
     auto xasmCompiler = xacc::getCompiler("xasm");
     auto program1 = xasmCompiler->compile(R"(__qpu__ void testXGate(qbit q) {
         X(q[0]);
@@ -41,8 +41,8 @@ TEST(NoiseModelTester, checkGateTime)
 
     // H-Z-H is equivalent to X:
     // Note: H gate is a *half-length* gate (u2); Z gate is always *noiseless*.
-    // Hence, although there are 3 gates in this circuit, the result is equivalent to 
-    // that of a single X gate. 
+    // Hence, although there are 3 gates in this circuit, the result is equivalent to
+    // that of a single X gate.
     auto program2 = xasmCompiler->compile(R"(__qpu__ void testXGateTransform(qbit q) {
         H(q[0]);
         Z(q[0]);
@@ -59,7 +59,7 @@ TEST(NoiseModelTester, checkGateTime)
     accelerator->execute(qreg2, program2);
     qreg2->print();
     EXPECT_NEAR(qreg1->computeMeasurementProbability("1"), qreg2->computeMeasurementProbability("1"), 0.01);
-} 
+}
 
 TEST(NoiseModelTester, checkGateError)
 {
@@ -68,7 +68,7 @@ TEST(NoiseModelTester, checkGateError)
     inFile.open(BACKEND_JSON_FILE);
     std::stringstream strStream;
     strStream << inFile.rdbuf();
-    const std::string json = strStream.str();  
+    const std::string json = strStream.str();
     // we can compute the number of gates that results in a completely mixed state.
     auto xasmCompiler = xacc::getCompiler("xasm");
     auto program1 = xasmCompiler->compile(R"(__qpu__ void testRb(qbit q) {
@@ -85,13 +85,13 @@ TEST(NoiseModelTester, checkGateError)
     // The error should be very high at this point.
     // Note: due to relaxation, we won't be able to get a perfect 50-50 completely mixed state.
     EXPECT_GT(qreg1->computeMeasurementProbability("1"), 0.1);
-} 
+}
 
-int main(int argc, char **argv) 
+int main(int argc, char **argv)
 {
     xacc::Initialize();
     ::testing::InitGoogleTest(&argc, argv);
     auto ret = RUN_ALL_TESTS();
     xacc::Finalize();
     return ret;
-} 
+}

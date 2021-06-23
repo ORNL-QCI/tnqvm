@@ -14,8 +14,8 @@
  *     derived from this software without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- *AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- *IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
  * DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
  * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
@@ -26,7 +26,7 @@
  *
  * Contributors:
  *   Initial sketch - Mengsu Chen 2017/07/17;
- *   Implementation - Dmitry Lyakh 2017/10/05 - active;
+ *   Implementation - Thien Nguyen 2019 - active;
  *
  **********************************************************************************/
 #ifdef TNQVM_HAS_EXATN
@@ -729,7 +729,7 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
       return;
     }
 
-    std::vector<TNQVM_COMPLEX_TYPE> waveFuncSlice = computeWaveFuncSlice(m_tensorNetwork, bitString, exatn::getDefaultProcessGroup()); 
+    std::vector<TNQVM_COMPLEX_TYPE> waveFuncSlice = computeWaveFuncSlice(m_tensorNetwork, bitString, exatn::getDefaultProcessGroup());
     assert(!waveFuncSlice.empty());
     if (waveFuncSlice.size() == 1)
     {
@@ -741,7 +741,7 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
       const auto normalizeWaveFnSlice = [](std::vector<TNQVM_COMPLEX_TYPE>& io_waveFn){
         const double normVal = std::accumulate(io_waveFn.begin(), io_waveFn.end(), 0.0, [](double sumVal, const TNQVM_COMPLEX_TYPE& val){
           return sumVal + std::norm(val);
-        }); 
+        });
         // The slice may have zero norm:
         if (normVal > 1e-12) {
           const TNQVM_COMPLEX_TYPE sqrtNorm = sqrt(normVal);
@@ -763,7 +763,7 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
         amplImag.emplace_back(val.imag());
       }
       m_buffer->addExtraInfo("amplitude-real-vec", amplReal);
-      m_buffer->addExtraInfo("amplitude-imag-vec", amplImag);  
+      m_buffer->addExtraInfo("amplitude-imag-vec", amplImag);
     }
 
     m_buffer.reset();
@@ -1806,7 +1806,7 @@ ExatnVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZByAppendingConjugate() {
   }
 
   const auto result = evaluateTerm(measureOps);
-  
+
   return static_cast<double>(result.real());
 }
 

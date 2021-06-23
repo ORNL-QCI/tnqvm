@@ -14,8 +14,8 @@
  *     derived from this software without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- *AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- *IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
  * DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
  * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
@@ -26,18 +26,19 @@
  *
  * Contributors:
  *   Implementation - Thien Nguyen
+ *   Implementation - Dmitry Lyakh
  *
  **********************************************************************************/
 // +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
 // |  Initialization Parameter   |                  Parameter Description                                 |    type     |         default          |
 // +=============================+========================================================================+=============+==========================+
-// | reconstruct-layers          | Perform reconstruction after this number of 2-q gates                  |    int      | -1 (no reconstruct)      |
+// | reconstruct-layers          | Perform reconstruction after this number of consecutive 2-q gates      |    int      | -1 (no reconstruct)      |
 // +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
 // | reconstruct-tolerance       | Reconstruction convergence tolerance                                   |    double   | 1e-4                     |
 // +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
-// | max-bond-dim                | Reconstruction max bond dimension                                      |    int      | 512                      |
+// | max-bond-dim                | Reconstruction max bond dimension (inside approximating tensor network)|    int      | 512                      |
 // +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
-// | reconstruct-builder         | Reconstruction network builder (tensor network ansatz)                 |    string   | "MPS"                    |
+// | reconstruct-builder         | Reconstruction network builder (builds the tensor network ansatz)      |    string   | "MPS"                    |
 // +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
 #pragma once
 
@@ -124,6 +125,7 @@ public:
   virtual bool supportVqeMode() const override { return true; }
   virtual const double getExpectationValueZ(
       std::shared_ptr<CompositeInstruction> in_function) override;
+
 private:
   template <tnqvm::CommonGates GateType, typename... GateParams>
   void appendGateTensor(const xacc::Instruction &in_gateInstruction,
@@ -133,6 +135,7 @@ private:
   exatn::TensorOperator
   constructObsTensorOperator(const std::vector<ObsOpType> &in_obsOps) const;
   void reconstructCircuitTensor();
+
 private:
   std::shared_ptr<exatn::TensorNetwork> m_qubitNetwork;
   exatn::TensorExpansion m_tensorExpansion;
@@ -153,6 +156,7 @@ private:
 
 template class ExatnGenVisitor<std::complex<double>>;
 template class ExatnGenVisitor<std::complex<float>>;
+
 class DoublePrecisionExatnGenVisitor : public ExatnGenVisitor<std::complex<double>> {
   virtual const std::string name() const override { return "exatn-gen:double"; }
   virtual exatn::TensorElementType getExatnElementType() const override {

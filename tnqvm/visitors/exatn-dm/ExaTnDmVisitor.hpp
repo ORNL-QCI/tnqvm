@@ -1,20 +1,51 @@
+/***********************************************************************************
+ * Copyright (c) 2017, UT-Battelle
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *   * Redistributions of source code must retain the above copyright
+ *     notice, this list of conditions and the following disclaimer.
+ *   * Redistributions in binary form must reproduce the above copyright
+ *     notice, this list of conditions and the following disclaimer in the
+ *     documentation and/or other materials provided with the distribution.
+ *   * Neither the name of the xacc nor the
+ *     names of its contributors may be used to endorse or promote products
+ *     derived from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Contributors:
+ *   Implementation - Thien Nguyen
+ *   Implementation - Dmitry Lyakh
+ *
+ * Full density matrix noisy visitor:
+ * Name: "exatn-dm"
+ * Supported initialization keys:
+ * +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
+ * |  Initialization Parameter   |                  Parameter Description                                 |    type     |         default          |
+ * +=============================+========================================================================+=============+==========================+
+ * | backend-json                | Backend configuration JSON to estimate the noise model from.           |    string   | None                     |
+ * +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
+ * | backend                     | Name of the IBMQ backend to query the backend configuration.           |    string   | None                     |
+ * +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
+ * If either `backend-json` or `backend` is provided, the `exatn-dm` simulator will simulate the backend noise associated with each quantum gate.
+*/
+
 #pragma once
 
 #include "TNQVMVisitor.hpp"
 #include "tensor_network.hpp"
 #include "exatn.hpp"
-
-// Full density matrix noisy visitor:
-// Name: "exatn-dm"
-// Supported initialization keys:
-// +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
-// |  Initialization Parameter   |                  Parameter Description                                 |    type     |         default          |
-// +=============================+========================================================================+=============+==========================+
-// | backend-json                | Backend configuration JSON to estimate the noise model from.           |    string   | None                     |
-// +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
-// | backend                     | Name of the IBMQ backend to query the backend configuration.           |    string   | None                     |
-// +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
-// If either `backend-json` or `backend` is provided, the `exatn-dm` simulator will simulate the backend noise associated with each quantum gate.
 
 namespace xacc {
 // Forward declaration
@@ -35,7 +66,7 @@ public:
     // Constructor
     ExaTnDmVisitor();
 
-    // Virtual function impls:        
+    // Virtual function impls:
     virtual void initialize(std::shared_ptr<AcceleratorBuffer> buffer, int nbShots) override;
     virtual void finalize() override;
 
@@ -81,13 +112,13 @@ public:
         virtual int apply(talsh::Tensor& local_tensor) override { return m_func(local_tensor); }
     private:
         std::function<int(talsh::Tensor& in_tensor)> m_func;
-    }; 
+    };
 
     [[nodiscard]] exatn::TensorNetwork buildInitialNetwork(size_t in_nbQubits) const;
     void applySingleQubitGate(xacc::quantum::Gate& in_gateInstruction);
     void applyTwoQubitGate(xacc::quantum::Gate& in_gateInstruction);
     void applyNoise(xacc::quantum::Gate &in_gateInstruction);
-    
+
   private:
     exatn::TensorNetwork m_tensorNetwork;
     std::shared_ptr<AcceleratorBuffer> m_buffer;

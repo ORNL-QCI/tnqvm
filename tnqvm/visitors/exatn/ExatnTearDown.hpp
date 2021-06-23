@@ -1,7 +1,9 @@
 #pragma once
+
 #include "TearDown.hpp"
 #include "exatn.hpp"
 #include "xacc.hpp"
+
 // Impl xacc TearDown interface to finalize ExaTN when we are done (XACC::Finalize)
 namespace tnqvm {
 class ExatnTearDown : public xacc::TearDown

@@ -1,3 +1,33 @@
+/***********************************************************************************
+ * Copyright (c) 2017, UT-Battelle
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *   * Redistributions of source code must retain the above copyright
+ *     notice, this list of conditions and the following disclaimer.
+ *   * Redistributions in binary form must reproduce the above copyright
+ *     notice, this list of conditions and the following disclaimer in the
+ *     documentation and/or other materials provided with the distribution.
+ *   * Neither the name of the xacc nor the
+ *     names of its contributors may be used to endorse or promote products
+ *     derived from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Contributors:
+ *   Implementation - Thien Nguyen
+*/
+
 #include "ExaTnDmVisitor.hpp"
 #include "tensor_basic.hpp"
 #include "talshxx.hpp"
@@ -9,7 +39,7 @@
 #ifdef TNQVM_EXATN_USES_MKL_BLAS
 #include <dlfcn.h>
 #endif
-#include <bits/stdc++.h> 
+#include <bits/stdc++.h>
 
 #define QUBIT_DIM 2
 
@@ -187,7 +217,7 @@ getGateMatrix(const xacc::Instruction &in_gate, bool in_dagger = false) {
     default:
       return GetGateMatrix<CommonGates::I>();
     }
-  };  
+  };
 
   const auto gateMatrix = getMatrix();
   return in_dagger ? flattenGateMatrix(conjugateMatrix(gateMatrix))
@@ -384,8 +414,8 @@ void ExaTnDmVisitor::finalize() {
   executionInfo.clear();
   // Max number of qubits that we allow for a full density matrix retrieval.
   // For more qubits, only expectation contraction is supported.
-  constexpr size_t MAX_SIZE_TO_COLLAPSE_DM = 10; 
-  
+  constexpr size_t MAX_SIZE_TO_COLLAPSE_DM = 10;
+
   if (m_buffer->size() <= MAX_SIZE_TO_COLLAPSE_DM) {
     xacc::ExecutionInfo::DensityMatrixType densityMatrix;
     const auto nbRows = 1ULL << m_buffer->size();
@@ -422,7 +452,7 @@ void ExaTnDmVisitor::finalize() {
         assert(densityMatrix.size() == nbRows);
       }
     }
-    
+
     executionInfo.insert(ExecutionInfo::DmKey, std::make_shared<ExecutionInfo::DensityMatrixType>(std::move(densityMatrix)));
   }
 
@@ -803,15 +833,15 @@ void ExaTnDmVisitor::visit(Y &in_YGate) { applySingleQubitGate(in_YGate); }
 
 void ExaTnDmVisitor::visit(Z &in_ZGate) { applySingleQubitGate(in_ZGate); }
 
-void ExaTnDmVisitor::visit(Rx &in_RxGate) { 
-  applySingleQubitGate(in_RxGate); 
+void ExaTnDmVisitor::visit(Rx &in_RxGate) {
+  applySingleQubitGate(in_RxGate);
   // std::cout << "Apply: " << in_RxGate.toString() << "\n";
   // m_tensorNetwork.printIt();
   // printDensityMatrix(m_tensorNetwork, m_buffer->size());
 }
 
-void ExaTnDmVisitor::visit(Ry &in_RyGate) { 
-  applySingleQubitGate(in_RyGate); 
+void ExaTnDmVisitor::visit(Ry &in_RyGate) {
+  applySingleQubitGate(in_RyGate);
   // std::cout << "Apply: " << in_RyGate.toString() << "\n";
   // m_tensorNetwork.printIt();
   // printDensityMatrix(m_tensorNetwork, m_buffer->size());
@@ -819,8 +849,8 @@ void ExaTnDmVisitor::visit(Ry &in_RyGate) {
 
 void ExaTnDmVisitor::visit(Rz &in_RzGate) { applySingleQubitGate(in_RzGate); }
 
-void ExaTnDmVisitor::visit(T &in_TGate) { 
-  applySingleQubitGate(in_TGate); 
+void ExaTnDmVisitor::visit(T &in_TGate) {
+  applySingleQubitGate(in_TGate);
   // DEBUG:
   // std::cout << "Apply: " << in_TGate.toString() << "\n";
   // m_tensorNetwork.printIt();

@@ -11,7 +11,7 @@ TEST(VqeTester, checkSimple)
     inFile.open(BACKEND_JSON_FILE);
     std::stringstream strStream;
     strStream << inFile.rdbuf();
-    const std::string json = strStream.str();  
+    const std::string json = strStream.str();
     auto accelerator = xacc::getAccelerator("tnqvm", { { "tnqvm-visitor", "exatn-pmps" }, { "backend-json", json }, { "shots", 8192 } });
     auto xasmCompiler = xacc::getCompiler("xasm");
     auto ir = xasmCompiler->compile(R"(__qpu__ void ansatz(qbit q, double t) {
@@ -58,13 +58,13 @@ TEST(VqeTester, checkSimple)
         // Use a large tolerance due to noise
         EXPECT_NEAR(buffer->getExpectationValueZ(), expectedResults[i], 0.2);
     }
-} 
+}
 
-int main(int argc, char **argv) 
+int main(int argc, char **argv)
 {
     xacc::Initialize();
     ::testing::InitGoogleTest(&argc, argv);
     auto ret = RUN_ALL_TESTS();
     xacc::Finalize();
     return ret;
-} 
+}

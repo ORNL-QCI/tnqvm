@@ -11,7 +11,7 @@ class US_ABI_LOCAL ExatnMpsActivator : public BundleActivator {
 public:
   ExatnMpsActivator() {}
 
-  void Start(BundleContext context) 
+  void Start(BundleContext context)
   {
     context.RegisterService<tnqvm::TNQVMVisitor>(std::make_shared<tnqvm::ExatnMpsVisitor>());
     context.RegisterService<xacc::IRTransformation>(std::make_shared<xacc::quantum::NearestNeighborTransform>());
