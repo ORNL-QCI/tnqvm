@@ -1,5 +1,5 @@
-# This is a utility script which parses qflex input circuit 
-# into XASM kernel. 
+# This is a utility script which parses qflex input circuit
+# into XASM kernel.
 # Note: the qubit index mapping (lattice to linear) is
 # specific to the Sycamore device.
 import os, re
@@ -66,7 +66,7 @@ def parseLine(qflexLine, conjugate):
     xasmSrcLines = []
     line = qflexLine.replace('rz', 'Rz')
     line = line.replace(', ', ',')
-    components = re.split('\s+', line)      
+    components = re.split('\s+', line)
     if len(components) == 4:
         # 1-q gate
         gateName = components[1]
@@ -137,7 +137,7 @@ def parseFile(fileName, nbLayers, conjugateLastLayer):
                 if layerId in gatesPerlayers:
                     gatesPerlayers[layerId].append(line)
                 else:
-                    gatesPerlayers[layerId] = [line]       
+                    gatesPerlayers[layerId] = [line]
             if len(components) == 4:
                 # 1-q gate
                 gateName = components[1]
@@ -196,7 +196,7 @@ def parseFile(fileName, nbLayers, conjugateLastLayer):
 
 # Parse all qFlex files to XASM and save
 for filename in os.listdir('resources'):
-    if filename.endswith('.txt'): 
+    if filename.endswith('.txt'):
         nbLayers = int(re.search('sycamore_53_(.*)_0.txt', filename).group(1))
         xasmSrc = parseFile(filename, nbLayers, False)
         pre, ext = os.path.splitext(filename)
@@ -206,10 +206,10 @@ for filename in os.listdir('resources'):
 
 # Generate debug circuits with the last layer conjugated
 for filename in os.listdir('resources'):
-    if filename.endswith('.txt'): 
+    if filename.endswith('.txt'):
         nbLayers = int(re.search('sycamore_53_(.*)_0.txt', filename).group(1))
         xasmSrc = parseFile(filename, nbLayers, True)
         pre, ext = os.path.splitext(filename)
         xasmFilename = pre + '_Conjugate.xasm'
         with open('resources/' + xasmFilename, 'w') as xasmFile:
-            xasmFile.write(xasmSrc)        
+            xasmFile.write(xasmSrc)
