@@ -56,7 +56,7 @@ int benchmarkExaTnGen2()
 
  auto accelerator_exatn_exact = xacc::getAccelerator("tnqvm",
       {{"tnqvm-visitor", "exatn:double"}
-      ,{"bitstring", std::vector<int>(NB_QUBITS,-1)}
+    //,{"bitstring", std::vector<int>(NB_QUBITS,-1)}
       ,{"exatn-buffer-size-gb", 2}
     //,{"exatn-contract-seq-optimizer", "cotengra"}
       });
@@ -66,12 +66,14 @@ int benchmarkExaTnGen2()
 
  constexpr int NB_LAYERS = 5;
  constexpr double RECONSTRUCTION_TOL = 1e-4;
- constexpr int MAX_BOND_DIM = 64;
+ constexpr int MAX_BOND_DIM = 4;
  auto accelerator_exatn_approx = xacc::getAccelerator("tnqvm",
-      {{"tnqvm-visitor", "exatn-gen"},
-       {"reconstruct-layers", NB_LAYERS},
-       {"reconstruct-tolerance", RECONSTRUCTION_TOL},
-       {"max-bond-dim", MAX_BOND_DIM}});
+      {{"tnqvm-visitor", "exatn-gen"}
+      ,{"exatn-buffer-size-gb", 2}
+      ,{"reconstruct-layers", NB_LAYERS}
+      ,{"reconstruct-tolerance", RECONSTRUCTION_TOL}
+      ,{"max-bond-dim", MAX_BOND_DIM}
+      });
  auto buffer2 = xacc::qalloc(NB_QUBITS);
  accelerator_exatn_approx->execute(buffer2, evaled_uccsd);
  buffer2->print();
