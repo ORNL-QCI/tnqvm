@@ -1,4 +1,5 @@
 #include <memory>
+#include <fstream>
 #include <gtest/gtest.h>
 #include "xacc.hpp"
 #include "xacc_service.hpp"

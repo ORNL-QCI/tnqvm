@@ -644,6 +644,8 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::reconstructCircuitTensor() {
     auto approximant = std::make_shared<exatn::TensorExpansion>("Approx");
     approximant->appendComponent(approximantTensorNetwork, {1.0, 0.0});
     approximant->conjugate();
+    //bool success = exatn::balanceNormalizeNorm2Sync(*target,1.0,1.0,false); //debug
+    //success = exatn::balanceNormalizeNorm2Sync(*approximant,1.0,1.0,true); //debug
     exatn::TensorNetworkReconstructor reconstructor(target, approximant,
                                                     m_reconstructTol);
     // std::cout << "Target: \n";

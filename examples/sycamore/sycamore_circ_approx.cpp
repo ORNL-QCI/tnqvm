@@ -45,12 +45,12 @@ int main(int argc, char **argv)
  // Note:
  // (1) "exatn" == "exatn:double" uses double (64-bit) type;
  // (1) "exatn:float" uses float (32-bit) type;
- constexpr int NB_LAYERS = 2;
- constexpr double RECONSTRUCTION_TOL = 1e-4;
- constexpr int MAX_BOND_DIM = 128;
+ constexpr int NB_LAYERS = 4;
+ constexpr double RECONSTRUCTION_TOL = 1e-3;
+ constexpr int MAX_BOND_DIM = 32;
  auto qpu = xacc::getAccelerator("tnqvm",
             {std::make_pair("tnqvm-visitor", "exatn-gen")
-            ,std::make_pair("bitstring", BIT_STRING)
+          //,std::make_pair("bitstring", BIT_STRING)
             ,std::make_pair("exatn-buffer-size-gb", 8)
             ,{"reconstruct-layers", NB_LAYERS}
             ,{"reconstruct-tolerance", RECONSTRUCTION_TOL}
