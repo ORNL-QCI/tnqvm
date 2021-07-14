@@ -427,6 +427,7 @@ void ExaTnDmVisitor::finalize() {
     auto talsh_tensor =
         exatn::getLocalTensor(tempNetwork.getTensor(0)->getName());
     const auto expectedDensityMatrixVolume = nbRows * nbRows;
+    std::vector<std::pair<double, double>> flattenDmPairs;
     if (talsh_tensor) {
       const std::complex<double> *body_ptr;
       const bool access_granted =
@@ -446,6 +447,7 @@ void ExaTnDmVisitor::finalize() {
           }
           const auto &elem = body_ptr[i];
           dmRow.emplace_back(elem);
+          flattenDmPairs.emplace_back(std::make_pair(elem.real(), elem.imag()));
         }
         assert(dmRow.size() == nbRows);
         densityMatrix.emplace_back(std::move(dmRow));
@@ -454,6 +456,7 @@ void ExaTnDmVisitor::finalize() {
     }
 
     executionInfo.insert(ExecutionInfo::DmKey, std::make_shared<ExecutionInfo::DensityMatrixType>(std::move(densityMatrix)));
+    m_buffer->addExtraInfo("density_matrix", flattenDmPairs);
   }
 
   // Expectation value calculation:
