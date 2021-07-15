@@ -2,6 +2,7 @@
 #include <gtest/gtest.h>
 #include "xacc.hpp"
 #include "xacc_service.hpp"
+#include <fstream>
 
 namespace {
 std::string getBackendJson() {
