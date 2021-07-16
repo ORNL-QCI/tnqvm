@@ -7,8 +7,7 @@ TEST(BigCircuitTester, checkBitStringSampling)
 {    
     auto tmp = xacc::getService<xacc::Instruction>("rcs");
     auto randomCirc = std::dynamic_pointer_cast<xacc::CompositeInstruction>(tmp);
-    // Sycamore set-up: 53 qubits
-    const int NB_QUBITS = 53;
+    const int NB_QUBITS = 30;
     EXPECT_TRUE(randomCirc->expand({
         std::make_pair("nq", NB_QUBITS), 
         // TODO: we should increase this to 8-12 layers
@@ -39,7 +38,8 @@ TEST(BigCircuitTester, checkBitStringSampling)
     << " ms\n";
 }
 
-TEST(BigCircuitTester, checkDeutschJozsa) {
+TEST(BigCircuitTester, checkDeutschJozsaMps) 
+{
   const auto generateDJ16 = []() {
     return (R"(__qpu__ void QBCIRCUIT(qreg q) {
   OPENQASM 2.0;
@@ -136,7 +136,8 @@ TEST(BigCircuitTester, checkDeutschJozsa) {
   auto qasmCompiler = xacc::getCompiler("staq");
   auto ir = qasmCompiler->compile(generateDJ16(), nullptr);
   auto qpu = xacc::getAccelerator(
-      "tnqvm:exatn-mps", {{"max-bond-dim", 5000}, {"svd-cutoff", 1.0e-12}});
+      "tnqvm:exatn-mps",
+      {{"max-bond-dim", 5000}, {"svd-cutoff", 1.0e-12}, {"shots", 2}});
   auto program = ir->getComposites()[0];
   qpu->execute(qubitReg, program);
   qubitReg->print();
