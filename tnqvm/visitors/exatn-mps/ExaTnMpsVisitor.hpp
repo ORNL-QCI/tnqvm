@@ -90,7 +90,6 @@ public:
     virtual const double getExpectationValueZ(std::shared_ptr<CompositeInstruction> in_function) override;
     virtual void onFlush(const AggregatedGroup& in_group) override;
 
-private:
     class ExaTnTensorFunctor : public talsh::TensorFunctor<exatn::Identifiable>
     {
     public:
@@ -106,7 +105,8 @@ private:
     private:
         std::function<int(talsh::Tensor& in_tensor)> m_func;
     };
-
+    
+private:
     // Evaluates the whole tensor network and returns state vector
     void evaluateTensorNetwork(exatn::numerics::TensorNetwork& io_tensorNetwork, std::vector<std::complex<double>>& out_stateVec);
     void addMeasureBitStringProbability(const std::vector<size_t>& in_bits, const std::vector<std::complex<double>>& in_stateVec, int in_shotCount);

@@ -137,7 +137,29 @@ inline bool indexInRange(size_t in_idx, const std::pair<size_t, size_t>& in_rang
 {
     return (in_idx >= in_range.first) && (in_idx <= in_range.second);
 }
+
+void stabilizeTensorBody(const std::string &in_tensorName) {
+  // Extremely small values that we will remove from the tensor body.
+  // It will cause numerical instability during SVD.
+  std::function<int(talsh::Tensor & in_tensor)> updateFunc =
+      [](talsh::Tensor &in_tensor) {
+        constexpr double EPS_TRIM = 1e-100;
+        std::complex<double> *elements;
+        if (in_tensor.getDataAccessHost(&elements)) {
+          for (int i = 0; i < in_tensor.getVolume(); ++i) {
+            elements[i] = std::abs(elements[i]) < EPS_TRIM ? 0.0 : elements[i];
+          }
+        }
+
+        return 0;
+      };
+
+  exatn::numericalServer->transformTensorSync(
+      in_tensorName,
+      std::make_shared<tnqvm::ExatnMpsVisitor::ExaTnTensorFunctor>(updateFunc));
+  exatn::sync();
 }
+} // namespace
 namespace tnqvm {
 ExatnMpsVisitor::ExatnMpsVisitor():
     m_aggregator(this),
@@ -1594,6 +1616,7 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
 
     {
         auto start = std::chrono::system_clock::now();
+        stabilizeTensorBody(mergedTensor->getName());
         // SVD decomposition using the same pattern that was used to merge two tensors
         const bool svdOk = exatn::decomposeTensorSVDLRSync(mergeContractionPattern);
         assert(svdOk);
@@ -1929,6 +1952,7 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
             // exatn::getTensor(q1TensorName)->printIt();
             // exatn::getTensor(q2TensorName)->printIt();
             // printTensorData(mergedTensor->getName());
+            stabilizeTensorBody(mergedTensor->getName());
             const bool svdOk = exatn::decomposeTensorSVDLRSync(mergeContractionPattern);
             assert(svdOk);
         }
