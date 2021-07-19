@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 #include "xacc.hpp"
 #include "xacc_service.hpp"
+#include <fstream>
 
 TEST(NoiseModelTester, checkReadout)
 {
