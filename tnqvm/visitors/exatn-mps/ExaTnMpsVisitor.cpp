@@ -2346,10 +2346,18 @@ std::vector<uint8_t> ExatnMpsVisitor::getMeasureSample(const std::vector<size_t>
         }
 
         {
+            // Due to numerical stability, zero value may become an extremely-small negative number:
+            // e.g. -1.234e-34, etc.
+            // We'll skip any probability values less than this epsilon:
+            constexpr double PROB_EPS = 1e-12;
             // Perform the measurement
             assert(resultRDM.size() == 4);
-            const double prob_0 = resultRDM.front().real();
-            const double prob_1 = resultRDM.back().real();
+            const double prob_0 = std::abs(resultRDM.front().real()) < PROB_EPS
+                                      ? 0.0
+                                      : resultRDM.front().real();
+            const double prob_1 = std::abs(resultRDM.back().real()) < PROB_EPS
+                                      ? 0.0
+                                      : resultRDM.back().real();
             assert(prob_0 >= 0.0 && prob_1 >= 0.0);
             assert(std::fabs(1.0 - prob_0 - prob_1) < 1e-12);
 
