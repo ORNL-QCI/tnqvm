@@ -651,7 +651,7 @@ void ExatnMpsVisitor::finalize()
     {
         if (!m_measureQubits.empty())
         {
-            std::cout << "Simulating bit string by MPS tensor contraction\n";
+            xacc::info("Simulating bit string by MPS tensor contraction");
             for (int i = 0; i < m_shotCount; ++i)
             {
                 const auto convertToBitString = [](const std::vector<uint8_t>& in_bitVec){
@@ -821,7 +821,7 @@ void ExatnMpsVisitor::finalize()
             }
             else if (!m_measureQubits.empty())
             {
-                std::cout << "Simulating bit string by MPS tensor contraction\n";
+                xacc::info("Simulating bit string by MPS tensor contraction");
                 m_shotCount = (m_shotCount < 1) ? 1 : m_shotCount;
                 for (int i = 0; i < m_shotCount; ++i)
                 {
@@ -2333,21 +2333,31 @@ std::vector<uint8_t> ExatnMpsVisitor::getMeasureSample(const std::vector<size_t>
             }
             // Debug: print out RDM data
             {
-                std::cout << "RDM @q" << qubitIdx << " = [";
+                std::stringstream logSs;
+                logSs << "RDM @q" << qubitIdx << " = [";
                 for (int i = 0; i < talsh_tensor->getVolume(); ++i)
                 {
                     const std::complex<double> element = body_ptr[i];
-                    std::cout << element;
+                    logSs << element;
                 }
-                std::cout << "]\n";
+                logSs << "]\n";
+                xacc::info(logSs.str());
             }
         }
 
         {
+            // Due to numerical stability, zero value may become an extremely-small negative number:
+            // e.g. -1.234e-34, etc.
+            // We'll skip any probability values less than this epsilon:
+            constexpr double PROB_EPS = 1e-12;
             // Perform the measurement
             assert(resultRDM.size() == 4);
-            const double prob_0 = resultRDM.front().real();
-            const double prob_1 = resultRDM.back().real();
+            const double prob_0 = std::abs(resultRDM.front().real()) < PROB_EPS
+                                      ? 0.0
+                                      : resultRDM.front().real();
+            const double prob_1 = std::abs(resultRDM.back().real()) < PROB_EPS
+                                      ? 0.0
+                                      : resultRDM.back().real();
             assert(prob_0 >= 0.0 && prob_1 >= 0.0);
             assert(std::fabs(1.0 - prob_0 - prob_1) < 1e-12);
 
@@ -2356,11 +2366,12 @@ std::vector<uint8_t> ExatnMpsVisitor::getMeasureSample(const std::vector<size_t>
             // If radom number < probability of 0 state -> pick zero, and vice versa.
             resultBitString.emplace_back(randProbPick <= prob_0 ? 0 : 1);
             resultProbs.emplace_back(randProbPick <= prob_0 ? prob_0 : prob_1);
-
-            std::cout << ">> Measure @q" << qubitIdx << " prob(0) = " << prob_0 << "\n";
-            std::cout << ">> Measure @q" << qubitIdx << " prob(1) = " << prob_1 << "\n";
-            std::cout << ">> Measure @q" << qubitIdx << " random number = " << randProbPick << "\n";
-            std::cout << ">> Measure @q" << qubitIdx << " pick " << std::to_string(resultBitString.back()) << "\n";
+            std::stringstream logSs;
+            logSs << ">> Measure @q" << qubitIdx << " prob(0) = " << prob_0 << "\n";
+            logSs << ">> Measure @q" << qubitIdx << " prob(1) = " << prob_1 << "\n";
+            logSs << ">> Measure @q" << qubitIdx << " random number = " << randProbPick << "\n";
+            logSs << ">> Measure @q" << qubitIdx << " pick " << std::to_string(resultBitString.back()) << "\n";
+            xacc::info(logSs.str());
         }
 
         for (const auto& tensorName : tensorsToDestroy)
