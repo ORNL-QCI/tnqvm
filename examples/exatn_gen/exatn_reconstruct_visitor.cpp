@@ -9,7 +9,7 @@ int benchmarkExaTnGen1()
 {
  auto accelerator = xacc::getAccelerator("tnqvm",
                     {{"tnqvm-visitor", "exatn-gen"},
-                     {"reconstruct-layers", 10}});
+                     {"reconstruct-layers", 2}});
  xacc::qasm(R"(.compiler xasm
                .circuit deuteron_ansatz_h3_2
                .parameters t0, t1
@@ -39,7 +39,7 @@ int benchmarkExaTnGen1()
 
 int benchmarkExaTnGen2()
 {
- constexpr int NB_QUBITS = 4;
+ constexpr int NB_QUBITS = 8;
  constexpr int NB_ELECTRONS = NB_QUBITS / 2;
  // Using UCCSD as the base ansatz circuit
  auto tmp = xacc::getService<xacc::Instruction>("uccsd");
@@ -53,7 +53,7 @@ int benchmarkExaTnGen2()
  const std::vector<double> params(uccsd->getVariables().size(), 1.0);
  auto evaled_uccsd = uccsd->operator()(params);
  std::cout << evaled_uccsd->toString() << "\n";
-
+ /*
  auto accelerator_exatn_exact = xacc::getAccelerator("tnqvm",
       {{"tnqvm-visitor", "exatn:double"}
     //,{"bitstring", std::vector<int>(NB_QUBITS,-1)}
@@ -63,9 +63,9 @@ int benchmarkExaTnGen2()
  auto buffer1 = xacc::qalloc(NB_QUBITS);
  accelerator_exatn_exact->execute(buffer1, evaled_uccsd);
  buffer1->print();
-
- constexpr int NB_LAYERS = 5;
- constexpr double RECONSTRUCTION_TOL = 1e-4;
+ */
+ constexpr int NB_LAYERS = 8;
+ constexpr double RECONSTRUCTION_TOL = 1e-3;
  constexpr int MAX_BOND_DIM = 4;
  auto accelerator_exatn_approx = xacc::getAccelerator("tnqvm",
       {{"tnqvm-visitor", "exatn-gen"}

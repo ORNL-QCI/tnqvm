@@ -644,8 +644,8 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::reconstructCircuitTensor() {
     auto approximant = std::make_shared<exatn::TensorExpansion>("Approx");
     approximant->appendComponent(approximantTensorNetwork, {1.0, 0.0});
     approximant->conjugate();
-    //bool success = exatn::balanceNormalizeNorm2Sync(*target,1.0,1.0,false); //debug
-    //success = exatn::balanceNormalizeNorm2Sync(*approximant,1.0,1.0,true); //debug
+    bool success = exatn::balanceNormalizeNorm2Sync(*target,1.0,1.0,false); assert(success);
+    success = exatn::balanceNormalizeNorm2Sync(*approximant,1.0,1.0,true); assert(success);
     exatn::TensorNetworkReconstructor reconstructor(target, approximant,
                                                     m_reconstructTol);
     // std::cout << "Target: \n";
@@ -655,6 +655,8 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::reconstructCircuitTensor() {
     // Run the reconstructor:
     bool reconstructSuccess = exatn::sync();
     assert(reconstructSuccess);
+    //exatn::TensorNetworkReconstructor::resetDebugLevel(1); //debug
+    //reconstructor.resetLearningRate(1.0);
     double residual_norm, fidelity;
     bool reconstructed =
         reconstructor.reconstruct(&residual_norm, &fidelity, true);
