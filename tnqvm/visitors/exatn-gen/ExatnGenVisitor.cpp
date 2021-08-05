@@ -640,7 +640,7 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::reconstructCircuitTensor() {
           if (tensorName != "ROOT") {
             auto tensor = iter->second.getTensor();
             const bool created = exatn::createTensorSync(
-                tensor, exatn::TensorElementType::COMPLEX64);
+                tensor, getExatnElementType());
             assert(created);
             const bool initialized = exatn::initTensorRnd(tensor->getName());
             assert(initialized);
