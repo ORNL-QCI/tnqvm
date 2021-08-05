@@ -134,6 +134,11 @@ private:
   exatn::TensorOperator
   constructObsTensorOperator(const std::vector<ObsOpType> &in_obsOps) const;
   void reconstructCircuitTensor();
+  // Compute the wave-function slice or amplitude (if all bits are set):
+  std::vector<TNQVM_COMPLEX_TYPE>
+  computeWaveFuncSlice(const exatn::TensorNetwork &in_tensorNetwork,
+                       const std::vector<int> &in_bitString,
+                       const exatn::ProcessGroup &in_processGroup) const;
 
 private:
   std::shared_ptr<exatn::TensorNetwork> m_qubitNetwork;

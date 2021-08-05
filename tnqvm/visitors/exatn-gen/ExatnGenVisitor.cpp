@@ -845,5 +845,97 @@ const double ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZ(
               in_function->name());
   return 0.0;
 }
+
+template <typename TNQVM_COMPLEX_TYPE>
+std::vector<TNQVM_COMPLEX_TYPE>
+ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::computeWaveFuncSlice(
+    const exatn::TensorNetwork &in_tensorNetwork,
+    const std::vector<int> &bitString,
+    const exatn::ProcessGroup &in_processGroup) const {
+  // Closing the tensor network with the bra
+  std::vector<std::pair<unsigned int, unsigned int>> pairings;
+  int nbOpenLegs = 0;
+  const auto constructBraNetwork = [&](const std::vector<int> &in_bitString) {
+    int tensorIdCounter = 1;
+    exatn::TensorNetwork braTensorNet("bra");
+    // Create the qubit register tensor
+    for (int i = 0; i < in_bitString.size(); ++i) {
+      const auto bitVal = in_bitString[i];
+      const std::string braQubitName = "QB" + std::to_string(i);
+      if (bitVal == 0) {
+        const bool created = exatn::createTensor(
+            in_processGroup, braQubitName, exatn::TensorElementType::COMPLEX64,
+            exatn::TensorShape{2});
+        assert(created);
+        // Bit = 0
+        const bool initialized = exatn::initTensorData(
+            braQubitName,
+            std::vector<TNQVM_COMPLEX_TYPE>{{1.0, 0.0}, {0.0, 0.0}});
+        assert(initialized);
+        pairings.emplace_back(std::make_pair(i, i + nbOpenLegs));
+      } else if (bitVal == 1) {
+        const bool created = exatn::createTensor(
+            in_processGroup, braQubitName, exatn::TensorElementType::COMPLEX64,
+            exatn::TensorShape{2});
+        assert(created);
+        // Bit = 1
+        const bool initialized = exatn::initTensorData(
+            braQubitName,
+            std::vector<TNQVM_COMPLEX_TYPE>{{0.0, 0.0}, {1.0, 0.0}});
+        assert(initialized);
+        pairings.emplace_back(std::make_pair(i, i + nbOpenLegs));
+      } else if (bitVal == -1) {
+        // Add an Id tensor
+        const bool created = exatn::createTensor(
+            in_processGroup, braQubitName, exatn::TensorElementType::COMPLEX64,
+            exatn::TensorShape{2, 2});
+        assert(created);
+        const bool initialized = exatn::initTensorData(
+            braQubitName, std::vector<TNQVM_COMPLEX_TYPE>{
+                              {1.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {1.0, 0.0}});
+        assert(initialized);
+        pairings.emplace_back(std::make_pair(i, i + nbOpenLegs));
+        nbOpenLegs++;
+      } else {
+        xacc::error("Unknown values of '" + std::to_string(bitVal) +
+                    "' encountered.");
+      }
+      braTensorNet.appendTensor(
+          tensorIdCounter, exatn::getTensor(braQubitName),
+          std::vector<std::pair<unsigned int, unsigned int>>{});
+      tensorIdCounter++;
+    }
+
+    return braTensorNet;
+  };
+
+  auto braTensors = constructBraNetwork(bitString);
+  braTensors.conjugate();
+  auto combinedTensorNetwork = in_tensorNetwork;
+  assert(pairings.size() == m_buffer->size());
+  combinedTensorNetwork.appendTensorNetwork(std::move(braTensors), pairings);
+  // combinedTensorNetwork.printIt();
+  std::vector<TNQVM_COMPLEX_TYPE> waveFnSlice;
+  {
+    // std::cout << "SUBMIT TENSOR NETWORK FOR EVALUATION\n";
+    // combinedTensorNetwork.printIt();
+    if (exatn::evaluateSync(in_processGroup, combinedTensorNetwork)) {
+      exatn::sync();
+      auto talsh_tensor =
+          exatn::getLocalTensor(combinedTensorNetwork.getTensor(0)->getName());
+      const TNQVM_COMPLEX_TYPE *body_ptr;
+      if (talsh_tensor->getDataAccessHostConst(&body_ptr)) {
+        waveFnSlice.assign(body_ptr, body_ptr + talsh_tensor->getVolume());
+      }
+    }
+  }
+  // Destroy bra tensors
+  for (int i = 0; i < m_buffer->size(); ++i) {
+    const std::string braQubitName = "QB" + std::to_string(i);
+    const bool destroyed = exatn::destroyTensor(braQubitName);
+    assert(destroyed);
+  }
+  return waveFnSlice;
+}
 } // end namespace tnqvm
 #endif // TNQVM_HAS_EXATN
