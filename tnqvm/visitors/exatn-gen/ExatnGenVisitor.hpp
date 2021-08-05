@@ -138,6 +138,7 @@ private:
 private:
   std::shared_ptr<exatn::TensorNetwork> m_qubitNetwork;
   exatn::TensorExpansion m_tensorExpansion;
+  std::shared_ptr<exatn::TensorExpansion> m_previousOptExpansion;
   int m_layersReconstruct;
   double m_reconstructTol;
   int m_layerCounter;
@@ -152,6 +153,7 @@ private:
   std::unordered_map<std::string, size_t> m_compositeNameToComponentId;
   std::shared_ptr<exatn::TensorExpansion> m_evaluatedExpansion;
   double m_reconstructionFidelity;
+  bool m_initReconstructionRandom;
 };
 
 template class ExatnGenVisitor<std::complex<double>>;

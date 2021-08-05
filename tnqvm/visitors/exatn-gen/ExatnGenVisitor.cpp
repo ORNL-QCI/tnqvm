@@ -258,6 +258,11 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::initialize(
   m_reconstructTol = 1e-4;
   m_maxBondDim = 512;
   m_reconstructionFidelity = 1.0;
+  m_initReconstructionRandom = false;
+  if (options.keyExists<bool>("init-random")) {
+    m_initReconstructionRandom = options.get<bool>("init-random");
+  }
+  m_previousOptExpansion.reset();
   // Default builder: MPS
   m_reconstructBuilder = "MPS";
   if (m_layersReconstruct > 0) {
@@ -626,33 +631,40 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::reconstructCircuitTensor() {
     auto &networkBuildFactory = *(exatn::numerics::NetworkBuildFactory::get());
     auto builder = networkBuildFactory.createNetworkBuilderShared(m_reconstructBuilder);
     builder->setParameter("max_bond_dim", m_maxBondDim);
-    auto approximantTensorNetwork =
-        exatn::makeSharedTensorNetwork("Approx", rootTensor, *builder);
-    for (auto iter = approximantTensorNetwork->cbegin();
-         iter != approximantTensorNetwork->cend(); ++iter) {
-      const auto &tensorName = iter->second.getTensor()->getName();
-      if (tensorName != "ROOT") {
-        auto tensor = iter->second.getTensor();
-        const bool created = exatn::createTensorSync(
-            tensor, exatn::TensorElementType::COMPLEX64);
-        assert(created);
-        const bool initialized = exatn::initTensorRnd(tensor->getName());
-        assert(initialized);
-        // Keeps track of these approximate tensors to delete the next round.
-        TENSORS_TO_DESTROY.emplace_back(tensor->getName());
+    auto approximant = [&]() {
+      if (m_initReconstructionRandom || !m_previousOptExpansion) {
+        auto approximantTensorNetwork = exatn::makeSharedTensorNetwork("Approx", rootTensor, *builder);
+        for (auto iter = approximantTensorNetwork->cbegin();
+             iter != approximantTensorNetwork->cend(); ++iter) {
+          const auto &tensorName = iter->second.getTensor()->getName();
+          if (tensorName != "ROOT") {
+            auto tensor = iter->second.getTensor();
+            const bool created = exatn::createTensorSync(
+                tensor, exatn::TensorElementType::COMPLEX64);
+            assert(created);
+            const bool initialized = exatn::initTensorRnd(tensor->getName());
+            assert(initialized);
+            // Keeps track of these approximate tensors to delete the next
+            // round.
+            TENSORS_TO_DESTROY.emplace_back(tensor->getName());
+          }
+        }
+        approximantTensorNetwork->markOptimizableAllTensors();
+        auto approximant_expansion = std::make_shared<exatn::TensorExpansion>("Approx");
+        approximant_expansion->appendComponent(approximantTensorNetwork, {1.0, 0.0});
+        approximant_expansion->conjugate();
+        return approximant_expansion;
+      } else {
+        // Re-init to the previous:
+        return exatn::duplicateSync(*m_previousOptExpansion);
       }
-    }
-
-    approximantTensorNetwork->markOptimizableAllTensors();
-    auto approximant = std::make_shared<exatn::TensorExpansion>("Approx");
-    approximant->appendComponent(approximantTensorNetwork, {1.0, 0.0});
-    approximant->conjugate();
+    }();
     exatn::TensorNetworkReconstructor reconstructor(target, approximant,
                                                     m_reconstructTol);
-    // std::cout << "Target: \n";
-    // target->printIt();
-    // std::cout << "approximant: \n";
-    // approximant->printIt();
+    std::cout << "Target: \n";
+    target->printIt();
+    std::cout << "approximant: \n";
+    approximant->printIt();
     // Run the reconstructor:
     bool reconstructSuccess = exatn::sync();
     assert(reconstructSuccess);
@@ -667,6 +679,7 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::reconstructCircuitTensor() {
          << "; Fidelity = " << fidelity;
       xacc::info(ss.str());
       m_reconstructionFidelity *= fidelity;
+      m_previousOptExpansion = approximant;
     } else {
       xacc::error("Reconstruction FAILED!");
     }
