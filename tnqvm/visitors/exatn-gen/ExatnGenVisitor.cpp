@@ -257,6 +257,7 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::initialize(
   }
   m_reconstructTol = 1e-4;
   m_maxBondDim = 512;
+  m_reconstructionFidelity = 1.0;
   // Default builder: MPS
   m_reconstructBuilder = "MPS";
   if (m_layersReconstruct > 0) {
@@ -367,6 +368,7 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::initialize(
 
 template <typename TNQVM_COMPLEX_TYPE>
 void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
+  m_buffer->addExtraInfo("reconstruction-fidelity", m_reconstructionFidelity);
   // This is a single-circuit execution.
   // Do the evaluation now.
   if (!m_obsTensorOperator && !m_measuredBits.empty()) {
@@ -664,6 +666,7 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::reconstructCircuitTensor() {
       ss << "Reconstruction succeeded: Residual norm = " << residual_norm
          << "; Fidelity = " << fidelity;
       xacc::info(ss.str());
+      m_reconstructionFidelity *= fidelity;
     } else {
       xacc::error("Reconstruction FAILED!");
     }

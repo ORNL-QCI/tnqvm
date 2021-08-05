@@ -151,6 +151,7 @@ private:
   std::shared_ptr<exatn::TensorOperator> m_obsTensorOperator;
   std::unordered_map<std::string, size_t> m_compositeNameToComponentId;
   std::shared_ptr<exatn::TensorExpansion> m_evaluatedExpansion;
+  double m_reconstructionFidelity;
 };
 
 template class ExatnGenVisitor<std::complex<double>>;
