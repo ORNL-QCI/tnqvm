@@ -6,6 +6,16 @@
 #include "xacc_observable.hpp"
 #include "Algorithm.hpp"
 
+TEST(ExaTnGenTester, checkPrecisionSpecification) {
+  xacc::set_verbose(true);
+  auto accelerator1 =
+      xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-gen"}});
+  auto accelerator2 =
+      xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-gen:float"}});
+  auto accelerator3 =
+      xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-gen:double"}});
+}
+
 TEST(ExaTnGenTester, checkExpVal) {
   xacc::set_verbose(true);
   {

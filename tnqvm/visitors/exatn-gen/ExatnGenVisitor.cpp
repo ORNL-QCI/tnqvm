@@ -41,8 +41,9 @@
 #include <chrono>
 #include <functional>
 #include <unordered_set>
-#include "xacc_plugin.hpp"
 #include "IRUtils.hpp"
+#include "base/Gates.hpp"
+#include "utils/GateMatrixAlgebra.hpp"
 
 #ifdef TNQVM_EXATN_USES_MKL_BLAS
 #include <dlfcn.h>
@@ -829,6 +830,4 @@ const double ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZ(
   return 0.0;
 }
 } // end namespace tnqvm
-// Register with CppMicroservices
-REGISTER_PLUGIN(tnqvm::DefaultExatnGenVisitor, tnqvm::TNQVMVisitor);
 #endif // TNQVM_HAS_EXATN

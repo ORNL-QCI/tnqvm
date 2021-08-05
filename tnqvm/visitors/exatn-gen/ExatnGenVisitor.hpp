@@ -45,12 +45,11 @@
 #ifdef TNQVM_HAS_EXATN
 #include "TNQVMVisitor.hpp"
 #include "exatn.hpp"
-#include "base/Gates.hpp"
-#include "utils/GateMatrixAlgebra.hpp"
 
 namespace tnqvm {
 enum class ObsOpType { I, X, Y, Z, NA };
-
+// Forward declarations:
+enum class CommonGates: int;
 // Simple struct to identify a concrete quantum gate instance,
 // For example, parametric gates, e.g. Rx(theta), will have an instance for each
 // value of theta that is used to instantiate the gate matrix.
