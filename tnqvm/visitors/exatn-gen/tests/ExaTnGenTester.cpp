@@ -6,6 +6,16 @@
 #include "xacc_observable.hpp"
 #include "Algorithm.hpp"
 
+TEST(ExaTnGenTester, checkPrecisionSpecification) {
+  xacc::set_verbose(true);
+  auto accelerator1 =
+      xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-gen"}});
+  auto accelerator2 =
+      xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-gen:float"}});
+  auto accelerator3 =
+      xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-gen:double"}});
+}
+
 TEST(ExaTnGenTester, checkExpVal) {
   xacc::set_verbose(true);
   {
@@ -109,15 +119,16 @@ TEST(ExaTnGenTester, checkVqeH2) {
 }
 
 TEST(ExaTnGenTester, checkVqeH3) {
-  auto accelerator =
-      xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-gen"}});
+  auto accelerator = xacc::getAccelerator(
+      "tnqvm", {{"tnqvm-visitor", "exatn-gen"}, {"reconstruct-layers", -1}});
   // Create the N=3 deuteron Hamiltonian
   auto H_N_3 = xacc::quantum::getObservable(
       "pauli",
       std::string("5.907 - 2.1433 X0X1 - 2.1433 Y0Y1 + .21829 Z0 - 6.125 Z1 + "
                   "9.625 - 9.625 Z2 - 3.91 X1 X2 - 3.91 Y1 Y2"));
-
-  auto optimizer = xacc::getOptimizer("nlopt");
+  const std::vector<double> initialParams{0.07, 0.2};
+  auto optimizer =
+      xacc::getOptimizer("nlopt", {{"initial-parameters", initialParams}});
 
   xacc::qasm(R"(
         .compiler xasm
@@ -149,41 +160,98 @@ TEST(ExaTnGenTester, checkVqeH3) {
   EXPECT_NEAR((*buffer)["opt-val"].as<double>(), -2.04482, 1e-3);
 }
 
-// Disable this test due to timeout on the CI machine.
-// TEST(ExaTnGenTester, checkVqeH3Approx) {
-//   // Reconstruct tensor network every 10 layers
-//   auto accelerator = xacc::getAccelerator(
-//       "tnqvm", {{"tnqvm-visitor", "exatn-gen"}, {"reconstruct-layers", 10}});
-//   xacc::set_verbose(true);
-//   xacc::qasm(R"(
-//         .compiler xasm
-//         .circuit deuteron_ansatz_h3_2
-//         .parameters t0, t1
-//         .qbit q
-//         X(q[0]);
-//         exp_i_theta(q, t0, {{"pauli", "X0 Y1 - Y0 X1"}});
-//         exp_i_theta(q, t1, {{"pauli", "X0 Z1 Y2 - X2 Z1 Y0"}});
-//     )");
-//   auto ansatz = xacc::getCompiled("deuteron_ansatz_h3_2");
-//   auto H_N_3 = xacc::quantum::getObservable(
-//       "pauli",
-//       std::string("5.907 - 2.1433 X0X1 - 2.1433 Y0Y1 + .21829 Z0 - 6.125 Z1 + "
-//                   "9.625 - 9.625 Z2 - 3.91 X1 X2 - 3.91 Y1 Y2"));
-//   auto optimizer = xacc::getOptimizer("nlopt");
-//   // Allocate some qubits and execute
-//   auto buffer = xacc::qalloc(3);
-//   auto vqe = xacc::getAlgorithm("vqe");
-//   vqe->initialize({std::make_pair("ansatz", ansatz),
-//                    std::make_pair("observable", H_N_3),
-//                    std::make_pair("accelerator", accelerator),
-//                    std::make_pair("optimizer", optimizer)});
-//   // The reconstruction can take a long time, so we just test a single
-//   // observable evaluation.
-//   auto energies = vqe->execute(buffer, {0.0684968, 0.17797});
-//   buffer->print();
-//   std::cout << "Energy = " << energies[0] << "\n";
-//   EXPECT_NEAR(energies[0], -2.04482, 0.1);
-// }
+TEST(ExaTnGenTester, checkBitstringAmpl) {
+  auto xasmCompiler = xacc::getCompiler("xasm");
+  auto ir = xasmCompiler->compile(R"(__qpu__ void test1(qbit q) {
+            H(q[0]);
+            for (int i = 0; i < 7; i++) {
+                CNOT(q[i], q[i + 1]);
+            }
+        })");
+  std::vector<int> bitstring(8, 0);
+  auto program = ir->getComposite("test1");
+  auto accelerator =
+      xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-gen:float"},
+                                     {"reconstruct-layers", 2},
+                                     {"reconstruct-tolerance", 0.01},
+                                     {"bitstring", bitstring}});
+  auto qreg = xacc::qalloc(8);
+  accelerator->execute(qreg, program);
+  qreg->print();
+  const auto realAmpl = (*qreg)["amplitude-real"].as<double>();
+  const auto imagAmpl = (*qreg)["amplitude-imag"].as<double>();
+  EXPECT_NEAR(imagAmpl, 0.0, 0.1);
+  EXPECT_NEAR(realAmpl, 1.0 / std::sqrt(2.0), 0.1);
+}
+
+TEST(ExaTnGenTester, checkWavefunctionSlice) {
+  auto xasmCompiler = xacc::getCompiler("xasm");
+  auto ir = xasmCompiler->compile(R"(__qpu__ void test1(qbit q) {
+            H(q[0]);
+            for (int i = 0; i < 7; i++) {
+                CNOT(q[i], q[i + 1]);
+            }
+        })");
+  std::vector<int> bitstring(8, -1);
+  auto program = ir->getComposite("test1");
+  auto accelerator =
+      xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-gen:float"},
+                                     {"reconstruct-layers", 2},
+                                     {"reconstruct-tolerance", 0.01},
+                                     {"bitstring", bitstring}});
+  auto qreg = xacc::qalloc(8);
+  accelerator->execute(qreg, program);
+  qreg->print();
+  const auto realAmpl = (*qreg)["amplitude-real-vec"].as<std::vector<double>>();
+  const auto imagAmpl = (*qreg)["amplitude-imag-vec"].as<std::vector<double>>();
+  const int nb_elems = 256;
+  EXPECT_EQ(realAmpl.size(), nb_elems);
+  EXPECT_EQ(imagAmpl.size(), nb_elems);
+  // GHZ: |000000> + |111111>/sqrt(2)
+  for (size_t i = 0; i < nb_elems; ++i) {
+    EXPECT_NEAR(imagAmpl[i], 0.0, 0.1);
+    EXPECT_NEAR(realAmpl[i],
+                (i == 0 || i == nb_elems - 1) ? 1.0 / std::sqrt(2.0) : 0.0,
+                0.1);
+  }
+}
+
+TEST(ExaTnGenTester, checkVqeH3Approx) {
+  // Use very high tolerance to save test time
+  auto accelerator =
+      xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-gen"},
+                                     {"reconstruct-layers", 4},
+                                     {"reconstruct-tolerance", 0.01}});
+  xacc::set_verbose(true);
+  xacc::qasm(R"(
+        .compiler xasm
+        .circuit deuteron_ansatz_h3_2
+        .parameters t0, t1
+        .qbit q
+        X(q[0]);
+        exp_i_theta(q, t0, {{"pauli", "X0 Y1 - Y0 X1"}});
+        exp_i_theta(q, t1, {{"pauli", "X0 Z1 Y2 - X2 Z1 Y0"}});
+    )");
+  auto ansatz = xacc::getCompiled("deuteron_ansatz_h3_2");
+  auto H_N_3 = xacc::quantum::getObservable(
+      "pauli",
+      std::string("5.907 - 2.1433 X0X1 - 2.1433 Y0Y1 + .21829 Z0 - 6.125 Z1 + "
+                  "9.625 - 9.625 Z2 - 3.91 X1 X2 - 3.91 Y1 Y2"));
+  auto optimizer = xacc::getOptimizer("nlopt");
+  // Allocate some qubits and execute
+  auto buffer = xacc::qalloc(3);
+  auto vqe = xacc::getAlgorithm("vqe");
+  vqe->initialize({std::make_pair("ansatz", ansatz),
+                   std::make_pair("observable", H_N_3),
+                   std::make_pair("accelerator", accelerator),
+                   std::make_pair("optimizer", optimizer)});
+  // The reconstruction can take a long time, so we just test a single
+  // observable evaluation.
+  auto energies = vqe->execute(buffer, {0.0684968, 0.17797});
+  buffer->print();
+  std::cout << "Energy = " << energies[0] << "\n";
+  EXPECT_NEAR(energies[0], -2.04482, 0.1);
+}
 
 int main(int argc, char **argv) {
   xacc::Initialize(argc, argv);

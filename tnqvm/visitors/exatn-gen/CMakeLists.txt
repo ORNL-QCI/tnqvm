@@ -53,7 +53,7 @@ if (ExaTN_FOUND)
    endif()
 
    file (GLOB HEADERS *.hpp)
-   file (GLOB SRC ${EXATN_VISITOR_CPP_FILE})
+   file (GLOB SRC ${EXATN_VISITOR_CPP_FILE} ExatnGenActivator.cpp)
 
    usFunctionGetResourceSource(TARGET ${LIBRARY_NAME} OUT SRC)
    usFunctionGenerateBundleInit(TARGET ${LIBRARY_NAME} OUT SRC)

@@ -41,8 +41,9 @@
 #include <chrono>
 #include <functional>
 #include <unordered_set>
-#include "xacc_plugin.hpp"
 #include "IRUtils.hpp"
+#include "base/Gates.hpp"
+#include "utils/GateMatrixAlgebra.hpp"
 
 #ifdef TNQVM_EXATN_USES_MKL_BLAS
 #include <dlfcn.h>
@@ -247,15 +248,21 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::initialize(
     assert(initialized);
   }
 
-  // No reconstruct
-  m_layersReconstruct = -1;
+  // Default number of layers
+  m_layersReconstruct = 4;
   if (options.keyExists<int>("reconstruct-layers")) {
     m_layersReconstruct = options.get<int>("reconstruct-layers");
-    xacc::info("Reconstruct tensor network every " +
-               std::to_string(m_layersReconstruct) + " layers.");
   }
-  m_reconstructTol = 1e-4;
+  xacc::info("Reconstruct tensor network every " +
+             std::to_string(m_layersReconstruct) + " layers.");
+  m_reconstructTol = 1e-3;
   m_maxBondDim = 512;
+  m_reconstructionFidelity = 1.0;
+  m_initReconstructionRandom = false;
+  if (options.keyExists<bool>("init-random")) {
+    m_initReconstructionRandom = options.get<bool>("init-random");
+  }
+  m_previousOptExpansion.reset();
   // Default builder: MPS
   m_reconstructBuilder = "MPS";
   if (m_layersReconstruct > 0) {
@@ -281,7 +288,7 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::initialize(
         std::vector<std::pair<unsigned int, unsigned int>>{});
   }
   exatn::TensorExpansion tensorEx("QuantumCircuit");
-  tensorEx.appendComponent(m_qubitNetwork, 1.0);
+  tensorEx.appendComponent(m_qubitNetwork, TNQVM_COMPLEX_TYPE{1.0});
   m_tensorExpansion = tensorEx;
   m_gateTensorBodies.clear();
   m_measuredBits.clear();
@@ -366,6 +373,7 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::initialize(
 
 template <typename TNQVM_COMPLEX_TYPE>
 void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
+  m_buffer->addExtraInfo("reconstruction-fidelity", m_reconstructionFidelity);
   // This is a single-circuit execution.
   // Do the evaluation now.
   if (!m_obsTensorOperator && !m_measuredBits.empty()) {
@@ -377,6 +385,9 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
     }
     auto zHamOp = constructObsTensorOperator(obsOps);
     exatn::TensorExpansion ketvector(m_tensorExpansion);
+    const bool success =
+        exatn::balanceNormalizeNorm2Sync(ketvector, 1.0, 1.0, false);
+    assert(success);
     exatn::TensorExpansion ketWithObs(ketvector, zHamOp);
     // Bra network:
     exatn::TensorExpansion bravector(ketvector);
@@ -401,6 +412,59 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
     }
     const bool destroyed = exatn::destroyTensorSync("ExpVal");
     assert(destroyed);
+  }
+
+  if (options.keyExists<std::vector<int>>("bitstring")) {
+    std::vector<int> bitString = options.get<std::vector<int>>("bitstring");
+    if (bitString.size() != m_buffer->size()) {
+      xacc::error("Bitstring size must match the number of qubits.");
+      return;
+    }
+
+    auto tensorNetwork = m_tensorExpansion.getComponent(0).network;
+    // m_tensorExpansion.printIt();
+    const bool success =
+        exatn::balanceNormalizeNorm2Sync(m_tensorExpansion, 1.0, 1.0, false);
+    assert(success);
+    // m_tensorExpansion.printIt();
+    std::vector<TNQVM_COMPLEX_TYPE> waveFuncSlice = computeWaveFuncSlice(
+        *tensorNetwork, bitString, exatn::getDefaultProcessGroup());
+    assert(!waveFuncSlice.empty());
+    if (waveFuncSlice.size() == 1) {
+      const std::complex<double> renormalized_val =
+          static_cast<std::complex<double>>(waveFuncSlice[0]) *
+          m_tensorExpansion.getComponent(0).coefficient;
+      m_buffer->addExtraInfo("amplitude-real", renormalized_val.real());
+      m_buffer->addExtraInfo("amplitude-imag", renormalized_val.imag());
+    } else {
+      const auto normalizeWaveFnSlice =
+          [](std::vector<TNQVM_COMPLEX_TYPE> &io_waveFn) {
+            const double normVal = std::accumulate(
+                io_waveFn.begin(), io_waveFn.end(), 0.0,
+                [](double sumVal, const TNQVM_COMPLEX_TYPE &val) {
+                  return sumVal + std::norm(val);
+                });
+            // The slice may have zero norm:
+            if (normVal > 1e-12) {
+              const TNQVM_COMPLEX_TYPE sqrtNorm = sqrt(normVal);
+              for (auto &val : io_waveFn) {
+                val = val / sqrtNorm;
+              }
+            }
+          };
+
+      normalizeWaveFnSlice(waveFuncSlice);
+      std::vector<double> amplReal;
+      std::vector<double> amplImag;
+      amplReal.reserve(waveFuncSlice.size());
+      amplImag.reserve(waveFuncSlice.size());
+      for (const auto &val : waveFuncSlice) {
+        amplReal.emplace_back(val.real());
+        amplImag.emplace_back(val.imag());
+      }
+      m_buffer->addExtraInfo("amplitude-real-vec", amplReal);
+      m_buffer->addExtraInfo("amplitude-imag-vec", amplImag);
+    }
   }
 
   // Clean-up tensors
@@ -623,27 +687,39 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::reconstructCircuitTensor() {
     auto &networkBuildFactory = *(exatn::numerics::NetworkBuildFactory::get());
     auto builder = networkBuildFactory.createNetworkBuilderShared(m_reconstructBuilder);
     builder->setParameter("max_bond_dim", m_maxBondDim);
-    auto approximantTensorNetwork =
-        exatn::makeSharedTensorNetwork("Approx", rootTensor, *builder);
-    for (auto iter = approximantTensorNetwork->cbegin();
-         iter != approximantTensorNetwork->cend(); ++iter) {
-      const auto &tensorName = iter->second.getTensor()->getName();
-      if (tensorName != "ROOT") {
-        auto tensor = iter->second.getTensor();
-        const bool created = exatn::createTensorSync(
-            tensor, exatn::TensorElementType::COMPLEX64);
-        assert(created);
-        const bool initialized = exatn::initTensorRnd(tensor->getName());
-        assert(initialized);
-        // Keeps track of these approximate tensors to delete the next round.
-        TENSORS_TO_DESTROY.emplace_back(tensor->getName());
+    auto approximant = [&]() {
+      if (m_initReconstructionRandom || !m_previousOptExpansion) {
+        auto approximantTensorNetwork = exatn::makeSharedTensorNetwork("Approx", rootTensor, *builder);
+        for (auto iter = approximantTensorNetwork->cbegin();
+             iter != approximantTensorNetwork->cend(); ++iter) {
+          const auto &tensorName = iter->second.getTensor()->getName();
+          if (tensorName != "ROOT") {
+            auto tensor = iter->second.getTensor();
+            const bool created = exatn::createTensorSync(
+                tensor, getExatnElementType());
+            assert(created);
+            const bool initialized = exatn::initTensorRnd(tensor->getName());
+            assert(initialized);
+            // Keeps track of these approximate tensors to delete the next
+            // round.
+            TENSORS_TO_DESTROY.emplace_back(tensor->getName());
+          }
+        }
+        approximantTensorNetwork->markOptimizableAllTensors();
+        auto approximant_expansion = std::make_shared<exatn::TensorExpansion>("Approx");
+        approximant_expansion->appendComponent(approximantTensorNetwork, TNQVM_COMPLEX_TYPE{1.0, 0.0});
+        approximant_expansion->conjugate();
+        return approximant_expansion;
+      } else {
+        // Re-init to the previous:
+        return m_previousOptExpansion;
       }
-    }
+    }();
 
-    approximantTensorNetwork->markOptimizableAllTensors();
-    auto approximant = std::make_shared<exatn::TensorExpansion>("Approx");
-    approximant->appendComponent(approximantTensorNetwork, {1.0, 0.0});
-    approximant->conjugate();
+    bool success = exatn::balanceNormalizeNorm2Sync(*target, 1.0, 1.0, false);
+    assert(success);
+    success = exatn::balanceNormalizeNorm2Sync(*approximant, 1.0, 1.0, true);
+    assert(success);
     exatn::TensorNetworkReconstructor reconstructor(target, approximant,
                                                     m_reconstructTol);
     // std::cout << "Target: \n";
@@ -653,16 +729,27 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::reconstructCircuitTensor() {
     // Run the reconstructor:
     bool reconstructSuccess = exatn::sync();
     assert(reconstructSuccess);
+    // exatn::TensorNetworkReconstructor::resetDebugLevel(1); //debug
+    reconstructor.resetLearningRate(1.0);
     double residual_norm, fidelity;
+    const auto startOpt = std::chrono::system_clock::now();
     bool reconstructed =
         reconstructor.reconstruct(&residual_norm, &fidelity, true);
     reconstructSuccess = exatn::sync();
     assert(reconstructSuccess);
     if (reconstructed) {
+      const auto endOpt = std::chrono::system_clock::now();
+      const int elapsedMs =
+          std::chrono::duration_cast<std::chrono::milliseconds>(endOpt -
+                                                                startOpt)
+              .count();
       std::stringstream ss;
       ss << "Reconstruction succeeded: Residual norm = " << residual_norm
-         << "; Fidelity = " << fidelity;
+         << "; Fidelity = " << fidelity << "; elapsed time = " << elapsedMs
+         << "[ms]";
       xacc::info(ss.str());
+      m_reconstructionFidelity *= fidelity;
+      m_previousOptExpansion = exatn::duplicateSync(*approximant);
     } else {
       xacc::error("Reconstruction FAILED!");
     }
@@ -774,7 +861,7 @@ ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::constructObsTensorOperator(
   obsTensorNetwork->rename(opName);
   exatn::TensorOperator hamOp(opName);
   const bool appended = hamOp.appendComponent(
-      obsTensorNetwork, ketPairings, braPairings, std::complex<double>{1.0});
+      obsTensorNetwork, ketPairings, braPairings, TNQVM_COMPLEX_TYPE{1.0});
   assert(appended);
   return hamOp;
 }
@@ -784,6 +871,14 @@ const double ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZ(
     std::shared_ptr<CompositeInstruction> in_function) {
   if (!m_evaluatedExpansion) {
     exatn::TensorExpansion ketvector(m_tensorExpansion);
+    // std::cout << "Before renormalize:\n";
+    // ketvector.printIt();
+    const bool success =
+        exatn::balanceNormalizeNorm2Sync(ketvector, 1.0, 1.0, false);
+    assert(success);
+    // std::cout << "After renormalize:\n";
+    // ketvector.printIt();
+    
     exatn::TensorExpansion ketWithObs(ketvector, *m_obsTensorOperator);
     // std::cout << "Tensor Expansion:\n";
     // ketWithObs.printIt();
@@ -815,20 +910,113 @@ const double ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZ(
     auto component = m_evaluatedExpansion->getComponent(componentId);
     auto talsh_tensor =
         exatn::getLocalTensor(component.network->getTensor(0)->getName());
-    const std::complex<double> *body_ptr;
+    const TNQVM_COMPLEX_TYPE *body_ptr;
     auto access_granted = talsh_tensor->getDataAccessHostConst(&body_ptr);
     assert(access_granted);
     // std::cout << "Component " << component.network->getTensor(0)->getName()
     //           << " expectation value = " << *body_ptr << "\n";
+    const std::complex<double> tensor_body_val = *body_ptr;
+    // std::cout << "Component coeff: " << component.coefficient << "\n";
     const std::complex<double> renormalizedComponentExpVal =
-        (*body_ptr) * component.coefficient;
+        tensor_body_val * component.coefficient;
+    // std::cout << "renormalizedComponentExpVal: " << renormalizedComponentExpVal << "\n";
     return renormalizedComponentExpVal.real();
   }
   xacc::error("Unable to map execution data for sub-composite: " +
               in_function->name());
   return 0.0;
 }
+
+template <typename TNQVM_COMPLEX_TYPE>
+std::vector<TNQVM_COMPLEX_TYPE>
+ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::computeWaveFuncSlice(
+    const exatn::TensorNetwork &in_tensorNetwork,
+    const std::vector<int> &bitString,
+    const exatn::ProcessGroup &in_processGroup) const {
+  // Closing the tensor network with the bra
+  std::vector<std::pair<unsigned int, unsigned int>> pairings;
+  int nbOpenLegs = 0;
+  const auto constructBraNetwork = [&](const std::vector<int> &in_bitString) {
+    int tensorIdCounter = 1;
+    exatn::TensorNetwork braTensorNet("bra");
+    // Create the qubit register tensor
+    for (int i = 0; i < in_bitString.size(); ++i) {
+      const auto bitVal = in_bitString[i];
+      const std::string braQubitName = "QB" + std::to_string(i);
+      if (bitVal == 0) {
+        const bool created = exatn::createTensor(
+            in_processGroup, braQubitName, getExatnElementType(),
+            exatn::TensorShape{2});
+        assert(created);
+        // Bit = 0
+        const bool initialized = exatn::initTensorData(
+            braQubitName,
+            std::vector<TNQVM_COMPLEX_TYPE>{{1.0, 0.0}, {0.0, 0.0}});
+        assert(initialized);
+        pairings.emplace_back(std::make_pair(i, i + nbOpenLegs));
+      } else if (bitVal == 1) {
+        const bool created = exatn::createTensor(
+            in_processGroup, braQubitName, getExatnElementType(),
+            exatn::TensorShape{2});
+        assert(created);
+        // Bit = 1
+        const bool initialized = exatn::initTensorData(
+            braQubitName,
+            std::vector<TNQVM_COMPLEX_TYPE>{{0.0, 0.0}, {1.0, 0.0}});
+        assert(initialized);
+        pairings.emplace_back(std::make_pair(i, i + nbOpenLegs));
+      } else if (bitVal == -1) {
+        // Add an Id tensor
+        const bool created = exatn::createTensor(
+            in_processGroup, braQubitName, getExatnElementType(),
+            exatn::TensorShape{2, 2});
+        assert(created);
+        const bool initialized = exatn::initTensorData(
+            braQubitName, std::vector<TNQVM_COMPLEX_TYPE>{
+                              {1.0, 0.0}, {0.0, 0.0}, {0.0, 0.0}, {1.0, 0.0}});
+        assert(initialized);
+        pairings.emplace_back(std::make_pair(i, i + nbOpenLegs));
+        nbOpenLegs++;
+      } else {
+        xacc::error("Unknown values of '" + std::to_string(bitVal) +
+                    "' encountered.");
+      }
+      braTensorNet.appendTensor(
+          tensorIdCounter, exatn::getTensor(braQubitName),
+          std::vector<std::pair<unsigned int, unsigned int>>{});
+      tensorIdCounter++;
+    }
+
+    return braTensorNet;
+  };
+
+  auto braTensors = constructBraNetwork(bitString);
+  braTensors.conjugate();
+  auto combinedTensorNetwork = in_tensorNetwork;
+  assert(pairings.size() == m_buffer->size());
+  combinedTensorNetwork.appendTensorNetwork(std::move(braTensors), pairings);
+  // combinedTensorNetwork.printIt();
+  std::vector<TNQVM_COMPLEX_TYPE> waveFnSlice;
+  {
+    // std::cout << "SUBMIT TENSOR NETWORK FOR EVALUATION\n";
+    // combinedTensorNetwork.printIt();
+    if (exatn::evaluateSync(in_processGroup, combinedTensorNetwork)) {
+      exatn::sync();
+      auto talsh_tensor =
+          exatn::getLocalTensor(combinedTensorNetwork.getTensor(0)->getName());
+      const TNQVM_COMPLEX_TYPE *body_ptr;
+      if (talsh_tensor->getDataAccessHostConst(&body_ptr)) {
+        waveFnSlice.assign(body_ptr, body_ptr + talsh_tensor->getVolume());
+      }
+    }
+  }
+  // Destroy bra tensors
+  for (int i = 0; i < m_buffer->size(); ++i) {
+    const std::string braQubitName = "QB" + std::to_string(i);
+    const bool destroyed = exatn::destroyTensor(braQubitName);
+    assert(destroyed);
+  }
+  return waveFnSlice;
+}
 } // end namespace tnqvm
-// Register with CppMicroservices
-REGISTER_PLUGIN(tnqvm::DefaultExatnGenVisitor, tnqvm::TNQVMVisitor);
 #endif // TNQVM_HAS_EXATN
