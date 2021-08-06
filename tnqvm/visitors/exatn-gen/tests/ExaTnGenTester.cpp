@@ -119,8 +119,8 @@ TEST(ExaTnGenTester, checkVqeH2) {
 }
 
 TEST(ExaTnGenTester, checkVqeH3) {
-  auto accelerator =
-      xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-gen"}});
+  auto accelerator = xacc::getAccelerator(
+      "tnqvm", {{"tnqvm-visitor", "exatn-gen"}, {"reconstruct-layers", -1}});
   // Create the N=3 deuteron Hamiltonian
   auto H_N_3 = xacc::quantum::getObservable(
       "pauli",
@@ -159,11 +159,45 @@ TEST(ExaTnGenTester, checkVqeH3) {
   EXPECT_NEAR((*buffer)["opt-val"].as<double>(), -2.04482, 1e-3);
 }
 
-// Disable this test due to timeout on the CI machine.
+TEST(ExaTnGenTester, checkBitstringAmpl) {
+  auto xasmCompiler = xacc::getCompiler("xasm");
+  auto ir = xasmCompiler->compile(R"(__qpu__ void test1(qbit q) {
+            H(q[0]);
+            for (int i = 0; i < 3; i++) {
+                CNOT(q[i], q[i + 1]);
+            }
+        })");
+  std::vector<int> bitstring(4, -1);
+  auto program = ir->getComposite("test1");
+  auto accelerator =
+      xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-gen:float"},
+                                     {"reconstruct-layers", 2},
+                                     {"reconstruct-tolerance", 0.01},
+                                     {"bitstring", bitstring}});
+  auto qreg = xacc::qalloc(4);
+  accelerator->execute(qreg, program);
+  qreg->print();
+  const auto realAmpl = (*qreg)["amplitude-real-vec"].as<std::vector<double>>();
+  const auto imagAmpl = (*qreg)["amplitude-imag-vec"].as<std::vector<double>>();
+  // 4 qubits
+  const int nb_elems = 16;
+  EXPECT_EQ(realAmpl.size(), nb_elems);
+  EXPECT_EQ(imagAmpl.size(), nb_elems);
+  // GHZ: |0000> + |1111>/sqrt(2)
+  for (size_t i = 0; i < nb_elems; ++i) {
+    EXPECT_NEAR(imagAmpl[i], 0.0, 0.1);
+    EXPECT_NEAR(realAmpl[i],
+                (i == 0 || i == nb_elems - 1) ? 1.0 / std::sqrt(2.0) : 0.0,
+                0.1);
+  }
+}
+
 // TEST(ExaTnGenTester, checkVqeH3Approx) {
-//   // Reconstruct tensor network every 10 layers
-//   auto accelerator = xacc::getAccelerator(
-//       "tnqvm", {{"tnqvm-visitor", "exatn-gen"}, {"reconstruct-layers", 10}});
+//   // Use very high tolerance to save test time
+//   auto accelerator =
+//       xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-gen"},
+//                                      {"reconstruct-layers", 10},
+//                                      {"reconstruct-tolerance", 0.01}});
 //   xacc::set_verbose(true);
 //   xacc::qasm(R"(
 //         .compiler xasm
