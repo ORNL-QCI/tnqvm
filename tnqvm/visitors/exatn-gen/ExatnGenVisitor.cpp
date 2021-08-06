@@ -411,6 +411,51 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
     assert(destroyed);
   }
 
+  if (options.keyExists<std::vector<int>>("bitstring")) {
+    std::vector<int> bitString = options.get<std::vector<int>>("bitstring");
+    if (bitString.size() != m_buffer->size()) {
+      xacc::error("Bitstring size must match the number of qubits.");
+      return;
+    }
+
+    auto tensorNetwork = m_tensorExpansion.getComponent(0).network;
+    std::vector<TNQVM_COMPLEX_TYPE> waveFuncSlice = computeWaveFuncSlice(
+        *tensorNetwork, bitString, exatn::getDefaultProcessGroup());
+    assert(!waveFuncSlice.empty());
+    if (waveFuncSlice.size() == 1) {
+      m_buffer->addExtraInfo("amplitude-real", waveFuncSlice[0].real());
+      m_buffer->addExtraInfo("amplitude-imag", waveFuncSlice[0].imag());
+    } else {
+      const auto normalizeWaveFnSlice =
+          [](std::vector<TNQVM_COMPLEX_TYPE> &io_waveFn) {
+            const double normVal = std::accumulate(
+                io_waveFn.begin(), io_waveFn.end(), 0.0,
+                [](double sumVal, const TNQVM_COMPLEX_TYPE &val) {
+                  return sumVal + std::norm(val);
+                });
+            // The slice may have zero norm:
+            if (normVal > 1e-12) {
+              const TNQVM_COMPLEX_TYPE sqrtNorm = sqrt(normVal);
+              for (auto &val : io_waveFn) {
+                val = val / sqrtNorm;
+              }
+            }
+          };
+
+      normalizeWaveFnSlice(waveFuncSlice);
+      std::vector<double> amplReal;
+      std::vector<double> amplImag;
+      amplReal.reserve(waveFuncSlice.size());
+      amplImag.reserve(waveFuncSlice.size());
+      for (const auto &val : waveFuncSlice) {
+        amplReal.emplace_back(val.real());
+        amplImag.emplace_back(val.imag());
+      }
+      m_buffer->addExtraInfo("amplitude-real-vec", amplReal);
+      m_buffer->addExtraInfo("amplitude-imag-vec", amplImag);
+    }
+  }
+
   // Clean-up tensors
   for (size_t i = 0; i < m_buffer->size(); ++i) {
     const bool destroyed = exatn::destroyTensorSync(generateQubitTensorName(i));
