@@ -163,27 +163,26 @@ TEST(ExaTnGenTester, checkBitstringAmpl) {
   auto xasmCompiler = xacc::getCompiler("xasm");
   auto ir = xasmCompiler->compile(R"(__qpu__ void test1(qbit q) {
             H(q[0]);
-            for (int i = 0; i < 3; i++) {
+            for (int i = 0; i < 7; i++) {
                 CNOT(q[i], q[i + 1]);
             }
         })");
-  std::vector<int> bitstring(4, -1);
+  std::vector<int> bitstring(8, -1);
   auto program = ir->getComposite("test1");
   auto accelerator =
       xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-gen:float"},
                                      {"reconstruct-layers", 2},
                                      {"reconstruct-tolerance", 0.01},
                                      {"bitstring", bitstring}});
-  auto qreg = xacc::qalloc(4);
+  auto qreg = xacc::qalloc(8);
   accelerator->execute(qreg, program);
   qreg->print();
   const auto realAmpl = (*qreg)["amplitude-real-vec"].as<std::vector<double>>();
   const auto imagAmpl = (*qreg)["amplitude-imag-vec"].as<std::vector<double>>();
-  // 4 qubits
-  const int nb_elems = 16;
+  const int nb_elems = 256;
   EXPECT_EQ(realAmpl.size(), nb_elems);
   EXPECT_EQ(imagAmpl.size(), nb_elems);
-  // GHZ: |0000> + |1111>/sqrt(2)
+  // GHZ: |000000> + |111111>/sqrt(2)
   for (size_t i = 0; i < nb_elems; ++i) {
     EXPECT_NEAR(imagAmpl[i], 0.0, 0.1);
     EXPECT_NEAR(realAmpl[i],
