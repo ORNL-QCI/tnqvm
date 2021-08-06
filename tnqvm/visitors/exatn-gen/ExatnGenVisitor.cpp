@@ -385,6 +385,9 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
     }
     auto zHamOp = constructObsTensorOperator(obsOps);
     exatn::TensorExpansion ketvector(m_tensorExpansion);
+    const bool success =
+        exatn::balanceNormalizeNorm2Sync(ketvector, 1.0, 1.0, false);
+    assert(success);
     exatn::TensorExpansion ketWithObs(ketvector, zHamOp);
     // Bra network:
     exatn::TensorExpansion bravector(ketvector);
@@ -419,12 +422,20 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
     }
 
     auto tensorNetwork = m_tensorExpansion.getComponent(0).network;
+    // m_tensorExpansion.printIt();
+    const bool success =
+        exatn::balanceNormalizeNorm2Sync(m_tensorExpansion, 1.0, 1.0, false);
+    assert(success);
+    // m_tensorExpansion.printIt();
     std::vector<TNQVM_COMPLEX_TYPE> waveFuncSlice = computeWaveFuncSlice(
         *tensorNetwork, bitString, exatn::getDefaultProcessGroup());
     assert(!waveFuncSlice.empty());
     if (waveFuncSlice.size() == 1) {
-      m_buffer->addExtraInfo("amplitude-real", waveFuncSlice[0].real());
-      m_buffer->addExtraInfo("amplitude-imag", waveFuncSlice[0].imag());
+      const std::complex<double> renormalized_val =
+          static_cast<std::complex<double>>(waveFuncSlice[0]) *
+          m_tensorExpansion.getComponent(0).coefficient;
+      m_buffer->addExtraInfo("amplitude-real", renormalized_val.real());
+      m_buffer->addExtraInfo("amplitude-imag", renormalized_val.imag());
     } else {
       const auto normalizeWaveFnSlice =
           [](std::vector<TNQVM_COMPLEX_TYPE> &io_waveFn) {
@@ -711,10 +722,10 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::reconstructCircuitTensor() {
     assert(success);
     exatn::TensorNetworkReconstructor reconstructor(target, approximant,
                                                     m_reconstructTol);
-    std::cout << "Target: \n";
-    target->printIt();
-    std::cout << "approximant: \n";
-    approximant->printIt();
+    // std::cout << "Target: \n";
+    // target->printIt();
+    // std::cout << "approximant: \n";
+    // approximant->printIt();
     // Run the reconstructor:
     bool reconstructSuccess = exatn::sync();
     assert(reconstructSuccess);
@@ -860,6 +871,14 @@ const double ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZ(
     std::shared_ptr<CompositeInstruction> in_function) {
   if (!m_evaluatedExpansion) {
     exatn::TensorExpansion ketvector(m_tensorExpansion);
+    // std::cout << "Before renormalize:\n";
+    // ketvector.printIt();
+    const bool success =
+        exatn::balanceNormalizeNorm2Sync(ketvector, 1.0, 1.0, false);
+    assert(success);
+    // std::cout << "After renormalize:\n";
+    // ketvector.printIt();
+    
     exatn::TensorExpansion ketWithObs(ketvector, *m_obsTensorOperator);
     // std::cout << "Tensor Expansion:\n";
     // ketWithObs.printIt();
@@ -868,7 +887,7 @@ const double ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZ(
     bravector.conjugate();
     // bravector.printIt();
     exatn::TensorExpansion bratimesopertimesket(bravector, ketWithObs);
-    bratimesopertimesket.printIt();
+    // bratimesopertimesket.printIt();
     const bool accumCreated = exatn::createTensorSync(
         "ExpVal", getExatnElementType(), exatn::TensorShape{});
     assert(accumCreated);
@@ -894,13 +913,13 @@ const double ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZ(
     const TNQVM_COMPLEX_TYPE *body_ptr;
     auto access_granted = talsh_tensor->getDataAccessHostConst(&body_ptr);
     assert(access_granted);
-    std::cout << "Component " << component.network->getTensor(0)->getName()
-              << " expectation value = " << *body_ptr << "\n";
+    // std::cout << "Component " << component.network->getTensor(0)->getName()
+    //           << " expectation value = " << *body_ptr << "\n";
     const std::complex<double> tensor_body_val = *body_ptr;
-    std::cout << "Component coeff: " << component.coefficient << "\n";
+    // std::cout << "Component coeff: " << component.coefficient << "\n";
     const std::complex<double> renormalizedComponentExpVal =
         tensor_body_val * component.coefficient;
-    std::cout << "renormalizedComponentExpVal: " << renormalizedComponentExpVal << "\n";
+    // std::cout << "renormalizedComponentExpVal: " << renormalizedComponentExpVal << "\n";
     return renormalizedComponentExpVal.real();
   }
   xacc::error("Unable to map execution data for sub-composite: " +
