@@ -8,8 +8,12 @@
 int benchmarkExaTnGen1()
 {
  auto accelerator = xacc::getAccelerator("tnqvm",
-                    {{"tnqvm-visitor", "exatn-gen"},
-                     {"reconstruct-layers", 2}});
+                    {{"tnqvm-visitor", "exatn-gen"}
+                    ,{"exatn-buffer-size-gb", 2}
+                    ,{"reconstruct-layers", 4}
+                    ,{"reconstruct-tolerance", 1e-3}
+                    ,{"max-bond-dim", 2}
+                    });
  xacc::qasm(R"(.compiler xasm
                .circuit deuteron_ansatz_h3_2
                .parameters t0, t1
@@ -87,7 +91,7 @@ int main(int argc, char **argv) {
  //xacc::logToFile(true);
  //xacc::setLoggingLevel(2);
  int error_code = 0;
- //if(error_code == 0) error_code = benchmarkExaTnGen1();
+ if(error_code == 0) error_code = benchmarkExaTnGen1();
  if(error_code == 0) error_code = benchmarkExaTnGen2();
  xacc::Finalize();
  return error_code;
