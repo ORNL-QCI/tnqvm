@@ -19,7 +19,7 @@ int main(int argc, char **argv)
  xacc::Initialize();
  //xacc::set_verbose(true);
  //xacc::logToFile(true);
- //xacc::setLoggingLevel(1);
+ //xacc::setLoggingLevel(2);
 
  // Options: 4, 5, 6, 8, 10, 12, 14, 16, 18, 20:
  const int CIRCUIT_DEPTH = 8;
@@ -39,15 +39,15 @@ int main(int argc, char **argv)
 
  // The bitstring to calculate amplitude:
  // Example: bitstring = 000000000...00
- const std::vector<int> BIT_STRING(53, -1);
+ const std::vector<int> BIT_STRING(53,0);
 
  // ExaTN visitor:
  // Note:
  // (1) "exatn" == "exatn:double" uses double (64-bit) type;
  // (1) "exatn:float" uses float (32-bit) type;
- constexpr int NB_LAYERS = 4;
+ constexpr int NB_LAYERS = 2;
  constexpr double RECONSTRUCTION_TOL = 1e-3;
- constexpr int MAX_BOND_DIM = 32;
+ constexpr int MAX_BOND_DIM = 16;
  auto qpu = xacc::getAccelerator("tnqvm",
             {std::make_pair("tnqvm-visitor", "exatn-gen")
           //,std::make_pair("bitstring", BIT_STRING)

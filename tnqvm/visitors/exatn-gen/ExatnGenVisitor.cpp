@@ -222,11 +222,11 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::initialize(
     // ExaTN and XACC logging levels are always in-synced.
     // Note: If xacc::verbose is not set, we always set ExaTN logging level to
     // 0.
-    exatn::resetClientLoggingLevel(xacc::verbose ? 1 : 0);
-    exatn::resetRuntimeLoggingLevel(xacc::verbose ? xacc::getLoggingLevel()
-                                                  : 0);
+    exatn::resetClientLoggingLevel(xacc::verbose ? xacc::getLoggingLevel() : 0);
+    exatn::resetRuntimeLoggingLevel(xacc::verbose ? xacc::getLoggingLevel() : 0);
+
     xacc::subscribeLoggingLevel([](int level) {
-      exatn::resetClientLoggingLevel(xacc::verbose ? 1 : 0);
+      exatn::resetClientLoggingLevel(xacc::verbose ? level : 0);
       exatn::resetRuntimeLoggingLevel(xacc::verbose ? level : 0);
     });
   }
@@ -729,7 +729,7 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::reconstructCircuitTensor() {
     // Run the reconstructor:
     bool reconstructSuccess = exatn::sync();
     assert(reconstructSuccess);
-    // exatn::TensorNetworkReconstructor::resetDebugLevel(1); //debug
+    exatn::TensorNetworkReconstructor::resetDebugLevel(2); //debug
     reconstructor.resetLearningRate(1.0);
     double residual_norm, fidelity;
     const auto startOpt = std::chrono::system_clock::now();

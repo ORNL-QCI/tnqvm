@@ -367,9 +367,11 @@ void ExaTnDmVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer,
     // If exaTN has not been initialized, do it now.
     exatn::initialize();
     // ExaTN and XACC logging levels are always in-synced.
-    exatn::resetRuntimeLoggingLevel(xacc::verbose ? xacc::getLoggingLevel()
-                                                  : 0);
+    exatn::resetClientLoggingLevel(xacc::verbose ? xacc::getLoggingLevel() : 0);
+    exatn::resetRuntimeLoggingLevel(xacc::verbose ? xacc::getLoggingLevel(): 0);
+
     xacc::subscribeLoggingLevel([](int level) {
+      exatn::resetClientLoggingLevel(xacc::verbose ? level : 0);
       exatn::resetRuntimeLoggingLevel(xacc::verbose ? level : 0);
     });
   }

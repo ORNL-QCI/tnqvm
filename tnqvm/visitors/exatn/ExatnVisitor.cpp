@@ -481,10 +481,10 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::initialize(std::shared_ptr<AcceleratorBuf
 
     // ExaTN and XACC logging levels are always in-synced.
     // Note: If xacc::verbose is not set, we always set ExaTN logging level to 0.
-    exatn::resetClientLoggingLevel(xacc::verbose ? 1 : 0);
+    exatn::resetClientLoggingLevel(xacc::verbose ? xacc::getLoggingLevel() : 0);
     exatn::resetRuntimeLoggingLevel(xacc::verbose ? xacc::getLoggingLevel() : 0);
     xacc::subscribeLoggingLevel([](int level) {
-      exatn::resetClientLoggingLevel(xacc::verbose ? 1 : 0);
+      exatn::resetClientLoggingLevel(xacc::verbose ? level : 0);
       exatn::resetRuntimeLoggingLevel(xacc::verbose ? level : 0);
     });
   }

@@ -245,10 +245,11 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
     }
     #endif
         // ExaTN and XACC logging levels are always in-synced.
-        exatn::resetClientLoggingLevel(xacc::verbose ? 1 : 0);
+        exatn::resetClientLoggingLevel(xacc::verbose ? xacc::getLoggingLevel() : 0);
         exatn::resetRuntimeLoggingLevel(xacc::verbose ? xacc::getLoggingLevel() : 0);
+
         xacc::subscribeLoggingLevel([](int level) {
-            exatn::resetClientLoggingLevel(xacc::verbose ? 1 : 0);
+            exatn::resetClientLoggingLevel(xacc::verbose ? level : 0);
             exatn::resetRuntimeLoggingLevel(xacc::verbose ? level : 0);
         });
     }
@@ -335,7 +336,7 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
         if (loggingLevel > 0 && loggingLevel < 3)
         {
             std::cout << "[DEBUG]: Set ExaTN runtime logging level to " << loggingLevel << "\n";
-            exatn::resetClientLoggingLevel((loggingLevel > 0) ? 1 : 0);
+            exatn::resetClientLoggingLevel(loggingLevel);
             exatn::resetRuntimeLoggingLevel(loggingLevel);
         }
     }
