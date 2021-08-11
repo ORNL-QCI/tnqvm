@@ -85,6 +85,35 @@ int benchmarkExaTnGen2()
 }
 
 
+int benchmarkExaTnGen3()
+{
+ constexpr int NB_QUBITS = 16;
+ auto xasmCompiler = xacc::getCompiler("xasm");
+ auto ir = xasmCompiler->compile(R"(__qpu__ void bell(qbit q) {
+            H(q[0]);
+            for (int i = 0; i < 15; i++) {
+             CNOT(q[i], q[i + 1]);
+            }
+           })");
+ std::vector<int> bitstring(NB_QUBITS, 0);
+ auto program = ir->getComposite("bell");
+ auto accelerator =
+      xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-gen"},
+                                     {"exatn-buffer-size-gb", 2},
+                                     {"reconstruct-layers", 15},
+                                     {"reconstruct-tolerance", 1e-2},
+                                     {"max-bond-dim", 1},
+                                     {"bitstring", bitstring}});
+ auto qreg = xacc::qalloc(NB_QUBITS);
+ accelerator->execute(qreg, program);
+ qreg->print();
+ const auto realAmpl = (*qreg)["amplitude-real"].as<double>();
+ const auto imagAmpl = (*qreg)["amplitude-imag"].as<double>();
+ std::cout << "Bell state amplitude = {" << realAmpl << "," << imagAmpl << "}\n";
+ return 0;
+}
+
+
 int main(int argc, char **argv) {
  xacc::Initialize(argc, argv);
  xacc::set_verbose(true);
@@ -92,7 +121,8 @@ int main(int argc, char **argv) {
  //xacc::setLoggingLevel(2);
  int error_code = 0;
  if(error_code == 0) error_code = benchmarkExaTnGen1();
- if(error_code == 0) error_code = benchmarkExaTnGen2();
+ //if(error_code == 0) error_code = benchmarkExaTnGen2();
+ if(error_code == 0) error_code = benchmarkExaTnGen3();
  xacc::Finalize();
  return error_code;
 }
