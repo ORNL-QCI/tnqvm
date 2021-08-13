@@ -19,10 +19,10 @@ int main(int argc, char **argv)
  xacc::Initialize();
  //xacc::set_verbose(true);
  //xacc::logToFile(true);
- //xacc::setLoggingLevel(2);
+ //xacc::setLoggingLevel(1);
 
  // Options: 4, 5, 6, 8, 10, 12, 14, 16, 18, 20:
- const int CIRCUIT_DEPTH = 8;
+ const int CIRCUIT_DEPTH = 4;
 
  // Construct the full path to the XASM source file:
  const std::string XASM_SRC_FILE = std::string(RESOURCE_DIR) + "/sycamore_53_" + std::to_string(CIRCUIT_DEPTH) + "_0.xasm";
@@ -45,12 +45,12 @@ int main(int argc, char **argv)
  // Note:
  // (1) "exatn" == "exatn:double" uses double (64-bit) type;
  // (1) "exatn:float" uses float (32-bit) type;
- constexpr int NB_LAYERS = 2;
+ constexpr int NB_LAYERS = 23;
  constexpr double RECONSTRUCTION_TOL = 1e-3;
  constexpr int MAX_BOND_DIM = 16;
  auto qpu = xacc::getAccelerator("tnqvm",
             {std::make_pair("tnqvm-visitor", "exatn-gen")
-          //,std::make_pair("bitstring", BIT_STRING)
+            ,std::make_pair("bitstring", BIT_STRING)
             ,std::make_pair("exatn-buffer-size-gb", 8)
             ,{"reconstruct-layers", NB_LAYERS}
             ,{"reconstruct-tolerance", RECONSTRUCTION_TOL}

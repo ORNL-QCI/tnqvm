@@ -100,8 +100,8 @@ int benchmarkExaTnGen3()
  auto accelerator =
       xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-gen"},
                                      {"exatn-buffer-size-gb", 2},
-                                     {"reconstruct-layers", 15},
-                                     {"reconstruct-tolerance", 1e-2},
+                                     {"reconstruct-layers", 4},
+                                     {"reconstruct-tolerance", 1e-4},
                                      {"max-bond-dim", 1},
                                      {"bitstring", bitstring}});
  auto qreg = xacc::qalloc(NB_QUBITS);
@@ -118,9 +118,9 @@ int main(int argc, char **argv) {
  xacc::Initialize(argc, argv);
  xacc::set_verbose(true);
  //xacc::logToFile(true);
- //xacc::setLoggingLevel(2);
+ //xacc::setLoggingLevel(1);
  int error_code = 0;
- if(error_code == 0) error_code = benchmarkExaTnGen1();
+ //if(error_code == 0) error_code = benchmarkExaTnGen1();
  //if(error_code == 0) error_code = benchmarkExaTnGen2();
  if(error_code == 0) error_code = benchmarkExaTnGen3();
  xacc::Finalize();
