@@ -601,7 +601,9 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::appendGateTensor(
   // Count gate layer if this is a multi-qubit gate.
   if (in_gateInstruction.nRequiredBits() > 1) {
     updateLayerCounter(in_gateInstruction);
+    reconstructCircuitTensor();
   }
+
   const auto gateName = GetGateName(GateType);
   const GateInstanceIdentifier gateInstanceId(gateName, in_params...);
   const std::string uniqueGateName = gateInstanceId.toNameString();
@@ -676,8 +678,6 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::appendGateTensor(
     xacc::error("Failed to append tensor for gate " +
                 in_gateInstruction.name() + ", pairing = " + gatePairingString);
   }
-
-  reconstructCircuitTensor();
 }
 
 template <typename TNQVM_COMPLEX_TYPE>
@@ -1057,6 +1057,7 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::updateLayerCounter(
     } else {
       ++m_layerCounter;
       m_layerTracker.clear();
+      m_layerTracker.emplace(std::make_pair(q1, q2));
     }
   }
 }
