@@ -250,7 +250,7 @@ TEST(ExaTnGenTester, checkVqeH3Approx) {
   auto energies = vqe->execute(buffer, {0.0684968, 0.17797});
   buffer->print();
   std::cout << "Energy = " << energies[0] << "\n";
-  EXPECT_NEAR(energies[0], -2.04482, 0.1);
+  EXPECT_NEAR(energies[0], -2.04482, 0.25);
 }
 
 int main(int argc, char **argv) {
