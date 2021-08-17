@@ -120,7 +120,7 @@ TEST(ExaTnGenTester, checkVqeH2) {
 
 TEST(ExaTnGenTester, checkVqeH3) {
   auto accelerator = xacc::getAccelerator(
-      "tnqvm", {{"tnqvm-visitor", "exatn-gen"}, {"reconstruct-layers", -1}});
+      "tnqvm", {{"tnqvm-visitor", "exatn-gen"}, {"reconstruct-gates", -1}});
   // Create the N=3 deuteron Hamiltonian
   auto H_N_3 = xacc::quantum::getObservable(
       "pauli",
@@ -172,7 +172,7 @@ TEST(ExaTnGenTester, checkBitstringAmpl) {
   auto program = ir->getComposite("test1");
   auto accelerator =
       xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-gen:float"},
-                                     {"reconstruct-layers", 2},
+                                     {"reconstruct-gates", 2},
                                      {"reconstruct-tolerance", 0.01},
                                      {"bitstring", bitstring}});
   auto qreg = xacc::qalloc(8);
@@ -196,7 +196,7 @@ TEST(ExaTnGenTester, checkWavefunctionSlice) {
   auto program = ir->getComposite("test1");
   auto accelerator =
       xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-gen:float"},
-                                     {"reconstruct-layers", 2},
+                                     {"reconstruct-gates", 2},
                                      {"reconstruct-tolerance", 0.01},
                                      {"bitstring", bitstring}});
   auto qreg = xacc::qalloc(8);
@@ -220,7 +220,7 @@ TEST(ExaTnGenTester, checkVqeH3Approx) {
   // Use very high tolerance to save test time
   auto accelerator =
       xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-gen"},
-                                     {"reconstruct-layers", 4},
+                                     {"reconstruct-gates", 4},
                                      {"reconstruct-tolerance", 0.01}});
   xacc::set_verbose(true);
   xacc::qasm(R"(

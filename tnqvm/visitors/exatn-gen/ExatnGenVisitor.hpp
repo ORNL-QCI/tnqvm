@@ -32,7 +32,7 @@
 // +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
 // |  Initialization Parameter   |                  Parameter Description                                 |    type     |         default          |
 // +=============================+========================================================================+=============+==========================+
-// | reconstruct-layers          | Perform reconstruction after this number of consecutive 2-q gates      |    int      | -1 (no reconstruct)      |
+// | reconstruct-gates           | Perform reconstruction after this number of consecutive 2-q gates      |    int      | -1 (no reconstruct)      |
 // +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
 // | reconstruct-tolerance       | Reconstruction convergence tolerance                                   |    double   | 1e-4                     |
 // +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
@@ -141,10 +141,13 @@ private:
                        const exatn::ProcessGroup &in_processGroup) const;
 
 private:
+  void updateLayerCounter(const xacc::Instruction &in_gateInstruction);
+  std::set<std::pair<size_t, size_t>> m_layerTracker;
   std::shared_ptr<exatn::TensorNetwork> m_qubitNetwork;
   exatn::TensorExpansion m_tensorExpansion;
   std::shared_ptr<exatn::TensorExpansion> m_previousOptExpansion;
   int m_layersReconstruct;
+  bool m_countByGates;
   double m_reconstructTol;
   int m_layerCounter;
   int m_maxBondDim;
