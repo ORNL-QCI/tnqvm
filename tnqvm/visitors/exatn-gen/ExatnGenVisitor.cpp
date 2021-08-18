@@ -15,14 +15,14 @@
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
- * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
- * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
- * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
- * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ *ARE DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY DIRECT,
+ *INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ *BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ *DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+ *OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ *NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+ *EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Contributors:
  *   Implementation - Thien Nguyen;
@@ -223,7 +223,8 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::initialize(
     // Note: If xacc::verbose is not set, we always set ExaTN logging level to
     // 0.
     exatn::resetClientLoggingLevel(xacc::verbose ? xacc::getLoggingLevel() : 0);
-    exatn::resetRuntimeLoggingLevel(xacc::verbose ? xacc::getLoggingLevel() : 0);
+    exatn::resetRuntimeLoggingLevel(xacc::verbose ? xacc::getLoggingLevel()
+                                                  : 0);
 
     xacc::subscribeLoggingLevel([](int level) {
       exatn::resetClientLoggingLevel(xacc::verbose ? level : 0);
@@ -250,11 +251,21 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::initialize(
 
   // Default number of layers
   m_layersReconstruct = 4;
-  if (options.keyExists<int>("reconstruct-layers")) {
-    m_layersReconstruct = options.get<int>("reconstruct-layers");
+  m_countByGates = false;
+  m_layerTracker.clear();
+  if (options.keyExists<int>("reconstruct-gates")) {
+    m_layersReconstruct = options.get<int>("reconstruct-gates");
+    xacc::info("Reconstruct tensor network every " +
+               std::to_string(m_layersReconstruct) + " 2-body gates.");
+    m_countByGates = true;
+  } else {
+    if (options.keyExists<int>("reconstruct-layers")) {
+      m_layersReconstruct = options.get<int>("reconstruct-layers");
+      xacc::info("Reconstruct tensor network every " +
+                 std::to_string(m_layersReconstruct) + " layers.");
+    }
   }
-  xacc::info("Reconstruct tensor network every " +
-             std::to_string(m_layersReconstruct) + " layers.");
+
   m_reconstructTol = 1e-3;
   m_maxBondDim = 512;
   m_reconstructionFidelity = 1.0;
@@ -276,7 +287,7 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::initialize(
     }
     if (options.stringExists("reconstruct-builder")) {
       m_reconstructBuilder = options.getString("reconstruct-builder");
-      xacc::info("Reconstruct with: " + m_reconstructBuilder  + " builder.");
+      xacc::info("Reconstruct with: " + m_reconstructBuilder + " builder.");
     }
   }
 
@@ -589,8 +600,10 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::appendGateTensor(
     const xacc::Instruction &in_gateInstruction, GateParams &&... in_params) {
   // Count gate layer if this is a multi-qubit gate.
   if (in_gateInstruction.nRequiredBits() > 1) {
-    ++m_layerCounter;
+    updateLayerCounter(in_gateInstruction);
+    reconstructCircuitTensor();
   }
+
   const auto gateName = GetGateName(GateType);
   const GateInstanceIdentifier gateInstanceId(gateName, in_params...);
   const std::string uniqueGateName = gateInstanceId.toNameString();
@@ -665,8 +678,6 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::appendGateTensor(
     xacc::error("Failed to append tensor for gate " +
                 in_gateInstruction.name() + ", pairing = " + gatePairingString);
   }
-
-  reconstructCircuitTensor();
 }
 
 template <typename TNQVM_COMPLEX_TYPE>
@@ -674,7 +685,7 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::reconstructCircuitTensor() {
   if (m_layersReconstruct <= 0) {
     return;
   }
-  if (m_layerCounter > m_layersReconstruct) {
+  if (m_layerCounter >= m_layersReconstruct) {
     xacc::info("Reconstruct Tensor Expansion");
     auto target = std::make_shared<exatn::TensorExpansion>(m_tensorExpansion);
     // List of Approximate tensors to delete:
@@ -685,18 +696,20 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::reconstructCircuitTensor() {
     const std::vector<int> qubitTensorDim(m_buffer->size(), 2);
     auto rootTensor = std::make_shared<exatn::Tensor>("ROOT", qubitTensorDim);
     auto &networkBuildFactory = *(exatn::numerics::NetworkBuildFactory::get());
-    auto builder = networkBuildFactory.createNetworkBuilderShared(m_reconstructBuilder);
+    auto builder =
+        networkBuildFactory.createNetworkBuilderShared(m_reconstructBuilder);
     builder->setParameter("max_bond_dim", m_maxBondDim);
     auto approximant = [&]() {
       if (m_initReconstructionRandom || !m_previousOptExpansion) {
-        auto approximantTensorNetwork = exatn::makeSharedTensorNetwork("Approx", rootTensor, *builder);
+        auto approximantTensorNetwork =
+            exatn::makeSharedTensorNetwork("Approx", rootTensor, *builder);
         for (auto iter = approximantTensorNetwork->cbegin();
              iter != approximantTensorNetwork->cend(); ++iter) {
           const auto &tensorName = iter->second.getTensor()->getName();
           if (tensorName != "ROOT") {
             auto tensor = iter->second.getTensor();
-            const bool created = exatn::createTensorSync(
-                tensor, getExatnElementType());
+            const bool created =
+                exatn::createTensorSync(tensor, getExatnElementType());
             assert(created);
             const bool initialized = exatn::initTensorRnd(tensor->getName());
             assert(initialized);
@@ -706,8 +719,10 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::reconstructCircuitTensor() {
           }
         }
         approximantTensorNetwork->markOptimizableAllTensors();
-        auto approximant_expansion = std::make_shared<exatn::TensorExpansion>("Approx");
-        approximant_expansion->appendComponent(approximantTensorNetwork, TNQVM_COMPLEX_TYPE{1.0, 0.0});
+        auto approximant_expansion =
+            std::make_shared<exatn::TensorExpansion>("Approx");
+        approximant_expansion->appendComponent(approximantTensorNetwork,
+                                               TNQVM_COMPLEX_TYPE{1.0, 0.0});
         approximant_expansion->conjugate();
         return approximant_expansion;
       } else {
@@ -729,7 +744,7 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::reconstructCircuitTensor() {
     // Run the reconstructor:
     bool reconstructSuccess = exatn::sync();
     assert(reconstructSuccess);
-    //exatn::TensorNetworkReconstructor::resetDebugLevel(2); //debug
+    // exatn::TensorNetworkReconstructor::resetDebugLevel(2); //debug
     reconstructor.resetLearningRate(1.0);
     double residual_norm, fidelity;
     const auto startOpt = std::chrono::system_clock::now();
@@ -878,7 +893,7 @@ const double ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZ(
     assert(success);
     // std::cout << "After renormalize:\n";
     // ketvector.printIt();
-    
+
     exatn::TensorExpansion ketWithObs(ketvector, *m_obsTensorOperator);
     // std::cout << "Tensor Expansion:\n";
     // ketWithObs.printIt();
@@ -919,7 +934,8 @@ const double ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZ(
     // std::cout << "Component coeff: " << component.coefficient << "\n";
     const std::complex<double> renormalizedComponentExpVal =
         tensor_body_val * component.coefficient;
-    // std::cout << "renormalizedComponentExpVal: " << renormalizedComponentExpVal << "\n";
+    // std::cout << "renormalizedComponentExpVal: " <<
+    // renormalizedComponentExpVal << "\n";
     return renormalizedComponentExpVal.real();
   }
   xacc::error("Unable to map execution data for sub-composite: " +
@@ -944,9 +960,9 @@ ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::computeWaveFuncSlice(
       const auto bitVal = in_bitString[i];
       const std::string braQubitName = "QB" + std::to_string(i);
       if (bitVal == 0) {
-        const bool created = exatn::createTensor(
-            in_processGroup, braQubitName, getExatnElementType(),
-            exatn::TensorShape{2});
+        const bool created =
+            exatn::createTensor(in_processGroup, braQubitName,
+                                getExatnElementType(), exatn::TensorShape{2});
         assert(created);
         // Bit = 0
         const bool initialized = exatn::initTensorData(
@@ -955,9 +971,9 @@ ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::computeWaveFuncSlice(
         assert(initialized);
         pairings.emplace_back(std::make_pair(i, i + nbOpenLegs));
       } else if (bitVal == 1) {
-        const bool created = exatn::createTensor(
-            in_processGroup, braQubitName, getExatnElementType(),
-            exatn::TensorShape{2});
+        const bool created =
+            exatn::createTensor(in_processGroup, braQubitName,
+                                getExatnElementType(), exatn::TensorShape{2});
         assert(created);
         // Bit = 1
         const bool initialized = exatn::initTensorData(
@@ -967,9 +983,9 @@ ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::computeWaveFuncSlice(
         pairings.emplace_back(std::make_pair(i, i + nbOpenLegs));
       } else if (bitVal == -1) {
         // Add an Id tensor
-        const bool created = exatn::createTensor(
-            in_processGroup, braQubitName, getExatnElementType(),
-            exatn::TensorShape{2, 2});
+        const bool created = exatn::createTensor(in_processGroup, braQubitName,
+                                                 getExatnElementType(),
+                                                 exatn::TensorShape{2, 2});
         assert(created);
         const bool initialized = exatn::initTensorData(
             braQubitName, std::vector<TNQVM_COMPLEX_TYPE>{
@@ -1017,6 +1033,33 @@ ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::computeWaveFuncSlice(
     assert(destroyed);
   }
   return waveFnSlice;
+}
+template <typename TNQVM_COMPLEX_TYPE>
+void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::updateLayerCounter(
+    const xacc::Instruction &in_gateInstruction) {
+  auto &gate = const_cast<xacc::Instruction &>(in_gateInstruction);
+  assert(gate.bits().size() == 2);
+  if (m_countByGates) {
+    ++m_layerCounter;
+  } else {
+    bool canCombine = true;
+    const auto q1 = gate.bits()[0];
+    const auto q2 = gate.bits()[1];
+
+    for (const auto& [bit1, bit2]: m_layerTracker) {
+      if ((q1 == bit1 || q1 == bit2) || (q2 == bit1 || q2 == bit2)) {
+        canCombine = false;
+        break;
+      } 
+    }
+    if (canCombine) {
+      m_layerTracker.emplace(std::make_pair(q1, q2));
+    } else {
+      ++m_layerCounter;
+      m_layerTracker.clear();
+      m_layerTracker.emplace(std::make_pair(q1, q2));
+    }
+  }
 }
 } // end namespace tnqvm
 #endif // TNQVM_HAS_EXATN
