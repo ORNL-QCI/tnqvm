@@ -21,7 +21,7 @@ TEST(ExaTnGenTester, checkExpVal) {
   {
     // Check exp-val by tensor expansion
     auto accelerator =
-        xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-gen"}});
+        xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-gen"}, {"reconstruct-gates", -1}});
     auto xasmCompiler = xacc::getCompiler("xasm");
     auto program = xasmCompiler
                        ->compile(R"(__qpu__ void testRY(qbit q, double t) {
@@ -46,7 +46,7 @@ TEST(ExaTnGenTester, checkExpVal) {
   }
   {
     auto accelerator =
-        xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-gen"}});
+        xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-gen"}, {"reconstruct-gates", -1}});
     auto xasmCompiler = xacc::getCompiler("xasm");
     auto ir = xasmCompiler->compile(R"(__qpu__ void ansatz(qbit q, double t)
     {
@@ -84,7 +84,7 @@ TEST(ExaTnGenTester, checkExpVal) {
 
 TEST(ExaTnGenTester, checkVqeH2) {
   auto accelerator =
-      xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-gen"}});
+      xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-gen"}, {"reconstruct-gates", -1}});
   // Create the N=2 deuteron Hamiltonian
   auto H_N_2 = xacc::quantum::getObservable(
       "pauli", std::string("5.907 - 2.1433 X0X1 "
@@ -251,6 +251,80 @@ TEST(ExaTnGenTester, checkVqeH3Approx) {
   buffer->print();
   std::cout << "Energy = " << energies[0] << "\n";
   EXPECT_NEAR(energies[0], -2.04482, 0.25);
+}
+
+TEST(ExaTnGenTester, checkNewLayerCount) {
+  // Use very high tolerance to save test time
+  auto accelerator =
+      xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-gen"},
+                                     {"reconstruct-layers", 4},
+                                     {"reconstruct-tolerance", 0.1}});
+  xacc::set_verbose(true);
+  xacc::qasm(R"(
+        .compiler xasm
+        .circuit test_layers
+        .qbit q
+        X(q[0]);
+        CX(q[0], q[1]);
+        CX(q[0], q[1]);
+        CX(q[2], q[3]);
+        CX(q[2], q[3]);
+        CX(q[4], q[5]);
+        CX(q[4], q[5]);
+        CX(q[6], q[7]);
+        CX(q[6], q[7]);
+        CX(q[1], q[2]);
+        CX(q[1], q[2]);
+        CX(q[3], q[4]);
+        CX(q[3], q[4]);
+        CX(q[5], q[6]);
+        CX(q[5], q[6]);
+        CX(q[0], q[1]);
+        CX(q[0], q[1]);
+        CX(q[2], q[3]);
+        CX(q[2], q[3]);
+        CX(q[4], q[5]);
+        CX(q[4], q[5]);
+        CX(q[6], q[7]);
+        CX(q[6], q[7]);
+        CX(q[1], q[2]);
+        CX(q[1], q[2]);
+        CX(q[3], q[4]);
+        CX(q[3], q[4]);
+        CX(q[5], q[6]);
+        CX(q[5], q[6]);
+        CX(q[0], q[1]);
+        CX(q[0], q[1]);
+        CX(q[2], q[3]);
+        CX(q[2], q[3]);
+        CX(q[4], q[5]);
+        CX(q[4], q[5]);
+        CX(q[6], q[7]);
+        CX(q[6], q[7]);
+        CX(q[1], q[2]);
+        CX(q[1], q[2]);
+        CX(q[3], q[4]);
+        CX(q[3], q[4]);
+        CX(q[5], q[6]);
+        CX(q[5], q[6]);
+        CX(q[0], q[1]);
+        CX(q[0], q[1]);
+        CX(q[2], q[3]);
+        CX(q[2], q[3]);
+        CX(q[4], q[5]);
+        CX(q[4], q[5]);
+        CX(q[6], q[7]);
+        CX(q[6], q[7]);
+        CX(q[1], q[2]);
+        CX(q[1], q[2]);
+        CX(q[3], q[4]);
+        CX(q[3], q[4]);
+        CX(q[5], q[6]);
+        CX(q[5], q[6]);
+    )");
+  auto qreg = xacc::qalloc(8);
+  auto program = xacc::getCompiled("test_layers");
+  accelerator->execute(qreg, program);
 }
 
 int main(int argc, char **argv) {
