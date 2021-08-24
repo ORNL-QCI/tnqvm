@@ -133,7 +133,7 @@ private:
   analyzeObsSubCircuit(std::shared_ptr<CompositeInstruction> in_function) const;
   exatn::TensorOperator
   constructObsTensorOperator(const std::vector<ObsOpType> &in_obsOps) const;
-  void reconstructCircuitTensor();
+  void reconstructCircuitTensor(bool forced = false);
   // Compute the wave-function slice or amplitude (if all bits are set):
   std::vector<TNQVM_COMPLEX_TYPE>
   computeWaveFuncSlice(const exatn::TensorNetwork &in_tensorNetwork,
@@ -142,7 +142,8 @@ private:
 
 private:
   void updateLayerCounter(const xacc::Instruction &in_gateInstruction);
-  std::set<std::pair<size_t, size_t>> m_layerTracker;
+  // std::set<std::pair<size_t, size_t>> m_layerTracker;
+  std::unordered_map<size_t, size_t> m_qubitToGateCount;
   std::shared_ptr<exatn::TensorNetwork> m_qubitNetwork;
   exatn::TensorExpansion m_tensorExpansion;
   std::shared_ptr<exatn::TensorExpansion> m_previousOptExpansion;

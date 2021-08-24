@@ -252,7 +252,8 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::initialize(
   // Default number of layers
   m_layersReconstruct = 4;
   m_countByGates = false;
-  m_layerTracker.clear();
+  // m_layerTracker.clear();
+  m_qubitToGateCount.clear();
   if (options.keyExists<int>("reconstruct-gates")) {
     m_layersReconstruct = options.get<int>("reconstruct-gates");
     xacc::info("Reconstruct tensor network every " +
@@ -385,6 +386,9 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::initialize(
 template <typename TNQVM_COMPLEX_TYPE>
 void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
   m_buffer->addExtraInfo("reconstruction-fidelity", m_reconstructionFidelity);
+  if (m_layerCounter > 0) {
+    reconstructCircuitTensor(true);
+  }
   // This is a single-circuit execution.
   // Do the evaluation now.
   if (!m_obsTensorOperator && !m_measuredBits.empty()) {
@@ -681,12 +685,15 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::appendGateTensor(
 }
 
 template <typename TNQVM_COMPLEX_TYPE>
-void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::reconstructCircuitTensor() {
+void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::reconstructCircuitTensor(bool forced) {
   if (m_layersReconstruct <= 0) {
     return;
   }
-  if (m_layerCounter >= m_layersReconstruct) {
+  if (m_layerCounter > m_layersReconstruct || forced) {
     xacc::info("Reconstruct Tensor Expansion");
+    // Flush the count every reconstruct:
+    m_qubitToGateCount.clear();
+    // m_tensorExpansion.printIt();
     auto target = std::make_shared<exatn::TensorExpansion>(m_tensorExpansion);
     // List of Approximate tensors to delete:
     static std::vector<std::string> TENSORS_TO_DESTROY;
@@ -1042,23 +1049,46 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::updateLayerCounter(
   if (m_countByGates) {
     ++m_layerCounter;
   } else {
-    bool canCombine = true;
     const auto q1 = gate.bits()[0];
     const auto q2 = gate.bits()[1];
-
-    for (const auto& [bit1, bit2]: m_layerTracker) {
-      if ((q1 == bit1 || q1 == bit2) || (q2 == bit1 || q2 == bit2)) {
-        canCombine = false;
-        break;
-      } 
-    }
-    if (canCombine) {
-      m_layerTracker.emplace(std::make_pair(q1, q2));
+    if (m_qubitToGateCount.find(q1) != m_qubitToGateCount.end()) {
+      m_qubitToGateCount[q1] = m_qubitToGateCount[q1] + 1;
     } else {
-      ++m_layerCounter;
-      m_layerTracker.clear();
-      m_layerTracker.emplace(std::make_pair(q1, q2));
+      m_qubitToGateCount[q1] = 1;
     }
+
+    if (m_qubitToGateCount.find(q2) != m_qubitToGateCount.end()) {
+      m_qubitToGateCount[q2] = m_qubitToGateCount[q2] + 1;
+    } else {
+      m_qubitToGateCount[q2] = 1;
+    }
+
+    // Update layer counter = max qubit counter across all qubits.
+    for (const auto &[qId, counter] : m_qubitToGateCount) {
+      if (counter > m_layerCounter) {
+        m_layerCounter = counter;
+      }
+    }
+    {
+      std::stringstream ss;
+      ss << "Processing " << gate.toString() << " : " << m_layerCounter;
+      xacc::info(ss.str());
+    }
+    
+
+    // for (const auto& [bit1, bit2]: m_layerTracker) {
+    //   if ((q1 == bit1 || q1 == bit2) || (q2 == bit1 || q2 == bit2)) {
+    //     canCombine = false;
+    //     break;
+    //   } 
+    // }
+    // if (canCombine) {
+    //   m_layerTracker.emplace(std::make_pair(q1, q2));
+    // } else {
+    //   ++m_layerCounter;
+    //   m_layerTracker.clear();
+    //   m_layerTracker.emplace(std::make_pair(q1, q2));
+    // }
   }
 }
 } // end namespace tnqvm
