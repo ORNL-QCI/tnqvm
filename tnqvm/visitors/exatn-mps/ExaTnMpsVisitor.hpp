@@ -120,7 +120,10 @@ private:
     std::vector<uint8_t> getMeasureSample(const std::vector<size_t>& in_qubitIdx);
     void printStateVec();
     // Truncate the bond dimension between two tensors that are decomposed by SVD
-    void truncateSvdTensors(const std::string& in_leftTensorName, const std::string& in_rightTensorName, double in_eps = std::numeric_limits<double>::min());
+    void truncateSvdTensors(const std::string &in_leftTensorName,
+                            const std::string &in_rightTensorName,
+                            double in_eps = std::numeric_limits<double>::min(),
+                            exatn::ProcessGroup *in_processGroup = nullptr);
     std::vector<std::complex<double>> computeWaveFuncSlice(const exatn::numerics::TensorNetwork& in_tensorNetwork, const std::vector<int>& bitString, const exatn::ProcessGroup& in_processGroup) const;
     double computeStateVectorNorm(const exatn::numerics::TensorNetwork& in_tensorNetwork, const exatn::ProcessGroup& in_processGroup) const;
 
