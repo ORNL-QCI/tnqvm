@@ -2105,6 +2105,15 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
             const bool postBroadCastOk = exatn::replicateTensorSync(*m_rightSharedProcessGroup, qubitTensorName, 0);
             assert(postBroadCastOk);
         }
+        {
+          unsigned int neighborRank;
+          const bool checkRank =
+              m_rightSharedProcessGroup->rankIsIn(m_rank + 1, &neighborRank);
+          assert(checkRank);
+          const bool dereplicateTensorOk = exatn::dereplicateTensorSync(
+              *m_rightSharedProcessGroup, qubitTensorName, neighborRank);
+          assert(dereplicateTensorOk);
+        }
     }
     else if (indexInRange(qMax, m_qubitRange))
     {
@@ -2135,6 +2144,15 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
             assert(postBroadCastOk);
         }
 
+        {
+          unsigned int myLocalRank;
+          const bool checkRank =
+              m_leftSharedProcessGroup->rankIsIn(m_rank, &myLocalRank);
+          assert(checkRank);
+          const bool dereplicateTensorOk = exatn::dereplicateTensorSync(
+              *m_leftSharedProcessGroup, qubitTensorName, myLocalRank);
+          assert(dereplicateTensorOk);
+        }
         // Update the tensor network to take into
         // account the updated tensor.
         rebuildTensorNetwork();
