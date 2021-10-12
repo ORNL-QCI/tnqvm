@@ -2110,9 +2110,14 @@ void ExatnMpsVisitor::applyTwoQubitGate(xacc::Instruction& in_gateInstruction)
           const bool checkRank =
               m_rightSharedProcessGroup->rankIsIn(m_rank + 1, &neighborRank);
           assert(checkRank);
+          const auto tensorShape = exatn::getTensor(qubitTensorName)->getShape();
           const bool dereplicateTensorOk = exatn::dereplicateTensorSync(
               *m_rightSharedProcessGroup, qubitTensorName, neighborRank);
           assert(dereplicateTensorOk);
+          auto recreated = exatn::createTensorSync(
+              *m_selfProcessGroup, qubitTensorName,
+              exatn::TensorElementType::COMPLEX64, tensorShape);
+          assert(recreated);
         }
     }
     else if (indexInRange(qMax, m_qubitRange))
