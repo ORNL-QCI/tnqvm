@@ -835,8 +835,9 @@ void ExatnMpsVisitor::finalize()
                         return result;
                     };
 
-                    m_buffer->appendMeasurement(convertToBitString(getMeasureSample(m_measureQubits)));
+                    m_buffer->appendMeasurement(convertToBitString(getMeasureSample(m_measureQubits, m_selfProcessGroup.get())));
                 }
+                xacc::info("Finished simulating bit string by MPS tensor contraction");
             }
         }
     }
@@ -2257,7 +2258,7 @@ void ExatnMpsVisitor::addMeasureBitStringProbability(const std::vector<size_t>& 
     }
 }
 
-std::vector<uint8_t> ExatnMpsVisitor::getMeasureSample(const std::vector<size_t>& in_qubitIdx)
+std::vector<uint8_t> ExatnMpsVisitor::getMeasureSample(const std::vector<size_t>& in_qubitIdx, exatn::ProcessGroup *in_processGroup)
 {
     std::vector<uint8_t> resultBitString;
     std::vector<double> resultProbs;
@@ -2289,7 +2290,7 @@ std::vector<uint8_t> ExatnMpsVisitor::getMeasureSample(const std::vector<size_t>
                     {0.0, 0.0}};
 
                 const std::string tensorName = "COLLAPSE_0_" + std::to_string(measIdx);
-                const bool created = exatn::createTensor(tensorName, exatn::TensorElementType::COMPLEX64, exatn::TensorShape{2, 2});
+                const bool created = in_processGroup ? exatn::createTensor(*in_processGroup, tensorName, exatn::TensorElementType::COMPLEX64, exatn::TensorShape{2, 2}): exatn::createTensor(tensorName, exatn::TensorElementType::COMPLEX64, exatn::TensorShape{2, 2});
                 assert(created);
                 tensorsToDestroy.emplace_back(tensorName);
                 const bool registered = exatn::registerTensorIsometry(tensorName, {0}, {1});
@@ -2311,7 +2312,7 @@ std::vector<uint8_t> ExatnMpsVisitor::getMeasureSample(const std::vector<size_t>
                     {1.0 / resultProbs[measIdx], 0.0}};
 
                 const std::string tensorName = "COLLAPSE_1_" + std::to_string(measIdx);
-                const bool created = exatn::createTensor(tensorName, exatn::TensorElementType::COMPLEX64, exatn::TensorShape{2, 2});
+                const bool created = in_processGroup ? exatn::createTensor(*in_processGroup, tensorName, exatn::TensorElementType::COMPLEX64, exatn::TensorShape{2, 2}) : exatn::createTensor(tensorName, exatn::TensorElementType::COMPLEX64, exatn::TensorShape{2, 2});
                 assert(created);
                 tensorsToDestroy.emplace_back(tensorName);
                 const bool registered = exatn::registerTensorIsometry(tensorName, {0}, {1});
@@ -2344,7 +2345,8 @@ std::vector<uint8_t> ExatnMpsVisitor::getMeasureSample(const std::vector<size_t>
         }
 
         // Evaluate
-        if (exatn::evaluateSync(combinedNetwork))
+        const bool evaluated = in_processGroup ? exatn::evaluateSync(*in_processGroup, combinedNetwork) : exatn::evaluateSync(combinedNetwork);
+        assert(evaluated);
         {
             exatn::sync();
             auto talsh_tensor = exatn::getLocalTensor(combinedNetwork.getTensor(0)->getName());

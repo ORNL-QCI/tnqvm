@@ -117,7 +117,7 @@ private:
     // Then, we contract the whole tensor network to get the RDM for that qubit.
     // Randomly select a binary (1/0) result based on the RDM, then close that tensor leg by projecting it onto the selected result.
     // Continue with the next qubit line (conditioned on the previous measurement result).
-    std::vector<uint8_t> getMeasureSample(const std::vector<size_t>& in_qubitIdx);
+    std::vector<uint8_t> getMeasureSample(const std::vector<size_t>& in_qubitIdx, exatn::ProcessGroup *in_processGroup = nullptr);
     void printStateVec();
     // Truncate the bond dimension between two tensors that are decomposed by SVD
     void truncateSvdTensors(const std::string &in_leftTensorName,
