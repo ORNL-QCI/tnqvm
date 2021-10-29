@@ -139,6 +139,9 @@ private:
   computeWaveFuncSlice(const exatn::TensorNetwork &in_tensorNetwork,
                        const std::vector<int> &in_bitString,
                        const exatn::ProcessGroup &in_processGroup) const;
+  std::vector<uint8_t>
+  getMeasureSample(exatn::TensorNetwork &in_mps, size_t in_nbQubits,
+                   const std::vector<size_t> &in_qubitIdx) const;
 
 private:
   void updateLayerCounter(const xacc::Instruction &in_gateInstruction);
