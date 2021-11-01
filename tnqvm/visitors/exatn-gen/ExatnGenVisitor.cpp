@@ -232,6 +232,7 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::initialize(
     });
   }
   m_buffer = buffer;
+  m_shots = nbShots;
   // Create the qubit register tensor
   for (int i = 0; i < m_buffer->size(); ++i) {
     const bool created =
@@ -385,9 +386,34 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::initialize(
 
 template <typename TNQVM_COMPLEX_TYPE>
 void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
-  m_buffer->addExtraInfo("reconstruction-fidelity", m_reconstructionFidelity);
   if (m_layerCounter > 0) {
     reconstructCircuitTensor(true);
+  }
+  m_buffer->addExtraInfo("reconstruction-fidelity", m_reconstructionFidelity);
+  assert(m_reconstructionFidelity > 0.8);
+  if (m_shots > 0 && !m_measuredBits.empty()) {
+    for (int i = 0; i < m_shots; ++i) {
+      const auto convertToBitString =
+          [](const std::vector<uint8_t> &in_bitVec) {
+            std::string result;
+            for (const auto &bit : in_bitVec) {
+              result.append(std::to_string(bit));
+            }
+            return result;
+          };
+
+      // m_tensorExpansion.printIt();
+      assert(m_tensorExpansion.getNumComponents() == 1);
+      auto expansionComponent = m_tensorExpansion.getComponent(0);
+      // expansionComponent.network->printIt();
+      m_buffer->appendMeasurement(convertToBitString(getMeasureSample(
+          *(expansionComponent.network),
+          TNQVM_COMPLEX_TYPE{static_cast<TNQVM_FLOAT_TYPE>(expansionComponent.coefficient.real()),
+                             static_cast<TNQVM_FLOAT_TYPE>(expansionComponent.coefficient.imag())},
+          m_buffer->size(), m_measuredBits)));
+    }
+
+    return;
   }
   // This is a single-circuit execution.
   // Do the evaluation now.
@@ -595,7 +621,7 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::visit(fSim &in_fsimGate) {
 
 template <typename TNQVM_COMPLEX_TYPE>
 void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::visit(Measure &in_MeasureGate) {
-  m_measuredBits.emplace(in_MeasureGate.bits()[0]);
+  m_measuredBits.emplace_back(in_MeasureGate.bits()[0]);
 }
 // === END: Gate Visitor Impls ===
 template <typename TNQVM_COMPLEX_TYPE>
@@ -1090,6 +1116,146 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::updateLayerCounter(
     //   m_layerTracker.emplace(std::make_pair(q1, q2));
     // }
   }
+}
+
+template <typename TNQVM_COMPLEX_TYPE>
+std::vector<uint8_t> ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::getMeasureSample(
+    exatn::TensorNetwork &in_mps, TNQVM_COMPLEX_TYPE in_coeff,
+    size_t in_nbQubits, const std::vector<size_t> &in_qubitIdx) const {
+  std::vector<uint8_t> resultBitString;
+  std::vector<ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::TNQVM_FLOAT_TYPE>
+      resultProbs;
+  static size_t collapseCount = 0;
+  for (const auto &qubitIdx : in_qubitIdx) {
+    std::vector<TNQVM_COMPLEX_TYPE> resultRDM;
+    auto inverseTensorNetwork = in_mps;
+    inverseTensorNetwork.rename("Inverse Tensor Network");
+    inverseTensorNetwork.conjugate();
+    auto combinedNetwork = in_mps;
+    combinedNetwork.rename("Combine Tensor Network");
+    auto tensorIdCounter = in_mps.getMaxTensorId() + 1;
+    // Adding collapse tensors based on previous measurement results.
+    // i.e. condition/renormalize the tensor network to be consistent with
+    // previous result.
+    for (size_t measIdx = 0; measIdx < resultBitString.size(); ++measIdx) {
+      const unsigned int qId = in_qubitIdx[measIdx];
+
+      // If it was a "0":
+      if (resultBitString[measIdx] == 0) {
+        const std::vector<TNQVM_COMPLEX_TYPE> COLLAPSE_0{
+            // Renormalize based on the probability of this outcome
+            {1.0f / resultProbs[measIdx], 0.0},
+            {0.0, 0.0},
+            {0.0, 0.0},
+            {0.0, 0.0}};
+
+        const std::string tensorName = "COLLAPSE_0_" + std::to_string(measIdx) +
+                                       "_" + std::to_string(collapseCount++);
+        const bool created = exatn::createTensor(
+            tensorName, getExatnElementType(), exatn::TensorShape{2, 2});
+        assert(created);
+        const bool registered =
+            (exatn::registerTensorIsometry(tensorName, {0}, {1}));
+        assert(registered);
+        const bool initialized = exatn::initTensorData(tensorName, COLLAPSE_0);
+        assert(initialized);
+        const bool appended = combinedNetwork.appendTensorGate(
+            tensorIdCounter++, exatn::getTensor(tensorName), {qId});
+        assert(appended);
+      } else {
+        assert(resultBitString[measIdx] == 1);
+        // Renormalize based on the probability of this outcome
+        const std::vector<TNQVM_COMPLEX_TYPE> COLLAPSE_1{
+            {0.0, 0.0},
+            {0.0, 0.0},
+            {0.0, 0.0},
+            {1.0f / resultProbs[measIdx], 0.0}};
+
+        const std::string tensorName = "COLLAPSE_1_" + std::to_string(measIdx) +
+                                       "_" + std::to_string(collapseCount++);
+        const bool created = exatn::createTensor(
+            tensorName, getExatnElementType(), exatn::TensorShape{2, 2});
+        assert(created);
+        const bool registered =
+            (exatn::registerTensorIsometry(tensorName, {0}, {1}));
+        assert(registered);
+        const bool initialized = exatn::initTensorData(tensorName, COLLAPSE_1);
+        assert(initialized);
+        const bool appended = combinedNetwork.appendTensorGate(
+            tensorIdCounter++, exatn::getTensor(tensorName), {qId});
+        assert(appended);
+      }
+    }
+
+    // Append the conjugate network to calculate the RDM of the measure
+    // qubit
+    std::vector<std::pair<unsigned int, unsigned int>> pairings;
+    for (size_t i = 0; i < in_nbQubits; ++i) {
+      // Connect the original tensor network with its inverse
+      // but leave the measure qubit line open.
+      if (i != qubitIdx) {
+        pairings.emplace_back(std::make_pair(i, i));
+      }
+    }
+    combinedNetwork.appendTensorNetwork(std::move(inverseTensorNetwork),
+                                        pairings);
+
+    // Evaluate
+    if (exatn::evaluateSync(combinedNetwork)) {
+      exatn::sync();
+      auto talsh_tensor =
+          exatn::getLocalTensor(combinedNetwork.getTensor(0)->getName());
+      const auto tensorVolume = talsh_tensor->getVolume();
+      // Single qubit density matrix
+      assert(tensorVolume == 4);
+      const TNQVM_COMPLEX_TYPE *body_ptr;
+      if (talsh_tensor->getDataAccessHostConst(&body_ptr)) {
+        resultRDM.assign(body_ptr, body_ptr + tensorVolume);
+      }
+    }
+
+    // Perform the measurement
+    assert(resultRDM.size() == 4);
+    for (auto &val : resultRDM) {
+      val = val * (in_coeff * std::conj(in_coeff));
+    }
+    // Debug: print out RDM data
+    {
+      std::stringstream ss;
+      ss << "RDM @q" << qubitIdx << " = [";
+      for (const auto &element : resultRDM) {
+        ss << element;
+      }
+      ss << "]\n";
+      xacc::info(ss.str());
+    }
+    const double prob_0 = resultRDM.front().real();
+    const double prob_1 = resultRDM.back().real();
+    assert(prob_0 >= 0.0 && prob_1 >= 0.0);
+    // This is an approximate simulator.... 
+    // hence, using a relaxed check for validation.
+    assert(std::fabs(1.0 - prob_0 - prob_1) < 0.1);
+
+    // Generate a random number
+    const double randProbPick = generateRandomProbability();
+    // If radom number < probability of 0 state -> pick zero, and vice
+    // versa.
+    resultBitString.emplace_back(randProbPick <= prob_0 ? 0 : 1);
+    resultProbs.emplace_back(randProbPick <= prob_0 ? prob_0 : prob_1);
+
+    {
+      std::stringstream ss;
+      ss << ">> Measure @q" << qubitIdx << " prob(0) = " << prob_0 << "\n";
+      ss << ">> Measure @q" << qubitIdx << " prob(1) = " << prob_1 << "\n";
+      ss << ">> Measure @q" << qubitIdx << " random number = " << randProbPick
+         << "\n";
+      ss << ">> Measure @q" << qubitIdx << " pick "
+         << std::to_string(resultBitString.back()) << "\n";
+      xacc::info(ss.str());
+    }
+  }
+  assert(resultBitString.size() == in_qubitIdx.size());
+  return resultBitString;
 }
 } // end namespace tnqvm
 #endif // TNQVM_HAS_EXATN

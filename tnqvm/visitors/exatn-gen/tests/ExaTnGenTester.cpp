@@ -327,6 +327,34 @@ TEST(ExaTnGenTester, checkNewLayerCount) {
   accelerator->execute(qreg, program);
 }
 
+TEST(ExaTnGenTester, checkBitstringSampling) {
+  // Use very high tolerance to save test time
+  auto accelerator =
+      xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-gen"},
+                                     {"reconstruct-layers", 4},
+                                     {"shots", 1000}});
+  xacc::set_verbose(true);
+  xacc::qasm(R"(
+        .compiler xasm
+        .circuit test_layers
+        .qbit q
+        H(q[0]);
+        CX(q[0], q[1]);
+        CX(q[1], q[2]);
+        CX(q[2], q[3]);
+        CX(q[3], q[4]);
+        CX(q[4], q[5]);
+        CX(q[5], q[6]);
+        CX(q[6], q[7]);
+        Measure(q[3]);
+        Measure(q[7]);
+    )");
+  auto qreg = xacc::qalloc(8);
+  auto program = xacc::getCompiled("test_layers");
+  accelerator->execute(qreg, program);
+  qreg->print();
+}
+
 int main(int argc, char **argv) {
   xacc::Initialize(argc, argv);
   ::testing::InitGoogleTest(&argc, argv);
