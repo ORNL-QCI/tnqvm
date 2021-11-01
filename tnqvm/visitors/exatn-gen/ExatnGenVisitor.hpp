@@ -140,7 +140,8 @@ private:
                        const std::vector<int> &in_bitString,
                        const exatn::ProcessGroup &in_processGroup) const;
   std::vector<uint8_t>
-  getMeasureSample(exatn::TensorNetwork &in_mps, size_t in_nbQubits,
+  getMeasureSample(exatn::TensorNetwork &in_mps, TNQVM_COMPLEX_TYPE in_coeff,
+                   size_t in_nbQubits,
                    const std::vector<size_t> &in_qubitIdx) const;
 
 private:
@@ -160,12 +161,13 @@ private:
   std::shared_ptr<AcceleratorBuffer> m_buffer;
   std::unordered_map<std::string, std::vector<TNQVM_COMPLEX_TYPE>>
       m_gateTensorBodies;
-  std::set<int> m_measuredBits;
+  std::vector<size_t> m_measuredBits;
   std::shared_ptr<exatn::TensorOperator> m_obsTensorOperator;
   std::unordered_map<std::string, size_t> m_compositeNameToComponentId;
   std::shared_ptr<exatn::TensorExpansion> m_evaluatedExpansion;
   double m_reconstructionFidelity;
   bool m_initReconstructionRandom;
+  int m_shots;
 };
 
 template class ExatnGenVisitor<std::complex<double>>;
