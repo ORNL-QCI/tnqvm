@@ -1582,6 +1582,7 @@ const double ExatnVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZ(
   }
   m_hasEvaluated = true;
   const double exp_val_z = (nbBasisChangeInsts > 0) ? calcExpValueZ(m_measureQbIdx, retrieveStateVector()) :  calcExpValueZ(m_measureQbIdx, m_cacheStateVec);
+  exatn::destroyTensorSync(m_tensorNetwork.getTensor(0)->getName());
   m_measureQbIdx.clear();
   return exp_val_z;
 }
