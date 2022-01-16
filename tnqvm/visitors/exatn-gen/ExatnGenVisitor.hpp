@@ -36,7 +36,7 @@
 // +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
 // | reconstruct-tolerance       | Reconstruction convergence tolerance                                   |    double   | 1e-4                     |
 // +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
-// | max-bond-dim                | Reconstruction max bond dimension (inside approximating tensor network)|    int      | 512                      |
+// | max-bond-dim                | Reconstruction max bond dimension (inside approximating tensor network)|    int      | 16                       |
 // +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
 // | reconstruct-builder         | Reconstruction network builder (builds the tensor network ansatz)      |    string   | "MPS"                    |
 // +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+

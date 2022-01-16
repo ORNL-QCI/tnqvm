@@ -29,7 +29,6 @@
  *
  **********************************************************************************/
 #ifdef TNQVM_HAS_EXATN
-#define _DEBUG_DIL
 
 #include "ExatnGenVisitor.hpp"
 #include "exatn.hpp"
@@ -268,8 +267,8 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::initialize(
     }
   }
 
-  m_reconstructTol = 1e-3;
-  m_maxBondDim = 512;
+  m_reconstructTol = 1e-4;
+  m_maxBondDim = 16;
   m_reconstructionFidelity = 1.0;
   m_initReconstructionRandom = false;
   if (options.keyExists<bool>("init-random")) {
@@ -300,9 +299,8 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::initialize(
         i + 1, exatn::getTensor(generateQubitTensorName(i)),
         std::vector<std::pair<unsigned int, unsigned int>>{});
   }
-  exatn::TensorExpansion tensorEx("QuantumCircuit");
-  tensorEx.appendComponent(m_qubitNetwork, TNQVM_COMPLEX_TYPE{1.0});
-  m_tensorExpansion = tensorEx;
+  m_tensorExpansion = exatn::TensorExpansion("QuantumCircuit");
+  m_tensorExpansion.appendComponent(m_qubitNetwork, TNQVM_COMPLEX_TYPE{1.0});
   m_gateTensorBodies.clear();
   m_measuredBits.clear();
   m_obsTensorOperator.reset();
@@ -386,11 +384,8 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::initialize(
 
 template <typename TNQVM_COMPLEX_TYPE>
 void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
-  if (m_layerCounter > 0) {
-    reconstructCircuitTensor(true);
-  }
+  if (m_layerCounter > 0) reconstructCircuitTensor(true);
   m_buffer->addExtraInfo("reconstruction-fidelity", m_reconstructionFidelity);
-  assert(m_reconstructionFidelity > 0.8);
   if (m_shots > 0 && !m_measuredBits.empty()) {
     for (int i = 0; i < m_shots; ++i) {
       const auto convertToBitString =
@@ -624,10 +619,11 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::visit(Measure &in_MeasureGate) {
   m_measuredBits.emplace_back(in_MeasureGate.bits()[0]);
 }
 // === END: Gate Visitor Impls ===
+
 template <typename TNQVM_COMPLEX_TYPE>
 template <tnqvm::CommonGates GateType, typename... GateParams>
 void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::appendGateTensor(
-    const xacc::Instruction &in_gateInstruction, GateParams &&... in_params) {
+     const xacc::Instruction &in_gateInstruction, GateParams &&... in_params) {
   // Count gate layer if this is a multi-qubit gate.
   if (in_gateInstruction.nRequiredBits() > 1) {
     updateLayerCounter(in_gateInstruction);
@@ -654,8 +650,8 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::appendGateTensor(
                                       ? exatn::TensorShape{2, 2}
                                       : exatn::TensorShape{2, 2, 2, 2});
     // Create the tensor
-    const bool created = exatn::createTensor(
-        uniqueGateName, getExatnElementType(), gateTensorShape);
+    const bool created = exatn::createTensor(uniqueGateName,
+                                             getExatnElementType(), gateTensorShape);
     assert(created);
     // Init tensor body data
     exatn::initTensorData(uniqueGateName, flattenGateMatrix(gateMatrix));
@@ -663,12 +659,10 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::appendGateTensor(
     // For rank-2 gate isometric leg groups are: {0}, {1}.
     // For rank-4 gate isometric leg groups are: {0,1}, {2,3}.
     if (in_gateInstruction.nRequiredBits() == 1) {
-      const bool registered =
-          exatn::registerTensorIsometry(uniqueGateName, {0}, {1});
+      const bool registered = exatn::registerTensorIsometry(uniqueGateName, {0}, {1});
       assert(registered);
     } else if (in_gateInstruction.nRequiredBits() == 2) {
-      const bool registered =
-          exatn::registerTensorIsometry(uniqueGateName, {0, 1}, {2, 3});
+      const bool registered = exatn::registerTensorIsometry(uniqueGateName, {0, 1}, {2, 3});
       assert(registered);
     }
   }
@@ -676,8 +670,7 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::appendGateTensor(
   // Because the qubit location and gate pairing are of different integer types,
   // we need to reconstruct the qubit vector.
   std::vector<unsigned int> gatePairing;
-  for (const auto &qbitLoc :
-       const_cast<xacc::Instruction &>(in_gateInstruction).bits()) {
+  for (const auto &qbitLoc : const_cast<xacc::Instruction &>(in_gateInstruction).bits()) {
     gatePairing.emplace_back(qbitLoc);
   }
 
@@ -712,9 +705,7 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::appendGateTensor(
 
 template <typename TNQVM_COMPLEX_TYPE>
 void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::reconstructCircuitTensor(bool forced) {
-  if (m_layersReconstruct <= 0) {
-    return;
-  }
+  if (m_layersReconstruct <= 0) return;
   if (m_layerCounter > m_layersReconstruct || forced) {
     xacc::info("Reconstruct Tensor Expansion");
     // Flush the count every reconstruct:
@@ -729,8 +720,7 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::reconstructCircuitTensor(bool forced) 
     const std::vector<int> qubitTensorDim(m_buffer->size(), 2);
     auto rootTensor = std::make_shared<exatn::Tensor>("ROOT", qubitTensorDim);
     auto &networkBuildFactory = *(exatn::numerics::NetworkBuildFactory::get());
-    auto builder =
-        networkBuildFactory.createNetworkBuilderShared(m_reconstructBuilder);
+    auto builder = networkBuildFactory.createNetworkBuilderShared(m_reconstructBuilder);
     builder->setParameter("max_bond_dim", m_maxBondDim);
     auto approximant = [&]() {
       if (m_initReconstructionRandom || !m_previousOptExpansion) {
@@ -752,8 +742,7 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::reconstructCircuitTensor(bool forced) 
           }
         }
         approximantTensorNetwork->markOptimizableAllTensors();
-        auto approximant_expansion =
-            std::make_shared<exatn::TensorExpansion>("Approx");
+        auto approximant_expansion = std::make_shared<exatn::TensorExpansion>("Approx");
         approximant_expansion->appendComponent(approximantTensorNetwork,
                                                TNQVM_COMPLEX_TYPE{1.0, 0.0});
         approximant_expansion->conjugate();
@@ -777,20 +766,16 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::reconstructCircuitTensor(bool forced) 
     // Run the reconstructor:
     bool reconstructSuccess = exatn::sync();
     assert(reconstructSuccess);
-    //exatn::TensorNetworkReconstructor::resetDebugLevel(1,0); //debug
+    exatn::TensorNetworkReconstructor::resetDebugLevel(1,0); //debug
     reconstructor.resetLearningRate(1.0);
     double residual_norm, fidelity;
     const auto startOpt = std::chrono::system_clock::now();
-    bool reconstructed =
-        reconstructor.reconstruct(&residual_norm, &fidelity, true);
-    reconstructSuccess = exatn::sync();
-    assert(reconstructSuccess);
+    bool reconstructed = reconstructor.reconstruct(&residual_norm, &fidelity, true);
+    reconstructSuccess = exatn::sync(); assert(reconstructSuccess);
     if (reconstructed) {
       const auto endOpt = std::chrono::system_clock::now();
       const int elapsedMs =
-          std::chrono::duration_cast<std::chrono::milliseconds>(endOpt -
-                                                                startOpt)
-              .count();
+        std::chrono::duration_cast<std::chrono::milliseconds>(endOpt - startOpt).count();
       std::stringstream ss;
       ss << "Reconstruction succeeded: Residual norm = " << residual_norm
          << "; Fidelity = " << fidelity << "; elapsed time = " << elapsedMs
@@ -916,7 +901,8 @@ ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::constructObsTensorOperator(
 
 template <typename TNQVM_COMPLEX_TYPE>
 const double ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZ(
-    std::shared_ptr<CompositeInstruction> in_function) {
+             std::shared_ptr<CompositeInstruction> in_function) {
+  if (m_layerCounter > 0) reconstructCircuitTensor(true);
   if (!m_evaluatedExpansion) {
     exatn::TensorExpansion ketvector(m_tensorExpansion);
     // std::cout << "Before renormalize:\n";
@@ -943,11 +929,9 @@ const double ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZ(
     assert(accumInitialized);
     m_gateTensorBodies["ExpVal"] = std::vector<TNQVM_COMPLEX_TYPE>{{0.0, 0.0}};
     auto accumulator = exatn::getTensor("ExpVal");
-    const bool evaluated =
-        exatn::evaluateSync(bratimesopertimesket, accumulator);
+    const bool evaluated = exatn::evaluateSync(bratimesopertimesket, accumulator);
     assert(evaluated);
-    m_evaluatedExpansion =
-        std::make_shared<exatn::TensorExpansion>(bratimesopertimesket);
+    m_evaluatedExpansion = std::make_shared<exatn::TensorExpansion>(bratimesopertimesket);
   }
   // std::cout << "There are: " << m_evaluatedExpansion->getNumComponents() << "
   // components in the expansion.\n";
@@ -1069,7 +1053,7 @@ ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::computeWaveFuncSlice(
 }
 template <typename TNQVM_COMPLEX_TYPE>
 void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::updateLayerCounter(
-    const xacc::Instruction &in_gateInstruction) {
+     const xacc::Instruction &in_gateInstruction) {
   auto &gate = const_cast<xacc::Instruction &>(in_gateInstruction);
   assert(gate.bits().size() == 2);
   if (m_countByGates) {
@@ -1091,22 +1075,19 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::updateLayerCounter(
 
     // Update layer counter = max qubit counter across all qubits.
     for (const auto &[qId, counter] : m_qubitToGateCount) {
-      if (counter > m_layerCounter) {
-        m_layerCounter = counter;
-      }
+      if (counter > m_layerCounter) m_layerCounter = counter;
     }
     {
       std::stringstream ss;
       ss << "Processing " << gate.toString() << " : " << m_layerCounter;
       xacc::info(ss.str());
     }
-    
 
     // for (const auto& [bit1, bit2]: m_layerTracker) {
     //   if ((q1 == bit1 || q1 == bit2) || (q2 == bit1 || q2 == bit2)) {
     //     canCombine = false;
     //     break;
-    //   } 
+    //   }
     // }
     // if (canCombine) {
     //   m_layerTracker.emplace(std::make_pair(q1, q2));
@@ -1232,7 +1213,7 @@ std::vector<uint8_t> ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::getMeasureSample(
     const double prob_0 = resultRDM.front().real();
     const double prob_1 = resultRDM.back().real();
     assert(prob_0 >= 0.0 && prob_1 >= 0.0);
-    // This is an approximate simulator.... 
+    // This is an approximate simulator....
     // hence, using a relaxed check for validation.
     assert(std::fabs(1.0 - prob_0 - prob_1) < 0.1);
 
