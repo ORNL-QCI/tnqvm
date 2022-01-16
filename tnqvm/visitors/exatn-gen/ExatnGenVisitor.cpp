@@ -275,7 +275,7 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::initialize(
     m_initReconstructionRandom = options.get<bool>("init-random");
   }
   m_previousOptExpansion.reset();
-  // Default builder: MPS
+  // Tensor network builder
   m_reconstructBuilder = "MPS";
   if (m_layersReconstruct > 0) {
     if (options.keyExists<double>("reconstruct-tolerance")) {
@@ -722,6 +722,7 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::reconstructCircuitTensor(bool forced) 
     auto &networkBuildFactory = *(exatn::numerics::NetworkBuildFactory::get());
     auto builder = networkBuildFactory.createNetworkBuilderShared(m_reconstructBuilder);
     builder->setParameter("max_bond_dim", m_maxBondDim);
+    if(m_reconstructBuilder == "TTN") builder->setParameter("arity", 2);
     auto approximant = [&]() {
       if (m_initReconstructionRandom || !m_previousOptExpansion) {
         auto approximantTensorNetwork =
