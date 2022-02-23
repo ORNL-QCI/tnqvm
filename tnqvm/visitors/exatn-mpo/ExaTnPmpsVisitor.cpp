@@ -1115,27 +1115,27 @@ void ExaTnPmpsVisitor::visit(CNOT& in_CNOTGate)
 
 void ExaTnPmpsVisitor::visit(Swap& in_SwapGate)
 {
-    applySingleQubitGate(in_SwapGate);
+    applyTwoQubitGate(in_SwapGate);
 }
 
 void ExaTnPmpsVisitor::visit(CZ& in_CZGate)
 {
-    applySingleQubitGate(in_CZGate);
+    applyTwoQubitGate(in_CZGate);
 }
 
 void ExaTnPmpsVisitor::visit(CPhase& in_CPhaseGate)
 {
-    applySingleQubitGate(in_CPhaseGate);
+    applyTwoQubitGate(in_CPhaseGate);
 }
 
 void ExaTnPmpsVisitor::visit(iSwap& in_iSwapGate)
 {
-    applySingleQubitGate(in_iSwapGate);
+    applyTwoQubitGate(in_iSwapGate);
 }
 
 void ExaTnPmpsVisitor::visit(fSim& in_fsimGate)
 {
-    applySingleQubitGate(in_fsimGate);
+    applyTwoQubitGate(in_fsimGate);
 }
 
 const double ExaTnPmpsVisitor::getExpectationValueZ(std::shared_ptr<CompositeInstruction> in_function)
