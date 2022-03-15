@@ -383,7 +383,7 @@ ExatnVisitor<TNQVM_COMPLEX_TYPE>::ExatnVisitor()
 
 template<typename TNQVM_COMPLEX_TYPE>
 void ExatnVisitor<TNQVM_COMPLEX_TYPE>::initialize(std::shared_ptr<AcceleratorBuffer> buffer,
-                              int nbShots) {
+                                                  int nbShots) {
   int64_t talshHostBufferSizeInBytes = MAX_TALSH_MEMORY_BUFFER_SIZE_BYTES;
   if (!exatn::isInitialized()) {
 #ifdef TNQVM_EXATN_USES_MKL_BLAS
@@ -432,29 +432,29 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::initialize(std::shared_ptr<AcceleratorBuf
 // This is a flag from ExaTN indicating that ExaTN was compiled
 // w/ MPI enabled.
 #ifdef MPI_ENABLED
-  {
-    if (options.keyExists<void*>("mpi-communicator"))
     {
-      xacc::info("Setting ExaTN MPI_COMMUNICATOR...");
-      auto communicator = options.get<void*>("mpi-communicator");
-      exatn::MPICommProxy commProxy(communicator);
-      exatn::initialize(commProxy, exatnParams);
+      if (options.keyExists<void*>("mpi-communicator"))
+      {
+        xacc::info("Setting ExaTN MPI_COMMUNICATOR...");
+        auto communicator = options.get<void*>("mpi-communicator");
+        exatn::MPICommProxy commProxy(communicator);
+        exatn::initialize(commProxy, exatnParams);
+      }
+      else
+      {
+        // No specific communicator is specified,
+        // exaTN will automatically use MPI_COMM_WORLD.
+        exatn::initialize(exatnParams);
+      }
+      exatn::activateContrSeqCaching();
+      //exatn::resetExecutionSerialization(true,true); //validation
     }
-    else
-    {
-      // No specific communicator is specified,
-      // exaTN will automatically use MPI_COMM_WORLD.
-      exatn::initialize(exatnParams);
-    }
-    exatn::activateContrSeqCaching();
-    //exatn::resetExecutionSerialization(true,true); //validation
-  }
 #else
-  {
-    exatn::initialize(exatnParams);
-    exatn::activateContrSeqCaching();
-    //exatn::resetExecutionSerialization(true,true); //validation
-  }
+    {
+      exatn::initialize(exatnParams);
+      exatn::activateContrSeqCaching();
+      //exatn::resetExecutionSerialization(true,true); //validation
+    }
 #endif
 
     if (exatn::getDefaultProcessGroup().getSize() > 1)
@@ -487,6 +487,13 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::initialize(std::shared_ptr<AcceleratorBuf
       exatn::resetClientLoggingLevel(xacc::verbose ? level : 0);
       exatn::resetRuntimeLoggingLevel(xacc::verbose ? level : 0);
     });
+
+    //Set up ExaTN computational backend:
+    auto backends = exatn::queryComputationalBackends();
+    if(std::find(backends.cbegin(),backends.cend(),"cuquantum") != backends.cend()) {
+      exatn::switchComputationalBackend("cuquantum");
+      //std::cout << "#MSG(TN-QVM:ExaTN): Switched computational backend to cuQuantum\n"; //debug
+    }
   }
 
   m_hasEvaluated = false;
@@ -509,7 +516,7 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::initialize(std::shared_ptr<AcceleratorBuf
   // Note: this option is for *INTERNAL* use only.
   // e.g. purposely constraint the number of qubits to test all-reduce
   // wavefunction slices.
-  if (options.keyExists<int>("max-qubit")) 
+  if (options.keyExists<int>("max-qubit"))
   {
     m_maxQubit = options.get<int>("max-qubit");
     xacc::info("Set max qubit to " + m_maxQubit);
