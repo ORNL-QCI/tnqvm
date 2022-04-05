@@ -516,6 +516,7 @@ void ExaTnPmpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int
 
     m_buffer = buffer;
     m_pmpsTensorNetwork = buildInitialNetwork(buffer->size(), true);
+    // m_pmpsTensorNetwork.printIt();
     m_noiseConfig.reset();
     if (options.pointerLikeExists<xacc::NoiseModel>("noise-model")) {
       m_noiseConfig = xacc::as_shared_ptr(
@@ -657,20 +658,22 @@ exatn::TensorNetwork ExaTnPmpsVisitor::buildInitialNetwork(size_t in_nbQubits, b
 void ExaTnPmpsVisitor::finalize()
 {
     exatn::sync();
+    constexpr int MAX_QUBITS_FOR_MEASURE = 15;
     // If there are measurements:
-    if (!m_measuredBits.empty())
-    {
+    if (!m_measuredBits.empty()) {
+      // We can fully contract the density matrix
+      if (m_buffer->size() <= MAX_QUBITS_FOR_MEASURE) {
         // Retrieve the density matrix:
-        const auto flattenedDm = calculateDensityMatrix(m_pmpsTensorNetwork, m_buffer->size());
-        const std::vector<std::complex<double>> diagElems = [&](){
-            const auto dim = 1ULL << m_buffer->size();
-            std::vector<std::complex<double>> result(dim);
-            for (size_t i = 0; i < dim; ++i)
-            {
-                result[i] = flattenedDm[ i * dim + i];
-                assert(std::abs(result[i].imag()) < 1e-12);
-            }
-            return result;
+        const auto flattenedDm =
+            calculateDensityMatrix(m_pmpsTensorNetwork, m_buffer->size());
+        const std::vector<std::complex<double>> diagElems = [&]() {
+          const auto dim = 1ULL << m_buffer->size();
+          std::vector<std::complex<double>> result(dim);
+          for (size_t i = 0; i < dim; ++i) {
+            result[i] = flattenedDm[i * dim + i];
+            assert(std::abs(result[i].imag()) < 1e-12);
+          }
+          return result;
         }();
 
         std::vector<std::pair<double, double>> flattenDmPairs;
@@ -678,22 +681,110 @@ void ExaTnPmpsVisitor::finalize()
           flattenDmPairs.emplace_back(std::make_pair(elem.real(), elem.imag()));
         }
         m_buffer->addExtraInfo("density_matrix", flattenDmPairs);
-        const auto sumDiag = [](const std::vector<std::complex<double>>& in_diag){
-            double sum = 0.0;
-            for (const auto& x : in_diag)
-            {
+        const auto sumDiag =
+            [](const std::vector<std::complex<double>> &in_diag) {
+              double sum = 0.0;
+              for (const auto &x : in_diag) {
                 sum += x.real();
-            }
-            return sum;
-        }(diagElems);
+              }
+              return sum;
+            }(diagElems);
         // Validate trace = 1.0
         assert(std::abs(sumDiag - 1.0) < 1e-3);
-        for (int i = 0; i < m_nbShots; ++i)
-        {
-            m_buffer->appendMeasurement(generateResultBitString(diagElems, m_measuredBits, m_buffer->size(), m_noiseConfig.get()));
+        for (int i = 0; i < m_nbShots; ++i) {
+          m_buffer->appendMeasurement(
+              generateResultBitString(diagElems, m_measuredBits,
+                                      m_buffer->size(), m_noiseConfig.get()));
         }
 
         m_measuredBits.clear();
+      } else {
+        // We cannot fully constract density matrix, just do a reduced density
+        // matrix
+        if (m_measuredBits.size() <= MAX_QUBITS_FOR_MEASURE) {
+            // m_pmpsTensorNetwork.printIt();
+            const std::string idTensor = "ID_TRACE";
+            {
+              xacc::quantum::Identity idGate(0);
+              const auto idGateMatrix = getGateMatrix(idGate);
+              // Create the tensor
+              const bool created = exatn::createTensorSync(
+                  idTensor, exatn::TensorElementType::COMPLEX64,
+                  exatn::TensorShape{2, 2});
+              assert(created);
+              // Init tensor body data
+              const bool initialized =
+                  exatn::initTensorDataSync(idTensor, idGateMatrix);
+              assert(initialized);
+            }
+            int offset = 0;
+            for (int qId = 0; qId < m_buffer->size(); ++qId) {
+              if (std::find(m_measuredBits.begin(), m_measuredBits.end(),
+                            qId) == m_measuredBits.end()) {
+                // std::cout << "qID = " << qId << "; offset = " << offset << "\n";
+                // Connect the bra and ket sides:
+                const unsigned int ket_leg = qId - offset;
+                const unsigned int bra_leg =
+                    m_buffer->size() + qId - 2 * offset;
+                const auto tensorIdCounter =
+                    m_pmpsTensorNetwork.getMaxTensorId() + 1;
+                const std::vector<std::pair<unsigned int, unsigned int>>
+                    tracePairing{{static_cast<unsigned int>(ket_leg), 0},
+                                 {static_cast<unsigned int>(bra_leg), 1}};
+                const bool appended = m_pmpsTensorNetwork.appendTensor(
+                    tensorIdCounter, exatn::getTensor(idTensor), tracePairing);
+                assert(appended);
+                offset++;
+              }
+            }
+
+            // std::cout << "Reduce density matrix TN:\n";
+            // m_pmpsTensorNetwork.printIt();
+            // Retrieve the density matrix:
+            const auto flattenedDm = calculateDensityMatrix(
+                m_pmpsTensorNetwork, m_measuredBits.size());
+            const std::vector<std::complex<double>> diagElems = [&]() {
+              const auto dim = 1ULL << m_measuredBits.size();
+              std::vector<std::complex<double>> result(dim);
+              for (size_t i = 0; i < dim; ++i) {
+                result[i] = flattenedDm[i * dim + i];
+                assert(std::abs(result[i].imag()) < 1e-12);
+              }
+              return result;
+            }();
+
+            std::vector<std::pair<double, double>> flattenDmPairs;
+            for (const auto &elem : flattenedDm) {
+              flattenDmPairs.emplace_back(
+                  std::make_pair(elem.real(), elem.imag()));
+            }
+            m_buffer->addExtraInfo("density_matrix", flattenDmPairs);
+            const auto sumDiag =
+                [](const std::vector<std::complex<double>> &in_diag) {
+                  double sum = 0.0;
+                  for (const auto &x : in_diag) {
+                    sum += x.real();
+                  }
+                  return sum;
+                }(diagElems);
+            // Validate trace = 1.0
+            assert(std::abs(sumDiag - 1.0) < 1e-3);
+            std::vector<size_t> shiftedMeasuredBits(m_measuredBits.size());
+            std::iota(shiftedMeasuredBits.begin(), shiftedMeasuredBits.end(),
+                      0);
+            for (int i = 0; i < m_nbShots; ++i) {
+              m_buffer->appendMeasurement(generateResultBitString(
+                  diagElems, shiftedMeasuredBits, m_measuredBits.size(),
+                  m_noiseConfig.get()));
+            }
+
+            m_measuredBits.clear();
+        } else {
+          xacc::error("Measure more than " +
+                      std::to_string(MAX_QUBITS_FOR_MEASURE) +
+                      " is not supported.");
+        }
+      }
     }
 
     for (size_t i = 0; i < m_buffer->size(); ++i)
@@ -758,6 +849,7 @@ void ExaTnPmpsVisitor::applySingleQubitGate(xacc::quantum::Gate& in_gateInstruct
 
 void ExaTnPmpsVisitor::applyTwoQubitGate(xacc::quantum::Gate& in_gateInstruction)
 {
+    xacc::info("Apply " + in_gateInstruction.toString());
     assert(in_gateInstruction.bits().size() == 2);
     // Must be a nearest-neighbor gate
     assert(std::abs((int)in_gateInstruction.bits()[0] - (int)in_gateInstruction.bits()[1]) == 1);
@@ -1120,7 +1212,7 @@ void ExaTnPmpsVisitor::visit(Swap& in_SwapGate)
 
 void ExaTnPmpsVisitor::visit(CZ& in_CZGate)
 {
-    applyTwoQubitGate(in_CZGate);
+  applyTwoQubitGate(in_CZGate);
 }
 
 void ExaTnPmpsVisitor::visit(CPhase& in_CPhaseGate)

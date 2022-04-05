@@ -82,6 +82,33 @@ TEST(ExaTnPmpsTester, checkBell) {
   EXPECT_LT(qreg->computeMeasurementProbability("11"), 0.99);
 }
 
+TEST(ExaTnPmpsTester, checkManyQubits) {
+  xacc::set_verbose(true);
+  auto xasmCompiler = xacc::getCompiler("xasm");
+  auto ir = xasmCompiler->compile(R"(__qpu__ void testGHz(qbit q) {
+    H(q[0]);    
+    for (int i = 0; i < 99; i++) {
+      CX(q[i], q[i + 1]);
+    }
+    Measure(q[0]);
+    Measure(q[6]);
+    Measure(q[8]);
+    Measure(q[36]);
+    Measure(q[72]);
+    Measure(q[98]);
+  })");
+
+  auto program = ir->getComposites()[0];
+  auto accelerator = xacc::getAccelerator(
+      "tnqvm", {{"tnqvm-visitor", "exatn-pmps"}, {"shots", 1024}});
+  auto qreg = xacc::qalloc(100);
+  accelerator->execute(qreg, program);
+  qreg->print();
+  // Measure 6 out of 100 qubits
+  EXPECT_NEAR(qreg->computeMeasurementProbability("111111"), 0.5, 0.1);
+  EXPECT_NEAR(qreg->computeMeasurementProbability("000000"), 0.5, 0.1);
+}
+
 int main(int argc, char **argv) {
   xacc::Initialize();
   ::testing::InitGoogleTest(&argc, argv);
