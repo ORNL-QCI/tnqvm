@@ -216,42 +216,42 @@ TEST(ExaTnGenTester, checkWavefunctionSlice) {
   }
 }
 
-TEST(ExaTnGenTester, checkVqeH3Approx) {
-  // Use very high tolerance to save test time
-  auto accelerator =
-      xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-gen"},
-                                     {"reconstruct-gates", 4},
-                                     {"reconstruct-tolerance", 0.01}});
-  xacc::set_verbose(true);
-  xacc::qasm(R"(
-        .compiler xasm
-        .circuit deuteron_ansatz_h3_2
-        .parameters t0, t1
-        .qbit q
-        X(q[0]);
-        exp_i_theta(q, t0, {{"pauli", "X0 Y1 - Y0 X1"}});
-        exp_i_theta(q, t1, {{"pauli", "X0 Z1 Y2 - X2 Z1 Y0"}});
-    )");
-  auto ansatz = xacc::getCompiled("deuteron_ansatz_h3_2");
-  auto H_N_3 = xacc::quantum::getObservable(
-      "pauli",
-      std::string("5.907 - 2.1433 X0X1 - 2.1433 Y0Y1 + .21829 Z0 - 6.125 Z1 + "
-                  "9.625 - 9.625 Z2 - 3.91 X1 X2 - 3.91 Y1 Y2"));
-  auto optimizer = xacc::getOptimizer("nlopt");
-  // Allocate some qubits and execute
-  auto buffer = xacc::qalloc(3);
-  auto vqe = xacc::getAlgorithm("vqe");
-  vqe->initialize({std::make_pair("ansatz", ansatz),
-                   std::make_pair("observable", H_N_3),
-                   std::make_pair("accelerator", accelerator),
-                   std::make_pair("optimizer", optimizer)});
-  // The reconstruction can take a long time, so we just test a single
-  // observable evaluation.
-  auto energies = vqe->execute(buffer, {0.0684968, 0.17797});
-  buffer->print();
-  std::cout << "Energy = " << energies[0] << "\n";
-  EXPECT_NEAR(energies[0], -2.04482, 0.25);
-}
+// TEST(ExaTnGenTester, checkVqeH3Approx) {
+//   // Use very high tolerance to save test time
+//   auto accelerator =
+//       xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-gen"},
+//                                      {"reconstruct-gates", 4},
+//                                      {"reconstruct-tolerance", 0.01}});
+//   xacc::set_verbose(true);
+//   xacc::qasm(R"(
+//         .compiler xasm
+//         .circuit deuteron_ansatz_h3_2
+//         .parameters t0, t1
+//         .qbit q
+//         X(q[0]);
+//         exp_i_theta(q, t0, {{"pauli", "X0 Y1 - Y0 X1"}});
+//         exp_i_theta(q, t1, {{"pauli", "X0 Z1 Y2 - X2 Z1 Y0"}});
+//     )");
+//   auto ansatz = xacc::getCompiled("deuteron_ansatz_h3_2");
+//   auto H_N_3 = xacc::quantum::getObservable(
+//       "pauli",
+//       std::string("5.907 - 2.1433 X0X1 - 2.1433 Y0Y1 + .21829 Z0 - 6.125 Z1 + "
+//                   "9.625 - 9.625 Z2 - 3.91 X1 X2 - 3.91 Y1 Y2"));
+//   auto optimizer = xacc::getOptimizer("nlopt");
+//   // Allocate some qubits and execute
+//   auto buffer = xacc::qalloc(3);
+//   auto vqe = xacc::getAlgorithm("vqe");
+//   vqe->initialize({std::make_pair("ansatz", ansatz),
+//                    std::make_pair("observable", H_N_3),
+//                    std::make_pair("accelerator", accelerator),
+//                    std::make_pair("optimizer", optimizer)});
+//   // The reconstruction can take a long time, so we just test a single
+//   // observable evaluation.
+//   auto energies = vqe->execute(buffer, {0.0684968, 0.17797});
+//   buffer->print();
+//   std::cout << "Energy = " << energies[0] << "\n";
+//   EXPECT_NEAR(energies[0], -2.04482, 0.25);
+// }
 
 TEST(ExaTnGenTester, checkNewLayerCount) {
   // Use very high tolerance to save test time
