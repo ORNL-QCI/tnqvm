@@ -313,7 +313,7 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
     for (auto iter = m_tensorNetwork->cbegin(); iter != m_tensorNetwork->cend(); ++iter)
     {
         const auto& tensorName = iter->second.getTensor()->getName();
-        if (tensorName != ROOT_TENSOR_NAME)
+        if (iter->first != 0)
         {
             auto tensor = iter->second.getTensor();
             const auto newTensorName = "Q" + std::to_string(iter->first - 1);
@@ -518,7 +518,7 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
     for (auto iter = m_tensorNetwork->cbegin(); iter != m_tensorNetwork->cend(); ++iter)
     {
         const auto& tensorName = iter->second.getTensor()->getName();
-        if (tensorName != ROOT_TENSOR_NAME)
+        if (iter->first != 0)
         {
             auto tensor = iter->second.getTensor();
             const auto newTensorName = "Q" + std::to_string(iter->first - 1);
