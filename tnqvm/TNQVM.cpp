@@ -56,6 +56,13 @@ void TNQVM::execute(
     options.insert("vqe-execution-context", kernelDecomposed);
     visitor->setOptions(options);
 
+    // Nearest neighbor transform:
+    if (visitor->name() == "itensor-mps" || visitor->name() == "exatn-mps" ||
+        visitor->name() == "exatn-pmps") {
+      auto opt = xacc::getService<xacc::IRTransformation>("nnizer");
+      opt->apply(kernelDecomposed.getBase(), nullptr,
+                 {std::make_pair("max-distance", 1)});
+    }
     // Initialize the visitor
     visitor->initialize(buffer, getShotCountOption(options));
     visitor->setKernelName(kernelDecomposed.getBase()->name());
@@ -105,12 +112,13 @@ void TNQVM::execute(std::shared_ptr<xacc::AcceleratorBuffer> buffer,
   // Initialize the visitor
   visitor->initialize(buffer, getShotCountOption(options));
   visitor->setKernelName(kernel->name());
-  // If this is an Exatn-MPS visitor, transform the kernel to nearest-neighbor
+  // If this is an MPS visitor, transform the kernel to nearest-neighbor
   // Note: currently, we don't support MPS aggregated blocks (multiple qubit MPS
   // tensors in one block). Hence, the circuit must always be transformed into
   // *nearest* neighbor only (distance = 1 for two-qubit gates).
-  if (visitor->name() == "exatn-mps" || visitor->name() == "exatn-pmps") {
-    auto opt = xacc::getService<xacc::IRTransformation>("lnn-transform");
+  if (visitor->name() == "itensor-mps" || visitor->name() == "exatn-mps" ||
+      visitor->name() == "exatn-pmps") {
+    auto opt = xacc::getService<xacc::IRTransformation>("nnizer");
     opt->apply(kernel, nullptr, {std::make_pair("max-distance", 1)});
     // std::cout << "After LNN transform: \n" << kernel->toString() << "\n";
   }

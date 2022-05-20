@@ -1,14 +1,24 @@
 //
-// Distributed under the ITensor Library License, Version 1.2
-//    (See accompanying LICENSE file.)
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
 //
-#include "itensor/util/range.h"
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+#include "itensor/util/iterate.h"
 #include "itensor/itdata/combiner.h"
 #include "itensor/itdata/itdata.h"
 //#include "itensor/itdata/itcplx.h"
 #include "itensor/tensor/contract.h"
 #include "itensor/tensor/sliceten.h"
-#include "itensor/iqindex.h"
 
 using std::vector;
 
@@ -18,7 +28,7 @@ const char*
 typeNameOf(Combiner const& d) { return "Combiner"; }
 
 Cplx
-doTask(GetElt<Index> const& g, Combiner const& c)
+doTask(GetElt const& g, Combiner const& c)
     {
     if(g.inds.size()!=0) Error("GetElt not defined for non-scalar Combiner storage");
     return Cplx(1.,0.);
@@ -53,13 +63,13 @@ combine(Storage  const& d,
     //TODO: try to make use of Lind,Rind label vectors
     //      to simplify combine logic
     auto const& cind = Cis[0];
-    auto jc = findindex(dis,cind);
+    auto jc = indexPosition(dis,cind);
     if(jc >= 0) //has cind, uncombining
         {
         //dis has cind, replace with other inds
-        auto newind = IndexSetBuilder(dis.r()+Cis.r()-2);
+        auto newind = IndexSetBuilder(dis.order()+Cis.order()-2);
         long i = 0;
-        for(auto j : range(dis.r()))
+        for(auto j : range(dis.order()))
             if(j == jc)
                 {
                 for(size_t k = 1; k < Cis.size(); ++k)
@@ -76,7 +86,7 @@ combine(Storage  const& d,
         //dis doesn't have cind, replace
         //Cis[1], Cis[2], ... with cind
         //may need to permute
-        auto J1 = findindex(dis,Cis[1]);
+        auto J1 = indexPosition(dis,Cis[1]);
         if(J1 < 0) 
             {
             println("IndexSet of dense tensor = \n",dis);
@@ -86,29 +96,29 @@ combine(Storage  const& d,
         //Check if Cis[1],Cis[2],... are grouped together (contiguous)
         //and in same order as on combiner
         bool contig_sameord = true;
-        decltype(Cis.r()) c = 2;
-        for(auto j = J1+1; c < Cis.r() && j < dis.r(); ++j,++c)
+        decltype(Cis.order()) c = 2;
+        for(auto j = J1+1; c < Cis.order() && j < dis.order(); ++j,++c)
             if(dis[j] != Cis[c])
                 {
                 contig_sameord = false;
                 break;
                 }
-        if(c != Cis.r()) contig_sameord = false;
+        if(c != Cis.order()) contig_sameord = false;
 
         if(contig_sameord)
             {
-            auto newind = IndexSetBuilder(dis.r()+2-Cis.r());
+            auto newind = IndexSetBuilder(dis.order()+2-Cis.order());
             long i = 0;
             for(auto j : range(J1))
                 newind.setIndex(i++,dis[j]);
             newind.setIndex(i++,cind);
-            for(auto j : range(J1+Cis.r()-1, dis.r()))
+            for(auto j : range(J1+Cis.order()-1, dis.order()))
                 newind.setIndex(i++,dis[j]);
             Nis = newind.build();
             }
         else
             {
-            auto P = Permutation(dis.r());
+            auto P = Permutation(dis.order());
             //Set P destination values to -1 to mark
             //indices that need to be assigned destinations:
             for(auto i : range(P)) P.setFromTo(i,-1);
@@ -116,9 +126,9 @@ combine(Storage  const& d,
             //permute combined indices to the front, in same
             //order as in Cis:
             long ni = 0;
-            for(auto c : range(1,Cis.r()))
+            for(auto c : range(1,Cis.order()))
                 {
-                auto j = findindex(dis,Cis[c]);
+                auto j = indexPosition(dis,Cis[c]);
                 if(j < 0) 
                     {
                     println("IndexSet of dense tensor =\n  ",dis);
@@ -129,10 +139,10 @@ combine(Storage  const& d,
                 P.setFromTo(j,ni++);
                 }
             //permute uncombined indices to back, keeping relative order:
-            auto newind = IndexSetBuilder(dis.r()+2-Cis.r());
+            auto newind = IndexSetBuilder(dis.order()+2-Cis.order());
             long i = 0;
             newind.setIndex(i++,cind);
-            for(auto j : range(dis.r()))
+            for(auto j : range(dis.order()))
                 if(P.dest(j) == -1) 
                     {
                     P.setFromTo(j,ni++);
@@ -146,19 +156,19 @@ combine(Storage  const& d,
 
 template<typename V>
 void
-doTask(Contract<Index> & C,
+doTask(Contract & C,
        Dense<V>   const& d,
        Combiner const& cmb,
        ManageStore     & m)
     {
     combine(d,C.Lis,C.Ris,C.Nis,m);
     }
-template void doTask(Contract<Index> &,DenseReal const&,Combiner const&,ManageStore&);
-template void doTask(Contract<Index> &,DenseCplx const&,Combiner const&,ManageStore&);
+template void doTask(Contract &,DenseReal const&,Combiner const&,ManageStore&);
+template void doTask(Contract &,DenseCplx const&,Combiner const&,ManageStore&);
 
 template<typename V>
 void
-doTask(Contract<Index> & C,
+doTask(Contract & C,
        Combiner const& cmb,
        Dense<V>   const& d,
        ManageStore     & m)
@@ -166,22 +176,16 @@ doTask(Contract<Index> & C,
     combine(d,C.Ris,C.Lis,C.Nis,m);
     if(!m.newData()) m.assignPointerRtoL();
     }
-template void doTask(Contract<Index> &,Combiner const&,DenseReal const&,ManageStore&);
-template void doTask(Contract<Index> &,Combiner const&,DenseCplx const&,ManageStore&);
+template void doTask(Contract &,Combiner const&,DenseReal const&,ManageStore&);
+template void doTask(Contract &,Combiner const&,DenseCplx const&,ManageStore&);
 
 bool
 doTask(CheckComplex, Combiner const& d) { return false; }
 
 void
-doTask(PrintIT<Index>& P, Combiner const& d)
+doTask(PrintIT& P, Combiner const& d)
     {
     P.printInfo(d,"Combiner");
-    }
-
-void
-doTask(PrintIT<IQIndex>& P, Combiner const& d)
-    {
-    P.s << "Combiner";
     }
 
 QN 

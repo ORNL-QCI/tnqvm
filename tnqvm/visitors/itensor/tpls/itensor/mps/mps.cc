@@ -1,15 +1,27 @@
 //
-// Distributed under the ITensor Library License, Version 1.2
-//    (See accompanying LICENSE file.)
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
 //
-#include <map>
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
 #include "itensor/mps/mps.h"
+#include "itensor/mps/mpo.h"
 #include "itensor/mps/localop.h"
 #include "itensor/util/print_macro.h"
+#include "itensor/util/str.h"
+#include "itensor/tensor/algs.h"
 
 namespace itensor {
 
-using std::map;
 using std::istream;
 using std::ostream;
 using std::cout;
@@ -20,31 +32,35 @@ using std::pair;
 using std::make_pair;
 using std::string;
 
+void
+new_tensors(std::vector<ITensor>& A,
+            SiteSet const& sites,
+            int m = 1);
+
+void
+new_tensors(std::vector<ITensor>& A,
+            IndexSet const& sites,
+            int m = 1);
+
 //
-// class MPSt
+// class MPS
 //
 
 //
 // Constructors
 //
 
-template <class T>
-MPSt<T>::
-MPSt() 
+MPS::
+MPS() 
     : 
     N_(0), 
     atb_(1),
     writedir_("./"),
     do_write_(false)
     { }
-template MPSt<ITensor>::
-MPSt();
-template MPSt<IQTensor>::
-MPSt();
 
-template <class T>
-MPSt<T>::
-MPSt(int N)
+MPS::
+MPS(int N)
     : 
     N_(N), 
     A_(N+2), //idmrg may use A_[0] and A[N+1]
@@ -55,80 +71,72 @@ MPSt(int N)
     do_write_(false)
     { 
     }
-template MPSt<ITensor>::
-MPSt(int N);
-template MPSt<IQTensor>::
-MPSt(int N);
 
-template <class T>
-MPSt<T>::
-MPSt(SiteSet const& sites)
+MPS::
+MPS(SiteSet const& sites,
+    int m)
     : 
-    N_(sites.N()), 
-    A_(sites.N()+2), //idmrg may use A_[0] and A[N+1]
+    N_(sites.length()), 
+    A_(sites.length()+2), //idmrg may use A_[0] and A[N+1]
     l_orth_lim_(0),
-    r_orth_lim_(sites.N()+1),
-    sites_(sites), 
+    r_orth_lim_(sites.length()+1),
     atb_(1),
     writedir_("./"),
     do_write_(false)
     { 
-    random_tensors(A_);
+    new_tensors(A_,sites,m);
     }
-template MPSt<ITensor>::
-MPSt(SiteSet const& sites);
-template MPSt<IQTensor>::
-MPSt(SiteSet const& sites);
 
-template <class T>
-MPSt<T>::
-MPSt(InitState const& initState)
+MPS::
+MPS(IndexSet const& sites,
+    int m)
+    :
+    N_(sites.length()),
+    A_(sites.length()+2), //idmrg may use A_[0] and A[N+1]
+    l_orth_lim_(0),
+    r_orth_lim_(sites.length()+1),
+    atb_(1),
+    writedir_("./"),
+    do_write_(false)
+    {
+    new_tensors(A_,sites,m);
+    }
+
+MPS::
+MPS(InitState const& initState)
     : 
-    N_(initState.sites().N()),
-    A_(initState.sites().N()+2), //idmrg may use A_[0] and A[N+1]
+    N_(initState.sites().length()),
+    A_(initState.sites().length()+2), //idmrg may use A_[0] and A[N+1]
     l_orth_lim_(0),
     r_orth_lim_(2),
-    sites_(initState.sites()), 
     atb_(1),
     writedir_("./"),
     do_write_(false)
     { 
     init_tensors(A_,initState);
     }
-template MPSt<ITensor>::
-MPSt(InitState const& initState);
-template MPSt<IQTensor>::
-MPSt(InitState const& initState);
 
-template <class T>
-MPSt<T>::
-MPSt(MPSt const& other)
+MPS::
+MPS(MPS const& other)
     : 
     N_(other.N_),
     A_(other.A_),
     l_orth_lim_(other.l_orth_lim_),
     r_orth_lim_(other.r_orth_lim_),
-    sites_(other.sites_),
     atb_(other.atb_),
     writedir_(other.writedir_),
     do_write_(other.do_write_)
     { 
     copyWriteDir();
     }
-template MPSt<ITensor>::
-MPSt(MPSt<ITensor> const&);
-template MPSt<IQTensor>::
-MPSt(MPSt<IQTensor> const&);
 
-template <class Tensor>
-MPSt<Tensor>& MPSt<Tensor>::
-operator=(MPSt const& other)
+MPS& MPS::
+operator=(MPS const& other)
     { 
     N_ = other.N_;
     A_ = other.A_;
     l_orth_lim_ = other.l_orth_lim_;
     r_orth_lim_ = other.r_orth_lim_;
-    sites_ = other.sites_;
     atb_ = other.atb_;
     writedir_ = other.writedir_;
     do_write_ = other.do_write_;
@@ -136,36 +144,162 @@ operator=(MPSt const& other)
     copyWriteDir();
     return *this;
     }
-template MPSt<ITensor>& MPSt<ITensor>::
-operator=(MPSt<ITensor> const&);
-template MPSt<IQTensor>& MPSt<IQTensor>::
-operator=(MPSt<IQTensor> const&);
 
-template <class T>
-MPSt<T>::
-~MPSt()
+MPS::
+~MPS()
     {
     cleanupWrite();
     }
-template MPSt<ITensor>::~MPSt();
-template MPSt<IQTensor>::~MPSt();
 
-template <class Tensor>
-Tensor const& MPSt<Tensor>::
-A(int i) const
+// TODO: Add note in error to call randomMPS(InitState,dim) instead, once it is implemented
+MPS& MPS::
+randomize(Args const& args)
+    {
+    if(maxLinkDim(*this)>1) Error(".randomize() not currently supported on MPS with bond dimension greater than 1."); 
+    for(auto i : range1(N_)) ref(i).randomize(args);
+    return *this;
+    }
+
+Real MPS::
+normalize()
+    {
+    auto nrm = norm(*this);
+    if(std::fabs(nrm) < 1E-20) Error("Zero norm");
+    *this /= nrm;
+    return nrm;
+    }
+
+MPS&
+operator*=(MPS & x, Real a) { x.ref(x.leftLim()+1) *= a; return x; }
+
+MPS&
+operator/=(MPS & x, Real a) { x.ref(x.leftLim()+1) /= a; return x; }
+
+MPS
+operator*(MPS x, Real r) { x *= r; return x; }
+
+MPS
+operator*(Real r, MPS x) { x *= r; return x; }
+
+MPS&
+operator*=(MPS & x, Cplx z) { x.ref(x.leftLim()+1) *= z; return x; }
+
+MPS&
+operator/=(MPS & x, Cplx z) { x.ref(x.leftLim()+1) /= z; return x; }
+
+MPS
+operator*(MPS x, Cplx z) { x *= z; return x; }
+
+MPS
+operator*(Cplx z, MPS x) { x *= z; return x; }
+
+int
+length(MPS const& W)
+    {
+    return W.length();
+    }
+
+Matrix
+randomOrthog(int n, int m)
+    {
+    auto r = std::max(n,m);
+    auto M = randn(r,r);
+    Matrix Q,R;
+    QR(M,Q,R,{"PositiveDiagonal",true});
+    if(m < n)
+        {
+        reduceCols(Q,m);
+        }
+    else if(n < m)
+        {
+        reduceCols(Q,n);
+        return Matrix(transpose(Q));
+        }
+    return Q;
+    }
+
+MPS
+randomCircuitMPS(SiteSet const& s, int m, Args const& args)
+    {
+    auto N = length(s);
+    auto M = MPS(N);
+    auto l = vector<Index>(N+1);
+
+    //Make N'th MPS tensor
+    int chi = dim(s(N));
+    l[N-1] = Index(chi,format("Link,l=%d",N-1));
+    auto O = randomOrthog(chi,dim(s(N)));
+    M.ref(N) = matrixITensor(O,l[N-1],s(N));
+
+    for(int j = N-1; j > 1; j -= 1)
+        {
+        //Make j'th MPS tensor
+        auto prev_chi = chi;
+        chi *= dim(s(j));
+        chi = std::min(m,chi);
+        l[j-1] = Index(chi,format("Link,l=%d",j-1));
+        O = randomOrthog(chi,prev_chi*dim(s(j)));
+        auto [C,c] = combiner(s(j),l[j]);
+        M.ref(j) = matrixITensor(O,l[j-1],c);
+        M.ref(j) *= C;
+        }
+
+    //Make 1st MPS tensor
+    O = randomOrthog(1,dim(s(1))*chi);
+    auto [C,c] = combiner(s(1),l[1]);
+    l[0] = Index(1,"Link,l=0");
+    M.ref(1) = matrixITensor(O,l[0],c);
+    M.ref(1) *= C;
+    M.ref(1) *= setElt(l[0](1));
+
+    M.leftLim(0);
+    M.rightLim(2);
+    return M;
+    }
+
+MPS
+randomMPS(SiteSet const& sites, int m, Args const& args)
+    {
+    if(hasQNs(sites))
+    {
+    Error("randomMPS(SiteSet) with QN conservation is ambiguous, use randomMPS(InitState) instead.");
+    }
+
+    return randomCircuitMPS(sites,m,args);
+    }
+
+MPS
+randomMPS(SiteSet const& sites, Args const& args)
+    {
+    return randomMPS(sites,1,args);
+    }
+
+//TODO: implement for m>1 in terms of random gates
+MPS
+randomMPS(InitState const& initstate, int m, Args const& args)
+    {
+    if(m>1) Error("randomMPS(InitState,m>1) not currently supported.");
+    auto psi = MPS(initstate);
+    psi.randomize(args);
+    return psi;
+    }
+
+MPS
+randomMPS(InitState const& initstate, Args const& args)
+    {
+    return randomMPS(initstate,1,args);
+    }
+
+ITensor const& MPS::
+operator()(int i) const
     { 
     if(i < 0) i = N_+i+1;
     setSite(i);
     return A_.at(i); 
     }
-template
-const ITensor& MPSt<ITensor>::A(int i) const;
-template
-const IQTensor& MPSt<IQTensor>::A(int i) const;
 
-template <class T>
-T& MPSt<T>::
-Aref(int i)
+ITensor& MPS::
+ref(int i)
     { 
     if(i < 0) i = N_+i+1;
     setSite(i);
@@ -173,13 +307,30 @@ Aref(int i)
     if(i >= r_orth_lim_) r_orth_lim_ = i+1;
     return A_.at(i); 
     }
-template
-ITensor& MPSt<ITensor>::Aref(int i);
-template
-IQTensor& MPSt<IQTensor>::Aref(int i);
 
-template <class T>
-void MPSt<T>::
+ITensor& MPS::
+uref(int i)
+    {
+    if(do_write_)
+        Error("replaceTags not supported if doWrite(true)");
+    return A_.at(i);
+    }
+
+// Deprecated
+ITensor const& MPS::
+A(int i) const
+    { 
+    return this->operator()(i);
+    }
+
+// Deprecated
+ITensor& MPS::
+Aref(int i)
+    { 
+    return this->ref(i);
+    }
+
+void MPS::
 doWrite(bool val, Args const& args) 
     { 
     if(val == do_write_) return;
@@ -194,14 +345,9 @@ doWrite(bool val, Args const& args)
         cleanupWrite();
         }
     }
-template void MPSt<ITensor>::
-doWrite(bool val, const Args& args);
-template void MPSt<IQTensor>::
-doWrite(bool val, const Args& args);
 
 
-template <class Tensor>
-void MPSt<Tensor>::
+void MPS::
 read(std::istream & s)
     {
     itensor::read(s,N_);
@@ -210,34 +356,17 @@ read(std::istream & s)
         {
         itensor::read(s,A_[j]);
         }
-    //Check that tensors read from disk were constructed
-    //using the same sites
-    auto s1 = findtype(A_.at(1),Site);
-    s1.noprime();
-    if(sites_ && s1 != IndexT(sites_(1)))
-        {
-        Print(A_.at(1).inds());
-        Print(s1);
-        Print(IndexT(sites_(1)));
-        Error("Tensors read from disk not compatible with SiteSet passed to constructor.");
-        }
     itensor::read(s,l_orth_lim_);
     itensor::read(s,r_orth_lim_);
     }
-template
-void MPSt<ITensor>::read(std::istream& s);
-template
-void MPSt<IQTensor>::read(std::istream& s);
 
-
-template <class Tensor>
-void MPSt<Tensor>::
+void MPS::
 write(std::ostream& s) const
     {
     if(do_write_)
-        Error("MPSt::write not yet supported if doWrite(true)");
+        Error("MPS::write not yet supported if doWrite(true)");
 
-    itensor::write(s,N());
+    itensor::write(s,length());
     for(auto j : range(A_.size()))
         {
         itensor::write(s,A_[j]);
@@ -245,13 +374,8 @@ write(std::ostream& s) const
     itensor::write(s,leftLim());
     itensor::write(s,rightLim());
     }
-template
-void MPSt<ITensor>::write(std::ostream& s) const;
-template
-void MPSt<IQTensor>::write(std::ostream& s) const;
 
-template <class Tensor>
-void MPSt<Tensor>::
+void MPS::
 read(std::string const& dirname)
     {
     l_orth_lim_ = 0;
@@ -266,14 +390,9 @@ read(std::string const& dirname)
     	readFromFile(AFName(j,dirname),A_.at(j));
         }
     }
-template
-void MPSt<ITensor>::read(std::string const& dirname);
-template
-void MPSt<IQTensor>::read(std::string const& dirname);
 
 
-template <class Tensor>
-string MPSt<Tensor>::
+string MPS::
 AFName(int j, string const& dirname) const
     { 
     if(dirname == "")
@@ -285,13 +404,8 @@ AFName(int j, string const& dirname) const
         return format("%s/A_%03d",dirname,j);
         }
     }
-template
-string MPSt<ITensor>::AFName(int j, string const&) const;
-template
-string MPSt<IQTensor>::AFName(int j, string const&) const;
 
-template <class Tensor>
-void MPSt<Tensor>::
+void MPS::
 setBond(int b) const
     {
     if(b == atb_) return;
@@ -312,12 +426,12 @@ setBond(int b) const
         if(A_.at(atb_))
             {
             writeToFile(AFName(atb_),A_.at(atb_));
-            A_.at(atb_) = Tensor();
+            A_.at(atb_) = ITensor();
             }
         if(A_.at(atb_+1))
             {
             writeToFile(AFName(atb_+1),A_.at(atb_+1));
-            if(atb_+1 != b) A_.at(atb_+1) = Tensor();
+            if(atb_+1 != b) A_.at(atb_+1) = ITensor();
             }
         ++atb_;
         }
@@ -326,12 +440,12 @@ setBond(int b) const
         if(A_.at(atb_))
             {
             writeToFile(AFName(atb_),A_.at(atb_));
-            if(atb_ != b+1) A_.at(atb_) = Tensor();
+            if(atb_ != b+1) A_.at(atb_) = ITensor();
             }
         if(A_.at(atb_+1))
             {
             writeToFile(AFName(atb_+1),A_.at(atb_+1));
-            A_.at(atb_+1) = Tensor();
+            A_.at(atb_+1) = ITensor();
             }
         --atb_;
         }
@@ -360,13 +474,8 @@ setBond(int b) const
         //inf.close();
         //}
     }
-template
-void MPSt<ITensor>::setBond(int b) const;
-template
-void MPSt<IQTensor>::setBond(int b) const;
 
-template <class Tensor>
-void MPSt<Tensor>::
+void MPS::
 setSite(int j) const
     {
     if(!do_write_)
@@ -393,178 +502,89 @@ setSite(int j) const
     //otherwise the set bond already
     //contains this site
     }
-template
-void MPSt<ITensor>::setSite(int j) const;
-template
-void MPSt<IQTensor>::setSite(int j) const;
 
 
-template <class Tensor>
-void MPSt<Tensor>::
-new_tensors(std::vector<ITensor>& A_)
+void
+new_tensors(std::vector<ITensor>& A,
+            SiteSet const& sites,
+            int m)
     {
-    std::vector<Index> a(N_+1);
-    for(int i = 1; i <= N_; ++i)
-        { 
-        a[i] = Index(nameint("a",i)); 
-        }
-    A_[1] = ITensor(sites()(1),a[1]);
-    for(int i = 2; i < N_; i++)
-        { 
-        A_[i] = ITensor(dag(a[i-1]),sites()(i),a[i]); 
-        }
-    A_[N_] = ITensor(dag(a[N_-1]),sites()(N_));
-    }
-template
-void MPSt<ITensor>::new_tensors(std::vector<ITensor>& A_);
-template
-void MPSt<IQTensor>::new_tensors(std::vector<ITensor>& A_);
-
-template <class Tensor>
-void MPSt<Tensor>::
-random_tensors(std::vector<ITensor>& A_)
-    { 
-    new_tensors(A_); 
-    for(int i = 1; i <= N_; ++i)
+    auto N = length(sites);
+    auto a = std::vector<Index>(N+1);
+    if(hasQNs(sites))
         {
-        randomize(A_[i]); 
+        if(m==1) for(auto i : range1(N)) a[i] = Index(QN(),m,format("Link,l=%d",i));
+        else Error("Cannot create QN conserving MPS with bond dimension greater than 1 from a SiteSet");
         }
+    else
+        {
+        for(auto i : range1(N)) a[i] = Index(m,format("Link,l=%d",i));
+        }
+    A[1] = ITensor(sites(1),a[1]);
+    for(int i = 2; i < N; i++)
+        { 
+        A[i] = ITensor(dag(a[i-1]),sites(i),a[i]); 
+        }
+    A[N] = ITensor(dag(a[N-1]),sites(N));
     }
-template
-void MPSt<ITensor>::random_tensors(std::vector<ITensor>& A_);
-template
-void MPSt<IQTensor>::random_tensors(std::vector<ITensor>& A_);
 
-template <class Tensor>
-void MPSt<Tensor>::
+void
+new_tensors(std::vector<ITensor>& A,
+            IndexSet const& sites,
+            int m)
+    {
+    auto N = length(sites);
+    auto a = std::vector<Index>(N+1);
+    if(hasQNs(sites))
+        {
+        if(m==1) for(auto i : range1(N)) a[i] = Index(QN(),m,format("Link,l=%d",i));
+        else Error("Cannot create QN conserving MPS with bond dimension greater than 1 from an IndexSet");
+        }
+    else
+        {
+        for(auto i : range1(N)) a[i] = Index(m,format("Link,l=%d",i));
+        }
+    A[1] = ITensor(sites(1),a[1]);
+    for(int i = 2; i < N; i++)
+        {
+        A[i] = ITensor(dag(a[i-1]),sites(i),a[i]);
+        }
+    A[N] = ITensor(dag(a[N-1]),sites(N));
+    }
+
+void MPS::
 init_tensors(std::vector<ITensor>& A_, InitState const& initState)
     { 
-    std::vector<Index> a(N_+1);
-    for(auto i : range1(N_)) a[i] = Index(nameint("a",i));
-
-    A_[1] = setElt(IndexVal(initState(1)),a[1](1));
-    for(auto i : range(2,N_))
+    auto a = std::vector<Index>(N_+1);
+    if(hasQNs(initState))
         {
-        A_[i] = setElt(dag(a[i-1])(1),IndexVal(initState(i)),a[i](1));
+        auto qa = std::vector<QN>(N_+1); //qn[i] = qn on i^th bond
+        for(auto i : range1(N_)) qa[0] -= qn(initState(i))*In;
+        //Taking OC to be at the leftmost site,
+        //compute the QuantumNumbers of all the Links.
+        for(auto i : range1(N_))
+            {
+            //Taking the divergence to be zero,solve for qa[i]
+            qa[i] = Out*(-qa[i-1]*In - qn(initState(i)));
+            }
+        for(auto i : range1(N_)) a[i] = Index(qa[i],1,format("Link,l=%d",i));
         }
-    A_[N_] = setElt(dag(a[N_-1])(1),IndexVal(initState(N_)));
-    }
-template
-void MPSt<ITensor>::
-init_tensors(std::vector<ITensor>& A_, const InitState& initState);
-
-
-template <class Tensor>
-void MPSt<Tensor>::
-init_tensors(std::vector<IQTensor>& A_, const InitState& initState)
-    {
-    auto qa = std::vector<QN>(N_+1); //qn[i] = qn on i^th bond
-    for(auto i : range1(N_)) qa[0] -= initState(i).qn()*In;
-
-    //Taking OC to be at the leftmost site,
-    //compute the QuantumNumbers of all the Links.
-    for(auto i : range1(N_))
+    else
         {
-        //Taking the divergence to be zero,solve for qa[i]
-        qa[i] = Out*(-qa[i-1]*In - initState(i).qn());
-        }
-
-    auto a = std::vector<IQIndex>(N_+1);
-    for(auto i : range1(N_))
-        { 
-        a[i] = IQIndex(nameint("L",i),Index(nameint("l",i)),qa[i]); 
+        for(auto i : range1(N_)) a[i] = Index(1,format("Link,l=%d",i));
         }
 
     A_[1] = setElt(initState(1),a[1](1));
     for(auto i : range(2,N_))
         {
-        A_[i] = setElt(dag(a[i-1])(1),initState(i),a[i](1)); 
+        A_[i] = setElt(itensor::dag(a[i-1])(1),initState(i),a[i](1));
         }
-    A_[N_] = setElt(dag(a[N_-1])(1),initState(N_));
+    A_[N_] = setElt(itensor::dag(a[N_-1])(1),initState(N_));
     }
-template
-void MPSt<IQTensor>::
-init_tensors(std::vector<IQTensor>& A_, const InitState& initState);
 
 
-
-//template <>
-//MPSt<IQTensor>& MPSt<IQTensor>::operator+=(const MPSt<IQTensor>& other)
-//    {
-//    if(do_write_)
-//        Error("operator+= not supported if doWrite(true)");
-//
-//    primelinks(0,4);
-//
-//    //Create new link indices
-//    vector<IQIndex> nlinks(N);
-//    for(int b = 1; b < N_; ++b)
-//        {
-//        IQIndex l1 = linkInd(*this,b);
-//        IQIndex l2 = linkInd(other,b);
-//        vector<IndexQN> iq(l1.indices());
-//        iq.insert(iq.begin(),l2.indices().begin(),l2.indices().end());
-//        nlinks.at(b) = IQIndex(l2,iq);
-//        }
-//    //Create new A tensors
-//    vector<IQTensor> nA(N+1);
-//    nA[1] = IQTensor(si(1),nlinks[1]);
-//    for(int j = 2; j < N_; ++j)
-//        nA[j] = IQTensor(dag(nlinks[j-1]),si(j),nlinks[j]);
-//    nA[N] = IQTensor(dag(nlinks[N-1]),si(N));
-//
-//    for(int j = 1; j <= N_; ++j)
-//        {
-//        Foreach(const ITensor& t, A(j).blocks())
-//            { nA[j].insert(t); }
-//        Foreach(const ITensor& t, other.A(j).blocks())
-//            { nA[j].insert(t); }
-//        }
-//
-//    A.swap(nA);
-//
-//    orthogonalize();
-//
-//    return *this;
-//    }
-//
-//template <class Tensor>
-//MPSt<Tensor>& MPSt<Tensor>::operator+=(const MPSt<Tensor>& other)
-//    {
-//    if(do_write_)
-//        Error("operator+= not supported if doWrite(true)");
-//
-//    primelinks(0,4);
-//
-//    vector<Tensor> first(N), second(N);
-//    for(int i = 1; i < N_; ++i)
-//        {
-//        IndexT l1 = rightLinkInd(*this,i);
-//        IndexT l2 = rightLinkInd(other,i);
-//        IndexT r(l1);
-//        plussers(l1,l2,r,first[i],second[i]);
-//        }
-//
-//    Anc(1) = A(1) * first[1] + other.A(1) * second[1];
-//    for(int i = 2; i < N_; ++i)
-//        {
-//        Anc(i) = dag(first[i-1]) * A(i) * first[i] 
-//                  + dag(second[i-1]) * other.A(i) * second[i];
-//        }
-//    Anc(N) = dag(first[N-1]) * A(N) + dag(second[N-1]) * other.A(N);
-//
-//    noprimelink();
-//
-//    orthogonalize();
-//
-//    return *this;
-//    }
-//template
-//MPSt<ITensor>& MPSt<ITensor>::operator+=(const MPSt<ITensor>& other);
-
-template <class Tensor>
-MPSt<Tensor>& MPSt<Tensor>::
-plusEq(MPSt<Tensor> const& R,
+MPS& MPS::
+plusEq(MPS const& R,
        Args const& args)
     {
     //cout << "calling new orthog in sum" << endl;
@@ -582,7 +602,7 @@ plusEq(MPSt<Tensor> const& R,
 
     if(!itensor::isOrtho(R))
         {
-        MPSt<Tensor> oR(R);
+        MPS oR(R);
         try { 
             oR.orthogonalize(); 
             }
@@ -595,72 +615,12 @@ plusEq(MPSt<Tensor> const& R,
 
     return addAssumeOrth(*this,R,args);
     }
-template
-MPSt<ITensor>& MPSt<ITensor>::
-plusEq(const MPSt<ITensor>& R, const Args& args);
-template
-MPSt<IQTensor>& MPSt<IQTensor>::
-plusEq(const MPSt<IQTensor>& R, const Args& args);
 
-
-
-//
-//MPSt Index Methods
-//
-
-template <class Tensor>
-void MPSt<Tensor>::
-mapprime(int oldp, int newp, IndexType type)
-    { 
-    if(do_write_)
-        Error("mapprime not supported if doWrite(true)");
-    for(int i = 1; i <= N_; ++i) 
-        A_[i].mapprime(oldp,newp,type); 
-    }
-template
-void MPSt<ITensor>::mapprime(int oldp, int newp, IndexType type);
-template
-void MPSt<IQTensor>::mapprime(int oldp, int newp, IndexType type);
-
-template <class Tensor>
-void MPSt<Tensor>::
-primelinks(int oldp, int newp)
-    { 
-    if(do_write_)
-        Error("primelinks not supported if doWrite(true)");
-    for(int i = 1; i <= N_; ++i) 
-        A_[i].mapprime(oldp,newp,Link); 
-    }
-template
-void MPSt<ITensor>::primelinks(int oldp, int newp);
-template
-void MPSt<IQTensor>::primelinks(int oldp, int newp);
-
-template <class Tensor>
-void MPSt<Tensor>::
-noprimelink()
-    { 
-    if(do_write_)
-        Error("noprimelink not supported if doWrite(true)");
-    for(int i = 1; i <= N_; ++i) 
-        A_[i].noprime(Link); 
-    }
-template
-void MPSt<ITensor>::noprimelink();
-template
-void MPSt<IQTensor>::noprimelink();
-
-template<class Tensor> 
-Spectrum MPSt<Tensor>::
-svdBond(int b, const Tensor& AA, Direction dir, const Args& args)
+Spectrum MPS::
+svdBond(int b, ITensor const& AA, Direction dir, Args args)
     {
-    return svdBond(b,AA,dir,LocalOp<Tensor>(),args);
+    return svdBond(b,AA,dir,LocalOp(),args);
     }
-template Spectrum MPSt<ITensor>::
-svdBond(int b, const ITensor& AA, Direction dir, const Args& args);
-template Spectrum MPSt<IQTensor>::
-svdBond(int b, const IQTensor& AA, Direction dir, const Args& args);
-
 
 struct SqrtInv
     {
@@ -678,23 +638,22 @@ struct Sqrt
     operator()(Real val) const { return std::sqrt(std::fabs(val)); }
     };
 
-template<class Tensor>
 Spectrum
-orthMPS(Tensor& A1, Tensor& A2, Direction dir, const Args& args)
+orthMPS(ITensor& A1, ITensor& A2, Direction dir, Args const& args)
     {
-    Tensor& L = (dir == Fromleft ? A1 : A2);
-    Tensor& R = (dir == Fromleft ? A2 : A1);
+    ITensor& L = (dir == Fromleft ? A1 : A2);
+    ITensor& R = (dir == Fromleft ? A2 : A1);
 
-    auto bnd = commonIndex(L,R,Link);
+    auto bnd = commonIndex(L,R);
     if(!bnd) return Spectrum();
 
     if(args.getBool("Verbose",false))
         {
-        Print(L.inds());
+        Print(inds(L));
         }
 
-    Tensor A,B(bnd);
-    Tensor D;
+    ITensor A,B(bnd);
+    ITensor D;
     auto spec = svd(L,A,D,B,args);
 
     L = A;
@@ -702,15 +661,10 @@ orthMPS(Tensor& A1, Tensor& A2, Direction dir, const Args& args)
 
     return spec;
     }
-template Spectrum
-orthMPS(ITensor& A1, ITensor& A2, Direction dir, const Args& args);
-template Spectrum
-orthMPS(IQTensor& A1, IQTensor& A2, Direction dir, const Args& args);
 
 
-template<class Tensor> 
-void MPSt<Tensor>::
-position(int i, Args const& args)
+MPS& MPS::
+position(int i, Args args)
     {
     if(not *this) Error("position: MPS is default constructed");
 
@@ -720,15 +674,17 @@ position(int i, Args const& args)
             {
             if(l_orth_lim_ < 0) l_orth_lim_ = 0;
             setBond(l_orth_lim_+1);
-            auto WF = A(l_orth_lim_+1) * A(l_orth_lim_+2);
-            svdBond(l_orth_lim_+1,WF,Fromleft,args);
+            auto WF = operator()(l_orth_lim_+1) * operator()(l_orth_lim_+2);
+            auto original_link_tags = tags(linkIndex(*this,l_orth_lim_+1));
+            svdBond(l_orth_lim_+1,WF,Fromleft,{args,"LeftTags=",original_link_tags});
             }
         while(r_orth_lim_ > i+1)
             {
             if(r_orth_lim_ > N_+1) r_orth_lim_ = N_+1;
             setBond(r_orth_lim_-2);
-            auto WF = A(r_orth_lim_-2) * A(r_orth_lim_-1);
-            svdBond(r_orth_lim_-2,WF,Fromright,args);
+            auto WF = operator()(r_orth_lim_-2) * operator()(r_orth_lim_-1);
+            auto original_link_tags = tags(linkIndex(*this,r_orth_lim_-2));
+            svdBond(r_orth_lim_-2,WF,Fromright,{args,"RightTags=",original_link_tags});
             }
         }
     else //use orthMPS
@@ -737,7 +693,15 @@ position(int i, Args const& args)
             {
             if(l_orth_lim_ < 0) l_orth_lim_ = 0;
             setBond(l_orth_lim_+1);
-            orthMPS(Aref(l_orth_lim_+1),Aref(l_orth_lim_+2),Fromleft,args);
+
+            // Current bond
+            auto b = l_orth_lim_+1;
+
+            // Store the original tags for link b so that it can
+            // be put back onto the newly introduced link index
+            auto original_link_tags = tags(linkIndex(*this,b));
+            orthMPS(ref(b),ref(b+1),Fromleft,{args,"LeftTags=",original_link_tags});
+
             ++l_orth_lim_;
             if(r_orth_lim_ < l_orth_lim_+2) r_orth_lim_ = l_orth_lim_+2;
             }
@@ -745,245 +709,197 @@ position(int i, Args const& args)
             {
             if(r_orth_lim_ > N_+1) r_orth_lim_ = N_+1;
             setBond(r_orth_lim_-2);
-            orthMPS(Aref(r_orth_lim_-2),Aref(r_orth_lim_-1),Fromright,args);
+
+            // Current bond
+            auto b = r_orth_lim_-2;
+
+            // Store the original tags for link b so that it can
+            // be put back onto the newly introduced link index
+            auto original_link_tags = tags(linkIndex(*this,b));
+            args.add("LeftTags=",original_link_tags);
+            if(original_link_tags == TagSet("Link,V,0"))
+                {
+                // Using LeftTags=Link,V will conflict with
+                // default right tags of svd (within orthMPS)
+                args.add("LeftTags=","Link");
+                }
+            orthMPS(ref(b),ref(b+1),Fromright,args);
+
             --r_orth_lim_;
             if(l_orth_lim_ > r_orth_lim_-2) l_orth_lim_ = r_orth_lim_-2;
             }
         }
+    return *this;
     }
-template void MPSt<ITensor>::
-position(int b, const Args& args);
-template void MPSt<IQTensor>::
-position(int b, const Args& args);
 
-template <class Tensor>
-int MPSt<Tensor>::
-orthoCenter() const 
-    { 
-    if(!itensor::isOrtho(*this)) Error("orthogonality center not well defined.");
-    return (leftLim() + 1);
-    }
-template
-int MPSt<ITensor>::orthoCenter() const;
-template
-int MPSt<IQTensor>::orthoCenter() const;
 
-template <class Tensor>
-void MPSt<Tensor>::
-orthogonalize(Args const& args)
+MPS& MPS::
+orthogonalize(Args args)
     {
+    if( args.defined("Maxm") )
+      {
+      if( args.defined("MaxDim") )
+        {
+        Global::warnDeprecated("Args Maxm and MaxDim are both defined. Maxm is deprecated in favor of MaxDim, MaxDim will be used.");
+        }
+      else
+        {
+        Global::warnDeprecated("Arg Maxm is deprecated in favor of MaxDim.");
+        args.add("MaxDim",args.getInt("Maxm"));
+        }
+      }
+
     if(doWrite()) Error("Cannot call orthogonalize when doWrite()==true");
+
+    auto& psi = *this;
+    auto N = N_;
 
     auto cutoff = args.getReal("Cutoff",1E-13);
     auto dargs = Args{"Cutoff",cutoff};
-    auto maxm_set = args.defined("Maxm");
-    if(maxm_set) dargs.add("Maxm",args.getInt("Maxm"));
+    auto maxdim_set = args.defined("MaxDim");
+    if(maxdim_set) dargs.add("MaxDim",args.getInt("MaxDim"));
 
-    int plev = 14741;
+    // Truncate blocks of degenerate singular values
+    dargs.add("RespectDegenerate",args.getBool("RespectDegenerate",true));
+
+    int rand_plev = 14741;
 
     //Build environment tensors from the left
-    auto E = vector<Tensor>(N_+1);
-    auto ci = commonIndex(A_.at(1),A_.at(2),Link);
-    E.at(1) = A_.at(1)*dag(prime(A_.at(1),ci,plev));
-    for(int j = 2; j < N_; ++j)
+    auto E = vector<ITensor>(N+1);
+
+    auto psic = itensor::dag(psi);
+
+    //TODO: use sim(linkInds)
+    //That would require changing the requirements of diagPosSemiDef to
+    //allow more general ITensors
+    psic.replaceLinkInds(itensor::prime(itensor::linkInds(psic),rand_plev));
+
+    E[1] = psi(1)*psic(1); 
+
+    for(int j = 2; j < N; ++j)
+        E[j] = E[j-1] * psi(j) * psic(j);
+    auto rho = E[N-1] * psi(N) * itensor::prime(psic(N),rand_plev,siteInds(psic,N));
+
+    auto original_tags = tags(linkIndex(psi,N-1));
+    auto [U,D] = diagPosSemiDef(rho,{dargs,"Tags=",original_tags});
+
+    //O is partial inner of previous and new MPS
+    auto O = U * psi(N) * psi(N-1);
+    psi.ref(N) = itensor::dag(U);
+
+    for(int j = N-1; j > 1; --j)
         {
-        E.at(j) = E.at(j-1) * A_.at(j) * dag(prime(A_.at(j),Link,plev));
-        }
-
-    auto rho = E.at(N_-1) * A_.at(N_) * dag(prime(A_.at(N_),plev));
-    Tensor U,D;
-    diagHermitian(rho,U,D,dargs);
-
-    //O is partial overlap of previous and new MPS
-    auto O = U * A_.at(N_) * A_.at(N_-1);
-    A_.at(N_) = dag(U);
-
-    for(int j = N_-1; j > 1; --j)
-        {
-        if(not maxm_set)
+        if(not maxdim_set)
             {
-            //Infer maxm from bond dim of original MPS
+            //Infer maxdim from bond dim of original MPS
             //i.e. upper bound on rank of rho
             auto ci = commonIndex(O,E.at(j-1));
-            auto maxm = (ci) ? ci.m() : 1l;
-            dargs.add("Maxm",maxm);
+            auto maxdim = (ci) ? dim(ci) : 1l;
+            dargs.add("MaxDim",maxdim);
             }
-        rho = E.at(j-1) * O * dag(prime(O,plev));
-        auto spec = diagHermitian(rho,U,D,dargs);
+        rho = E.at(j-1) * O * itensor::dag(itensor::prime(O,rand_plev));
+        original_tags = tags(linkIndex(psi,j-1));
+        std::tie(U,D) = diagPosSemiDef(rho,{dargs,"Tags=",original_tags});
         O *= U;
-        O *= A_.at(j-1);
-        A_.at(j) = dag(U);
+        O *= psi(j-1);
+        psi.ref(j) = itensor::dag(U);
         }
-    A_.at(1) = O;
+    psi.ref(1) = O;
 
     l_orth_lim_ = 0;
     r_orth_lim_ = 2;
+    return *this;
     }
-template
-void MPSt<ITensor>::orthogonalize(Args const& args);
-template
-void MPSt<IQTensor>::orthogonalize(Args const& args);
 
-//Methods for use internally by checkOrtho
-ITensor
-makeKroneckerDelta(const Index& i, int plev)
+namespace detail
+  {
+  // Make an order-2 delta tensor with dense storage
+  ITensor
+  denseDelta(Index const& i, Index const& j)
+      {
+      auto del = ITensor(i,j);
+      for( auto ii : range1(minDim(del)) )
+        del.set(ii,ii,1);
+      return del;
+      }
+  }
+
+template <typename MPSType>
+bool
+checkOrtho(MPSType const& A,
+           int i,
+           Direction dir,
+           Real threshold)
     {
-    return delta(i,prime(i,plev));
-    }
-IQTensor
-makeKroneckerDelta(const IQIndex& I, int plev)
-    {
-    IQTensor D(I,prime(I,plev));
+    auto left = (dir==Fromleft);
 
-    for(int j = 1; j <= I.nindex(); ++j)
-        {
-        D += makeKroneckerDelta(I.index(j),plev);
-        }
-    return D;
-    }
+    auto Adag = dag(A);
+    Adag.replaceLinkInds(prime(linkInds(Adag)));
 
-//template <class Tensor>
-//bool MPSt<Tensor>::
-//checkOrtho(int i, bool left) const
-//    {
-//    setSite(i);
-//    IndexT link = (left ? rightLinkInd(*this,i) : leftLinkInd(*this,i));
-//
-//    Tensor rho = A(i) * dag(prime(A(i),link,4));
-//
-//    Tensor Delta = makeKroneckerDelta(link,4);
-//
-//    Tensor Diff = rho - Delta;
-//
-//    const
-//    Real threshold = 1E-13;
-//    //cout << format("i = %d, Diff.norm() = %.4E")
-//    //        % i
-//    //        % Diff.norm()
-//    //        << endl;
-//    if(Diff.norm() < threshold) 
-//        {
-//        return true;
-//        }
-//
-//    //Print any helpful debugging info here:
-//    cout << "checkOrtho: on line " << __LINE__ 
-//         << " of mps.h," << endl;
-//    cout << "checkOrtho: Tensor at position " << i 
-//         << " failed to be " << (left ? "left" : "right") 
-//         << " ortho." << endl;
-//    cout << "checkOrtho: Diff.norm() = " << format("%E") 
-//         % Diff.norm() << endl;
-//    cout << "checkOrtho: Error threshold set to " 
-//              << format("%E") % threshold << endl;
-//    //-----------------------------
-//
-//    return false;
-//    }
-//template
-//bool MPSt<ITensor>::checkOrtho(int i, bool left) const;
-//template
-//bool MPSt<IQTensor>::checkOrtho(int i, bool left) const;
+    auto lout_dag = (left ? leftLinkIndex(Adag,i) : rightLinkIndex(Adag,i));
+    auto rho = A(i) * prime(Adag(i),-1,lout_dag);
 
-//template <class Tensor>
-//bool MPSt<Tensor>::
-//checkOrtho() const
-//    {
-//    for(int i = 1; i <= l_orth_lim_; ++i)
-//    if(!checkLeftOrtho(i))
-//        {
-//        cout << "checkOrtho: A_[i] not left orthogonal at site i=" 
-//                  << i << endl;
-//        return false;
-//        }
-//
-//    for(int i = N(); i >= r_orth_lim_; --i)
-//    if(!checkRightOrtho(i))
-//        {
-//        cout << "checkOrtho: A_[i] not right orthogonal at site i=" 
-//                  << i << endl;
-//        return false;
-//        }
-//    return true;
-//    }
-//template
-//bool MPSt<ITensor>::checkOrtho() const;
-//template
-//bool MPSt<IQTensor>::checkOrtho() const;
+    auto lin = (left ? rightLinkIndex(A,i) : leftLinkIndex(A,i));
+    auto lin_dag = (left ? rightLinkIndex(Adag,i) : leftLinkIndex(Adag,i));
+    auto Delta = detail::denseDelta(lin, lin_dag);
 
+    auto Diff = rho - Delta;
 
-//template <class Tensor>
-//void MPSt<Tensor>::
-//applygate(const Tensor& gate, const Args& args)
-//    {
-//    setBond(l_orth_lim_+1);
-//    Tensor AA = A_.at(l_orth_lim_+1) * A_.at(l_orth_lim_+2) * gate;
-//    AA.noprime();
-//    svdBond(l_orth_lim_+1,AA,Fromleft,args);
-//    }
-//template
-//void MPSt<ITensor>::applygate(const ITensor& gate,const Args& args);
-//template
-//void MPSt<IQTensor>::applygate(const IQTensor& gate,const Args& args);
+    if(norm(Diff) < threshold)
+        return true;
 
-//template <class Tensor>
-//void MPSt<Tensor>::
-//applygate(const BondGate<Tensor>& gate, 
-//          const Args& args)
-//    {
-//    const int gate_b = std::min(gate.i(),gate.j());
-//    setBond(gate_b);
-//    Tensor AA = A_.at(gate_b) * A_.at(gate_b+1) * Tensor(gate);
-//    AA.noprime();
-//    svdBond(gate_b,AA,Fromleft,args);
-//    }
-//template
-//void MPSt<ITensor>::applygate(const BondGate<ITensor>& gate,const Args& args);
-//template
-//void MPSt<IQTensor>::applygate(const BondGate<IQTensor>& gate,const Args& args);
+    //Print any helpful debugging info here:
+    println("checkOrtho: on line ",__LINE__," of mps.h,");
+    println("checkOrtho: Tensor at position ",i," failed to be ",left?"left":"right"," ortho.");
+    printfln("checkOrtho: norm(Diff) = %E",norm(Diff));
+    printfln("checkOrtho: Error threshold set to %E",threshold);
+    //-----------------------------
 
-template <class Tensor>
-Real MPSt<Tensor>::
-norm() const 
-    { 
-    return itensor::norm(*this);
-    }
-template Real MPSt<ITensor>::
-norm() const;
-template Real MPSt<IQTensor>::
-norm() const;
-
-template <class Tensor>
-Real MPSt<Tensor>::
-normalize()
-    {
-    return itensor::normalize(*this);
-    }
-template
-Real MPSt<ITensor>::
-normalize();
-template
-Real MPSt<IQTensor>::
-normalize();
-
-template <class Tensor>
-bool MPSt<Tensor>::
-isComplex() const
-    { 
-    for(auto j : range1(N_))
-        {
-        if(itensor::isComplex(A_[j])) return true;
-        }
     return false;
     }
-template
-bool MPSt<ITensor>::isComplex() const;
-template
-bool MPSt<IQTensor>::isComplex() const;
+template bool checkOrtho<MPS>(MPS const& A, int i, Direction dir, Real threshold);
+template bool checkOrtho<MPO>(MPO const& A, int i, Direction dir, Real threshold);
 
-template <class T>
-void MPSt<T>::
-initWrite(const Args& args)
+template <typename MPSType>
+bool
+checkOrtho(MPSType const& A,
+           Real threshold)
+    {
+    for(int i = 1; i <= A.leftLim(); ++i)
+    if(!checkOrtho(A,i,Fromleft,threshold))
+        {
+        std::cout << "checkOrtho: A_[i] not left orthogonal at site i="
+                  << i << std::endl;
+        return false;
+        }
+
+    for(int i = length(A); i >= A.rightLim(); --i)
+    if(!checkOrtho(A,i,Fromright,threshold))
+        {
+        std::cout << "checkOrtho: A_[i] not right orthogonal at site i="
+                  << i << std::endl;
+        return false;
+        }
+    return true;
+    }
+template bool checkOrtho<MPS>(MPS const& A, Real threshold);
+template bool checkOrtho<MPO>(MPO const& A, Real threshold);
+
+void
+applyGate(ITensor const& gate, 
+          MPS & psi,
+          Args const& args)
+    {
+    auto fromleft = args.getBool("Fromleft",true);
+    const int c = orthoCenter(psi);
+    ITensor AA = psi(c) * psi(c+1) * gate;
+    AA.noPrime();
+    if(fromleft) psi.svdBond(c,AA,Fromleft,args);
+    else         psi.svdBond(c,AA,Fromright,args);
+    }
+
+void MPS::
+initWrite(Args const& args)
     {
     if(!do_write_)
         {
@@ -1005,29 +921,22 @@ initWrite(const Args& args)
                 writeToFile(AFName(j),A_.at(j));
                 if(j < atb_ || j > atb_+1)
                     {
-                    A_[j] = T{};
+                    A_[j] = ITensor{};
                     }
                 }
             }
 
-        writeToFile(writedir_+"/sites",sites_);
-
         do_write_ = true;
         }
     }
-template
-void MPSt<ITensor>::initWrite(const Args&);
-template
-void MPSt<IQTensor>::initWrite(const Args&);
 
-template <class T>
-void MPSt<T>::
+void MPS::
 copyWriteDir()
     {
     if(do_write_)
         {
         string old_writedir = writedir_;
-        string global_write_dir = Global::args().getString("WriteDir","./");
+        string global_write_dir = Args::global().getString("WriteDir","./");
         writedir_ = mkTempDir("psi",global_write_dir);
 
         string cmdstr = "cp -r " + old_writedir + "/* " + writedir_;
@@ -1035,14 +944,8 @@ copyWriteDir()
         system(cmdstr.c_str());
         }
     }
-template
-void MPSt<ITensor>::copyWriteDir();
-template
-void MPSt<IQTensor>::copyWriteDir();
 
-
-template <class T>
-void MPSt<T>::
+void MPS::
 cleanupWrite()
     {
     if(do_write_)
@@ -1052,37 +955,27 @@ cleanupWrite()
         do_write_ = false;
         }   
     }
-template
-void MPSt<ITensor>::cleanupWrite();
-template
-void MPSt<IQTensor>::cleanupWrite();
 
-template<class T>
-void MPSt<T>::
-swap(MPSt<T>& other)
+void MPS::
+swap(MPS& other)
     {
     if(N_ != other.N_)
         Error("Require same system size to swap MPS");
     A_.swap(other.A_);
     std::swap(l_orth_lim_,other.l_orth_lim_);
     std::swap(r_orth_lim_,other.r_orth_lim_);
-    std::swap(sites_,other.sites_);
     std::swap(atb_,other.atb_);
     std::swap(writedir_,other.writedir_);
     std::swap(do_write_,other.do_write_);
     }
-template
-void MPSt<ITensor>::swap(MPSt<ITensor>& other);
-template
-void MPSt<IQTensor>::swap(MPSt<IQTensor>& other);
 
 InitState::
 InitState(SiteSet const& sites)
     : 
     sites_(sites), 
-    state_(1+sites.N())
+    state_(1+length(sites))
     { 
-    for(int n = 1; n <= sites_.N(); ++n)
+    for(int n = 1; n <= length(sites_); ++n)
         {
         state_[n] = sites_(n)(1);
         }
@@ -1092,7 +985,7 @@ InitState::
 InitState(SiteSet const& sites, String const& state)
     : 
     sites_(sites), 
-    state_(1+sites.N())
+    state_(1+length(sites))
     { 
     setAll(state);
     }
@@ -1108,37 +1001,378 @@ set(int i, const String& state)
 InitState& InitState::
 setAll(String const& state)
     { 
-    for(int n = 1; n <= sites_.N(); ++n)
+    for(int n = 1; n <= length(sites_); ++n)
         {
         state_[n] = sites_(n,state);
         }
     return *this;
     }
 
+bool
+isComplex(MPS const& psi)
+    {
+    for(auto j : range1(length(psi)))
+        {
+        if(itensor::isComplex(psi(j))) return true;
+        }
+    return false;
+    }
+
+bool
+isOrtho(MPS const& psi)
+    {
+    return psi.leftLim()+1 == psi.rightLim()-1;
+    }
+
+int
+orthoCenter(MPS const& psi)
+    {
+    if(!isOrtho(psi)) Error("orthogonality center not well defined.");
+    return (psi.leftLim() + 1);
+    }
+
+int
+rightLim(MPS const& x)
+    {
+    return x.rightLim();
+    }
+
+int
+leftLim(MPS const& x)
+    {
+    return x.leftLim();
+    }
+
+Real
+norm(MPS const& psi)
+    {
+    if(not isOrtho(psi)) Error("\
+MPS must have well-defined ortho center to compute norm; \
+call .position(j) or .orthogonalize() to set ortho center");
+    return itensor::norm(psi(orthoCenter(psi)));
+    }
+
+template<typename MPSType>
+Real
+averageLinkDim(MPSType const& x)
+    {
+    Real avgdim = 0.;
+    auto N = length(x);
+    for( auto b : range1(N-1) )
+        {
+        avgdim += dim(linkIndex(x,b));
+        }
+    avgdim /= (N-1);
+    return avgdim;
+    }
+template Real averageLinkDim<MPS>(MPS const& x);
+template Real averageLinkDim<MPO>(MPO const& x);
+
+Real
+averageM(MPS const& psi)
+    {
+    Global::warnDeprecated("averageM(MPS) is deprecated in favor of averageLinkDim(MPS)");
+    return averageLinkDim(psi);
+    }
+
+template<typename MPSType>
+int
+maxLinkDim(MPSType const& x)
+    {
+    int maxdim = 0;
+    for( auto b : range1(length(x)-1) )
+        {
+        int mb = dim(linkIndex(x,b));
+        maxdim = std::max(mb,maxdim);
+        }
+    return maxdim;
+    }
+template int maxLinkDim<MPS>(MPS const& x);
+template int maxLinkDim<MPO>(MPO const& x);
+
+int
+maxM(MPS const& psi)
+    {
+    Global::warnDeprecated("maxM(MPS) is deprecated in favor of maxLinkDim(MPS)");
+    return maxLinkDim(psi);
+    }
+
+Real
+normalize(MPS & psi)
+    {
+    Global::warnDeprecated("normalize(MPS) is deprecated in favor of .normalize()");
+    auto nrm = psi.normalize();
+    return nrm;
+    }
+
+MPS
+dag(MPS A)
+    {
+    A.dag();
+    return A;
+    }
+
+MPS
+setTags(MPS A, TagSet const& ts, IndexSet const& is)
+    {
+    A.setTags(ts,is);
+    return A;
+    }
+
+MPS
+noTags(MPS A, IndexSet const& is)
+    {
+    A.noTags(is);
+    return A;
+    }
+
+MPS
+addTags(MPS A, TagSet const& ts, IndexSet const& is)
+    {
+    A.addTags(ts,is);
+    return A;
+    }
+  
+MPS
+removeTags(MPS A, TagSet const& ts, IndexSet const& is)
+    {
+    A.removeTags(ts,is);
+    return A;
+    }
+
+MPS
+replaceTags(MPS A, TagSet const& ts1, TagSet const& ts2, IndexSet const& is)
+    {
+    A.replaceTags(ts1,ts2,is);
+    return A;
+    }
+
+MPS
+swapTags(MPS A, TagSet const& ts1, TagSet const& ts2, IndexSet const& is)
+    {
+    A.swapTags(ts1,ts2,is);
+    return A;
+    }
+
+MPS
+prime(MPS A, int plev, IndexSet const& is)
+    {
+    A.prime(plev,is);
+    return A;
+    }
+
+MPS
+prime(MPS A, IndexSet const& is)
+    {
+    A.prime(is);
+    return A;
+    }
+
+MPS
+setPrime(MPS A, int plev, IndexSet const& is)
+    {
+    A.setPrime(plev,is);
+    return A;
+    }
+
+MPS
+mapPrime(MPS A, int plevold, int plevnew, IndexSet const& is)
+    {
+    A.mapPrime(plevold,plevnew,is);
+    return A;
+    }
+
+MPS
+swapPrime(MPS A, int plevold, int plevnew, IndexSet const& is)
+    {
+    A.swapPrime(plevold,plevnew,is);
+    return A;
+    }
+
+MPS
+noPrime(MPS A, IndexSet const& is)
+    {
+    A.noPrime(is);
+    return A;
+    }
+
+bool
+hasSiteInds(MPS const& x, IndexSet const& sites)
+    {
+    auto N = length(x);
+    if( N!=length(sites) ) Error("In hasSiteInds(MPS,IndexSet), lengths of MPS and IndexSet of site indices don't match");
+    for( auto n : range1(N) )
+      {
+      if( !hasIndex(x(n),sites(n)) ) return false;
+      }
+    return true;
+    }
+
+template <typename MPSType>
+IndexSet
+siteInds(MPSType const& W, int b)
+    {
+    return uniqueInds(W(b),{W(b-1),W(b+1)});
+    }
+template IndexSet siteInds<MPS>(MPS const& W, int b);
+template IndexSet siteInds<MPO>(MPO const& W, int b);
+
+Index
+siteIndex(MPS const& psi, int j)
+    {
+    return uniqueIndex(psi(j),{psi(j-1),psi(j+1)});
+    }
+
+template <typename MPSType>
+Index
+rightLinkIndex(MPSType const& psi, int i)
+    {
+    if( i == length(psi) ) return Index();
+    return commonIndex(psi(i),psi(i+1));
+    }
+template Index rightLinkIndex<MPS>(MPS const& W, int i);
+template Index rightLinkIndex<MPO>(MPO const& W, int i);
+
+// Note: for ITensors with QNs, this is different
+// from rightLinkIndex(psi,i-1) since indices 
+// evaluate equal even in arrow directions are different
+template <typename MPSType>
+Index
+leftLinkIndex(MPSType const& psi, int i)
+    {
+    if( i == 1 ) return Index();
+    return commonIndex(psi(i),psi(i-1));
+    }
+template Index leftLinkIndex<MPS>(MPS const& W, int i);
+template Index leftLinkIndex<MPO>(MPO const& W, int i);
+
+// This is a shorthand for rightLinkIndex
+template <typename MPSType>
+Index
+linkIndex(MPSType const& psi, int i)
+    {
+    return rightLinkIndex(psi,i);
+    }
+template Index linkIndex<MPS>(MPS const& W, int i);
+template Index linkIndex<MPO>(MPO const& W, int i);
+
+template <typename MPSType>
+IndexSet
+linkInds(MPSType const& x, int i)
+    {
+    if(i == 1) return IndexSet(rightLinkIndex(x,i));
+    else if( i == length(x) ) return IndexSet(leftLinkIndex(x,i));
+    return IndexSet(leftLinkIndex(x,i),rightLinkIndex(x,i));
+    }
+template IndexSet linkInds<MPS>(MPS const& x, int i);
+template IndexSet linkInds<MPO>(MPO const& x, int i);
+
+template <typename MPSType>
+IndexSet
+linkInds(MPSType const& x)
+    {
+    auto N = length(x);
+    auto inds = IndexSetBuilder(N-1);
+    for( auto n : range1(N-1) )
+      {
+      auto s = linkIndex(x,n);
+      if(!s) Error("MPS or MPO has missing/null link index");
+      inds.nextIndex(std::move(s));
+      }
+    return inds.build();
+    }
+template IndexSet linkInds<MPS>(MPS const& x);
+template IndexSet linkInds<MPO>(MPO const& x);
+
+template <class MPSType>
+bool
+hasQNs(MPSType const& x)
+    {
+    for(auto i : range1(length(x)))
+        if(not hasQNs(x(i))) return false;
+    return true;
+    }
+template bool hasQNs<MPS>(MPS const& x);
+template bool hasQNs<MPO>(MPO const& x);
+
+IndexSet
+siteInds(MPS const& x)
+    {
+    auto N = length(x);
+    auto inds = IndexSetBuilder(N);
+    for( auto n : range1(N) )
+      {
+      auto s = siteIndex(x,n);
+      inds.nextIndex(std::move(s));
+      }
+    return inds.build();
+    }
+
+MPS& MPS::
+replaceSiteInds(IndexSet const& sites)
+    {
+    auto& x = *this;
+    auto N = itensor::length(x);
+    if( itensor::length(sites)!=N ) Error("In replaceSiteInds(MPS,IndexSet), number of site indices not equal to number of MPS tensors");
+    auto sx = itensor::siteInds(x);
+    if( equals(sx,sites) ) return x;
+    for( auto n : range1(N) )
+      {
+      auto sn = sites(n);
+      A_[n].replaceInds({sx(n)},{sn});
+      }
+    return x;
+    }
+
+MPS
+replaceSiteInds(MPS x, IndexSet const& sites)
+    {
+    x.replaceSiteInds(sites);
+    return x;
+    }
+
+MPS& MPS::
+replaceLinkInds(IndexSet const& links)
+    {
+    auto& x = *this;
+    auto N = itensor::length(x);
+    if( N==1 ) return x;
+    if( itensor::length(links)!=(N-1) ) Error("In replaceLinkInds(MPS,IndexSet), number of link indices input is not equal to the number of links of the MPS");
+    auto lx = itensor::linkInds(x);
+    if( equals(lx,links) ) return x;
+    for( auto n : range1(N-1) )
+      {
+      if( n == 1 ) A_[n].replaceInds({lx(n)},{links(n)});
+      else A_[n].replaceInds({lx(n-1),lx(n)},{links(n-1),links(n)});
+      }
+    A_[N].replaceInds({lx(N-1)},{links(N-1)});
+    return x;
+    }
+
+MPS
+replaceLinkInds(MPS x, IndexSet const& links)
+    {
+    x.replaceLinkInds(links);
+    return x;
+    }
+
 void InitState::
 checkRange(int i) const
     {
-    if(i > sites_.N() || i < 1) 
+    if(i > length(sites_) || i < 1) 
         {
         println("i = ",i);
-        println("Valid range is 1 to ",sites_.N());
+        println("Valid range is 1 to ",length(sites_));
         Error("i out of range");
         }
     }
 
-//Auxilary method for convertToIQ
-long 
-collapseCols(Vector const& Diag, Matrix& M)
+bool
+hasQNs(InitState const& initstate)
     {
-    long nr = Diag.size(), 
-         nc = long(sumels(Diag));
-    assert(nr != 0);
-    if(nc == 0) return nc;
-    M = Matrix(nr,nc);
-    long c = 0;
-    for(long r = 1; r <= nr; ++r)
-        if(Diag(r) == 1) { M(r,++c) = 1; }
-    return nc;
+    for(auto i : range1(length(initstate.sites())))
+        if(not hasQNs(initstate(i))) return false;
+    return true;
     }
 
 int 
@@ -1152,501 +1386,14 @@ periodicWrap(int j, int N)
     return j;
     }
 
-//void 
-//convertToIQ(const SiteSet& sites, const vector<ITensor>& A, 
-//            vector<IQTensor>& qA, QN totalq, Real cut)
-//    {
-//    const int N = sites.N();
-//    qA.resize(A.size());
-//    const bool is_mpo = hasindex(A[1],sites.siP(1));
-//    const int Dim = sites.si(1).m();
-//    if(sites.si(2).m() != Dim)
-//        Error("convertToIQ assumes uniform site dimension");
-//    const int PDim = (is_mpo ? Dim : 1);
-//
-//    // If MPO, set all tensors to identity ops initially
-//    if(is_mpo)
-//        {
-//        for(int j = 1; j <= N; ++j)
-//            qA.at(j) = sites.op("Id",j);
-//        }
-//
-//    const int fullrank = (is_mpo ? 4 : 3);
-//    int start = 1, end = N;
-//
-//    for(int j = 1; j <= N; ++j)
-//        if(A[j].r() == fullrank)
-//            if(A.at(periodicWrap(j-1,N)).r() < fullrank) 
-//                {
-//                start = periodicWrap(j-1,N);
-//                //cout << "Got start at " << start << "\n";
-//                break;
-//                }
-//
-//    for(int j = 1; j <= N; ++j)
-//        if(A[j].r() == fullrank)
-//            if(A.at(periodicWrap(j+1,N)).r() < fullrank) 
-//                {
-//                end = periodicWrap(j+1,N);
-//                //cout << "Got end at " << end << "\n";
-//                break;
-//                }
-//
-//    //cout << "Converting to IQ with (start, end) = " << start SP end << endl;
-//
-//    vector<IQIndex> linkind(N+1);
-//
-//    map<QN,Vector> qD; //Diags of compressor matrices by QN
-//
-//    using qt_vt = map<QN,vector<ITensor> >::value_type;
-//    map<QN,vector<ITensor> > qt; //ITensor blocks by QN
-//
-//    using qC_vt = map<QN,ITensor>::value_type;
-//    map<QN,ITensor> qC; //Compressor ITensors by QN
-//
-//    ITensor block;
-//    vector<ITensor> nblock;
-//    vector<IndexQN> iq;
-//
-//    QN q;
-//
-//    qC[totalq] = ITensor(); //Represents Virtual index
-//    //First value of prev_q below set to totalq
-//
-//    const int show_s = 0;
-//
-//    Index bond, prev_bond;
-//    int Send = (end < start ? N+end : end); 
-//    for(int S = start; S <= Send; ++S)
-//        {
-//        int s = periodicWrap(S,N);
-//        int sprev = periodicWrap(S-1,N);
-//        int snext = periodicWrap(S+1,N);
-//
-//        qD.clear(); 
-//        qt.clear();
-//
-//        if(S > start) prev_bond = commonIndex(A[sprev],A[s],Link);
-//        if(S < Send) bond = commonIndex(A[s],A[snext],Link);
-//
-//        if(s == show_s) { PrintData(A[s]); }
-//
-//        for(const qC_vt& x : qC) 
-//        for(int n = 1; n <= Dim;  ++n)
-//        for(int u = 1; u <= PDim; ++u)
-//            {
-//            //Each compressor represents a particular
-//            //QN channel given by prev_q
-//            const QN& prev_q = x.first; 
-//            //Alias previous compressor ITensor to comp
-//            const ITensor& comp = x.second; 
-//
-//            q = (is_mpo ? prev_q+sites.si(s).qn(n)-sites.si(s).qn(u) 
-//                        : prev_q-sites.si(s).qn(n));
-//
-//            //For the last site, only keep blocks 
-//            //compatible with specified totalq i.e. q=0 here
-//            if(S == Send && q != QN()) continue;
-//
-//            //Set Site indices of A[s] and its previous Link Index
-//            block = A[s];
-//            if(S != start) block *= dag(comp);
-//            block *= Index(sites.si(s))(n);
-//            if(is_mpo) block *= Index(sites.siP(s))(u);
-//
-//            //Initialize D Vector (D records which values of
-//            //the right Link Index to keep for the current QN q)
-//            auto count = qD.count(q);
-//            Vector& D = qD[q];
-//            if(count == 0) 
-//                { 
-//                D.resize(bond.m()); 
-//                for(auto& el : D) el = 0; 
-//                }
-//
-//            if(s == show_s)
-//                {
-//                println("For n = ",n);
-//                printfln("Got a block with norm %.10f",norm(block));
-//                println("bond.m() = ",bond.m());
-//                PrintData(block);
-//                if(s != 1) PrintData(comp);
-//                }
-//
-//            bool keep_block = false;
-//            if(S == Send) 
-//                { keep_block = true; }
-//            else
-//                {
-//                if(bond.m() == 1 && norm(block) != 0) 
-//                    { 
-//                    for(auto& el : D) el = 1; 
-//                    keep_block = true; 
-//                    }
-//                else
-//                    {
-//                    ITensor summed_block;
-//                    if(S==start) 
-//                        { summed_block = block; }
-//                    else
-//                        {
-//                        //Here we sum over the previous link index
-//                        //which is already ok, analyze the one to the right
-//                        assert(comp.r()==2);
-//                        auto ci = comp.inds().begin();
-//                        const Index& new_ind = (*ci==prev_bond ? *(ci+1) : *ci);
-//                        summed_block = diag(1,new_ind) * block;
-//                        }
-//                    //summed_block.print("summed_block");
-//
-//                    Real rel_cut = -1;
-//                    const ITensor& sb = summed_block;
-//                    for(int j = 1; j <= bond.m(); ++j)
-//                        { rel_cut = std::max(std::fabs(sb.real(bond(j))),rel_cut); }
-//                    assert(rel_cut >= 0);
-//                    //Real rel_cut = summed_block.norm()/summed_block.vecSize();
-//                    rel_cut *= cut;
-//                    //cout << "rel_cut == " << rel_cut << "\n";
-//
-//                    if(rel_cut > 0)
-//                    for(int j = 1; j <= bond.m(); ++j)
-//                        {
-//                        if(std::fabs(sb.real(bond(j))) > rel_cut) 
-//                            { 
-//                            D(j) = 1; 
-//                            keep_block = true; 
-//                            }
-//                        }
-//                    }
-//                } //else (S != Send)
-//
-//            if(keep_block)
-//                {
-//                qD[q] = D;
-//
-//                IndexSet newinds(block.inds());
-//                if(is_mpo) 
-//                    {
-//                    newinds.addindex(dag(sites.si(s)(n).indexqn()));
-//                    newinds.addindex(sites.siP(s)(u).indexqn());
-//                    }
-//                else 
-//                    { 
-//                    newinds.addindex(sites.si(s)(n).indexqn()); 
-//                    }
-//
-//                if(s==show_s)
-//                    {
-//                    PrintData(block);
-//                    cout << "D = " << D << "\n";
-//                    }
-//
-//                qt[q].push_back(ITensor(std::move(newinds),std::move(block.store())));
-//
-//                }
-//            }
-//
-//        qC.clear();
-//
-//        for(const qt_vt& x : qt)
-//            {
-//            const vector<ITensor>& blks = x.second;
-//            if(blks.size() != 0)
-//                {
-//                q = x.first; 
-//                if(S == Send) 
-//                    { for(const ITensor& t : blks) nblock.push_back(t); }
-//                else
-//                    {
-//                    Matrix M; 
-//                    auto mm = collapseCols(qD[q],M);
-//                    if(s==show_s)
-//                        {
-//                        println("Adding block, mm = ",mm);
-//                        Print(q);
-//                        cout << "qD[q] = " << qD[q] << "\n";
-//                        cout << "M = \n" << M << "\n";
-//                        int count = 0;
-//                        for(const ITensor& t : blks) 
-//                            {
-//                            printfln("t%02d",++count," ",t);
-//                            }
-//                        }
-//                    string qname = format("ql%d(%+d:%d)",s,q.sz(),q.Nf());
-//                    Index qbond(qname,mm);
-//                    auto compressor = matrixTensor(std::move(M),bond,qbond);
-//                    for(const ITensor& t : blks) nblock.push_back(t * compressor);
-//                    iq.push_back(IndexQN(qbond,q));
-//                    qC[q] = compressor;
-//                    }
-//                }
-//            }
-//
-//        if(S != Send) 
-//            { 
-//            if(iq.empty()) 
-//                {
-//                cout << "At site " << s << "\n";
-//                Error("convertToIQ: no compatible QNs to put into Link.");
-//                }
-//            linkind[s] = IQIndex(nameint("qL",s),std::move(iq)); 
-//            }
-//        if(S == start)
-//            {
-//            qA.at(s) = (is_mpo ? IQTensor(dag(sites.si(s)),sites.siP(s),linkind.at(s)) 
-//                            : IQTensor(sites.si(s),linkind[s]));
-//            }
-//        else 
-//        if(S == Send)
-//            {
-//            qA.at(s) = (is_mpo ? IQTensor(dag(linkind[sprev]),dag(sites.si(s)),sites.siP(s)) 
-//                            : IQTensor(dag(linkind[sprev]),sites.si(s)));
-//            }
-//        else
-//            {
-//            qA.at(s) = (is_mpo ? IQTensor(dag(linkind[sprev]),dag(sites.si(s)),sites.siP(s),linkind[s]) 
-//                            : IQTensor(dag(linkind[sprev]),sites.si(s),linkind[s]));
-//            }
-//
-//        for(const ITensor& nb : nblock) 
-//            { qA.at(s) += nb; } 
-//        nblock.clear();
-//
-//        if(s==show_s)
-//            {
-//            printfln("qA[%d]",s,qA[s]);
-//            Error("Stopping");
-//            }
-//
-//        } //for loop over s
-//
-//    } //void convertToIQ
-
-/*
-template <class Tensor> 
-template <class IQMPSType> 
-void MPSt<Tensor>::convertToIQ(IQMPSType& iqpsi, QN totalq, Real cut) const
-{
-    assert(sites_ != 0);
-    const SiteSet& sst = *sites_;
-
-    iqpsi = IQMPSType(sst,maxm,cutoff);
-
-    if(!A_[1].hasindex(si(1))) Error("convertToIQ: incorrect primelevel for conversion");
-    bool is_mpo = A_[1].hasindex(prime(si(1)));
-    const int Dim = si(1).m();
-    const int PDim = (is_mpo ? Dim : 1);
-
-    vector<IQIndex> linkind(N);
-
-    using qD_vt = map<QN,Vector>::value_type;
-    map<QN,Vector> qD; //Diags of compressor matrices by QN
-    using qt_vt = map<QN,vector<ITensor> >::value_type;
-    map<QN,vector<ITensor> > qt; //ITensor blocks by QN
-    using qC_vt = map<QN,ITensor>::value_type;
-    map<QN,ITensor> qC; //Compressor ITensors by QN
-    ITensor block;
-    vector<ITensor> nblock;
-    vector<IndexQN> iq;
-
-    QN q;
-
-    qC[totalq] = ITensor(); //Represents Virtual index
-    //First value of prev_q below set to totalq
-
-    const int show_s = 0;
-
-    Index bond, prev_bond;
-    for(int s = 1; s <= N; ++s)
-    {
-
-        qD.clear(); qt.clear();
-        if(s > 1) prev_bond = linkInd(*this,s-1); 
-        if(s < N) bond = linkInd(*this,s);
-
-        if(s == show_s) 
-        {
-            PrintData(A_[s]);
-        }
-
-        Foreach(const qC_vt& x, qC) {
-        const QN& prev_q = x.first; const ITensor& comp = x.second; 
-        for(int n = 1; n <= Dim;  ++n)
-        for(int u = 1; u <= PDim; ++u)
-        {
-            q = (is_mpo ? prev_q+si(s).qn(n)-si(s).qn(u) : prev_q-si(s).qn(n));
-
-            //For the last site, only keep blocks 
-            //compatible with specified totalq i.e. q=0 here
-            if(s == N && q != QN()) continue;
-
-            //Set Site indices of A_[s] and its previous Link Index
-            block = A_[s];
-            if(s != 1) block *= dag(comp);
-            block *= si(s)(n);
-            if(is_mpo) block *= siP(s)(u);
-
-            //Initialize D Vector (D records which values of
-            //the right Link Index to keep for the current QN q)
-            int count = qD.count(q);
-            Vector& D = qD[q];
-            if(count == 0) { D.ReDimension(bond.m()); D = 0; }
-
-            if(s == show_s)
-            {
-                cout << format("For n = %d\n")%n;
-                cout << format("Got a block with norm %.10f\n")%block.norm();
-                cout << format("bond.m() = %d\n")%bond.m();
-                PrintData(block);
-                if(s != 1) PrintData(comp);
-            }
-
-            bool keep_block = false;
-            if(s == N) keep_block = true;
-            else
-            {
-                if(bond.m() == 1 && block.norm() != 0) { D = 1; keep_block = true; }
-                else
-                {
-                    ITensor summed_block;
-                    if(s==1) summed_block = block;
-                    else
-                    {
-                        //Here we sum over the previous link index
-                        //which is already ok, analyze the one to the right
-                        assert(comp.r()==2);
-                        Index new_ind = (comp.index(1)==prev_bond ? comp.index(2) : comp.index(1));
-                        summed_block = ITensor(new_ind,1) * block;
-                    }
-                    //cout << format("s = %d, bond=")%s << bond << "\n";
-                    //summed_block.print("summed_block");
-
-                    Real rel_cut = -1;
-                    for(int j = 1; j <= bond.m(); ++j)
-                    { rel_cut = std::max(std::fabs(summed_block.val1(j)),rel_cut); }
-                    assert(rel_cut >= 0);
-                    //Real rel_cut = summed_block.norm()/summed_block.vecSize();
-                    rel_cut *= cut;
-                    //cout << "rel_cut == " << rel_cut << "\n";
-
-                    if(rel_cut > 0)
-                    for(int j = 1; j <= bond.m(); ++j)
-                    if(std::fabs(summed_block.val1(j)) > rel_cut) 
-                    { D(j) = 1; keep_block = true; }
-                }
-            } //else (s != N)
-
-            //if(!keep_block && q == totalq) { D(1) = 1; keep_block = true; }
-
-            if(keep_block)
-            {
-                qD[q] = D;
-
-                if(is_mpo) 
-                {
-                block.addindex(dag(si(s)(n).index()));
-                block.addindex(siP(s)(u).index());
-                }
-                else { block.addindex(si(s)(n).index()); }
-
-                qt[q].push_back(block);
-
-                if(s==show_s)
-                {
-                block.print("Kept block",ShowData);
-                cout << "D = " << D << "\n";
-                }
-            }
-        }}
-
-        qC.clear();
-
-        Foreach(const qt_vt& x, qt)
-            {
-            const vector<ITensor>& blks = x.second;
-            if(blks.size() != 0)
-                {
-                q = x.first; 
-                if(s == N) 
-                    { Foreach(const ITensor& t, blks) nblock.push_back(t); }
-                else
-                    {
-                    Matrix M; 
-                    auto mm = collapseCols(qD[q],M);
-                    if(s==show_s)
-                        {
-                        cout << format("Adding block, mm = %d\n")%mm;
-                        q.print("q");
-                        cout << "qD[q] = " << qD[q] << "\n";
-                        cout << "M = \n" << M << "\n";
-                        int count = 0;
-                        Foreach(const ITensor& t, blks) 
-                        t.print((format("t%02d")%(++count)).str(),ShowData);
-                        }
-                    //string qname = (format("ql%d(%+d:%d:%s)")%s%q.sz()%q.Nf()%(q.Nfp() == 0 ? "+" : "-")).str();
-                    string qname = (format("ql%d(%+d:%d)")%s%q.sz()%q.Nf()).str();
-                    Index qbond(qname,mm);
-                    ITensor compressor(bond,qbond,M);
-                    Foreach(const ITensor& t, blks) nblock.push_back(t * compressor);
-                    iq.push_back(IndexQN(qbond,q));
-                    qC[q] = compressor;
-                    }
-                }
-            }
-
-        if(s != N) 
-        { 
-            if(iq.empty()) 
-            {
-                cout << "At site " << s << "\n";
-                Error("convertToIQ: no compatible QNs to put into Link.");
-            }
-            linkind[s] = IQIndex(nameint("qL",s),iq); iq.clear(); 
-        }
-        if(s == 1)
-        {
-            iqpsi.Anc(s) = (is_mpo ? IQTensor(dag(si(s)),siP(s),linkind[s]) : IQTensor(si(s),linkind[s]));
-        }
-        else if(s == N)
-        {
-            iqpsi.Anc(s) = (is_mpo ? IQTensor(dag(linkind[s-1]),dag(si(s)),siP(s)) 
-                                    : IQTensor(dag(linkind[s-1]),si(s)));
-        }
-        else
-        {
-            iqpsi.Anc(s) = (is_mpo ? IQTensor(dag(linkind[s-1]),dag(si(s)),siP(s),linkind[s]) 
-                                    : IQTensor(dag(linkind[s-1]),si(s),linkind[s]));
-        }
-
-        Foreach(const ITensor& nb, nblock) { iqpsi.Anc(s) += nb; } nblock.clear();
-
-        if(0) //try to get this working ideally
-        if(!is_mpo && s > 1) 
-        {
-            IQTensor AA = iqpsi.bondTensor(s-1);
-            iqpsi.doSVD(s-1,AA,Fromleft);
-        }
-
-        if(s==show_s)
-        {
-        iqpsi.A(s).print((format("qA[%d]")%s).str(),ShowData);
-        Error("Stopping");
-        }
-
-    } //for loop over s
-
-    assert(checkQNs(iqpsi));
-
-} //void convertToIQ(IQMPSType& iqpsi) const
-*/
 
 int 
-findCenter(IQMPS const& psi)
+findCenter(MPS const& psi)
     {
-    for(int j = 1; j <= psi.N(); ++j) 
+    for(int j = 1; j <= length(psi); ++j) 
         {
-        auto& A = psi.A(j);
-        if(A.r() == 0) Error("Zero rank tensor in MPS");
+        auto& A = psi(j);
+        if(A.order() == 0) Error("Zero order tensor in MPS");
         bool allSameDir = true;
         auto it = A.inds().begin();
         Arrow dir = (*it).dir();
@@ -1666,29 +1413,184 @@ findCenter(IQMPS const& psi)
     }
 
 
-template <class T>
 std::ostream& 
-operator<<(std::ostream& s, MPSt<T> const& M)
+operator<<(std::ostream& s, MPS const& M)
     {
     s << "\n";
-    for(int i = 1; i <= M.N(); ++i) 
+    for(int i = 1; i <= length(M); ++i) 
         {
-        s << M.A(i) << "\n";
+        s << M(i) << "\n";
         }
     return s;
     }
-template std::ostream& operator<<(std::ostream& s, const MPSt<ITensor>& M);
-template std::ostream& operator<<(std::ostream& s, const MPSt<IQTensor>& M);
 
 std::ostream& 
 operator<<(std::ostream& s, InitState const& state)
     {
     s << "\n";
-    for(int i = 1; i <= state.sites().N(); ++i) 
+    for(int i = 1; i <= length(state.sites()); ++i) 
         {
         s << state(i) << "\n";
         }
     return s;
     }
+
+template <class MPSType>
+MPSType
+removeQNs(MPSType const& psi)
+    {
+    int N = length(psi);
+    MPSType res;
+    res = MPSType(N);
+    for(int j = 0; j <= N+1; ++j)
+        {
+        res.ref(j) = removeQNs(psi(j));
+        }
+    res.leftLim(psi.leftLim());
+    res.rightLim(psi.rightLim());
+    return res;
+    }
+template MPS removeQNs<MPS>(MPS const& psi);
+template MPO removeQNs<MPO>(MPO const& psi);
+
+template <class MPSType>
+MPSType
+sum(MPSType const& L, 
+    MPSType const& R, 
+    Args const& args)
+    {
+    auto res = L;
+    res.plusEq(R,args);
+    return res;
+    }
+template MPS sum<MPS>(MPS const& L, MPS const& R, Args const& args);
+template MPO sum<MPO>(MPO const& L, MPO const& R, Args const& args);
+
+template <class MPSType>
+MPSType
+sum(std::vector<MPSType> const& terms, 
+    Args const& args)
+    {
+    auto Nt = terms.size();
+    if(Nt == 2)
+        { 
+        return sum(terms.at(0),terms.at(1),args);
+        }
+    else 
+    if(Nt == 1) 
+        {
+        return terms.at(0);
+        }
+    else 
+    if(Nt > 2)
+        {
+        //Add all MPS in pairs
+        auto nsize = (Nt%2==0 ? Nt/2 : (Nt-1)/2+1);
+        std::vector<MPSType> newterms(nsize); 
+        for(decltype(Nt) n = 0, np = 0; n < Nt-1; n += 2, ++np)
+            {
+            newterms.at(np) = sum(terms.at(n),terms.at(n+1),args);
+            }
+        if(Nt%2 == 1) newterms.at(nsize-1) = terms.back();
+
+        //Recursively call sum again
+        return sum(newterms,args);
+        }
+    return MPSType();
+    }
+template MPS sum<MPS>(std::vector<MPS> const& terms, Args const& args);
+template MPO sum<MPO>(std::vector<MPO> const& terms, Args const& args);
+
+Cplx
+innerC(MPS const& psi, 
+       MPS const& phi)
+    {
+    auto N = length(psi);
+    if(N != length(phi)) Error("inner: mismatched N");
+
+    auto psidag = dag(psi);
+    psidag.replaceSiteInds(siteInds(phi));
+    psidag.replaceLinkInds(sim(linkInds(psidag)));
+
+    auto L = phi(1) * psidag(1);
+    if(N == 1) return eltC(L);
+    for(auto i : range1(2,N) ) 
+        L = L * phi(i) * psidag(i);
+    return eltC(L);
+    }
+
+void
+inner(MPS const& psi, MPS const& phi, Real& re, Real& im)
+    {
+    auto z = innerC(psi,phi);
+    re = real(z);
+    im = imag(z);
+    }
+
+Real
+inner(MPS const& psi, MPS const& phi) //Re[<psi|phi>]
+    {
+    if(isComplex(psi) || isComplex(phi)) Error("Cannot use inner(...) with complex MPS/MPO, use innerC(...) instead");
+    Real re, im;
+    inner(psi,phi,re,im);
+    return re;
+    }
+
+//
+// Deprecated
+//
+
+
+template <class MPSType>
+Cplx
+overlapC(MPSType const& psi, 
+         MPSType const& phi)
+    {
+    Global::warnDeprecated("overlap is deprecated in favor of inner/trace");
+    auto N = length(psi);
+    if(N != length(phi)) Error("overlap: mismatched N");
+
+    auto rand_plev = 4351345;
+
+    auto psidag = psi;
+    //psidag.dag().primeLinks(rand_plev);
+    psidag.dag();
+    psidag.replaceLinkInds(prime(linkInds(psidag),rand_plev));
+
+    auto L = phi(1) * psidag(1);
+    if(N == 1) return eltC(L);
+    for(auto i : range1(2,N) ) 
+        L = L * phi(i) * psidag(i);
+    return eltC(L);
+    }
+template Cplx overlapC<MPS>(MPS const& psi, MPS const& phi);
+template Cplx overlapC<MPO>(MPO const& psi, MPO const& phi);
+
+
+template <typename MPSType>
+void
+overlap(MPSType const& psi, MPSType const& phi, Real& re, Real& im)
+    {
+    Global::warnDeprecated("overlap is deprecated in favor of inner/trace");
+    auto z = overlapC(psi,phi);
+    re = real(z);
+    im = imag(z);
+    }
+template void overlap<MPS>(MPS const& psi, MPS const& phi, Real& re, Real& im);
+template void overlap<MPO>(MPO const& psi, MPO const& phi, Real& re, Real& im);
+
+template <typename MPSType>
+Real
+overlap(MPSType const& psi, MPSType const& phi) //Re[<psi|phi>]
+    {
+    Global::warnDeprecated("overlap is deprecated in favor of inner/trace");
+    Real re, im;
+    overlap(psi,phi,re,im);
+    if(std::fabs(im) > (1E-12 * std::fabs(re)) )
+        printfln("Real overlap: WARNING, dropping non-zero imaginary part (=%.5E) of expectation value.",im);
+    return re;
+    }
+template Real overlap<MPS>(MPS const& psi, MPS const& phi);
+template Real overlap<MPO>(MPO const& psi, MPO const& phi);
 
 } //namespace itensor

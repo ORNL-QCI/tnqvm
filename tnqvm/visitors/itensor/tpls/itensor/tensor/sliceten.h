@@ -1,11 +1,22 @@
 //
-// Distributed under the ITensor Library License, Version 1.2.
-//    (See accompanying LICENSE file.)
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 #ifndef __ITENSOR_SLICETEN_H_
 #define __ITENSOR_SLICETEN_H_
 
-#include "itensor/util/range.h"
+#include "itensor/util/iterate.h"
 #include "itensor/tensor/ten.h"
 #include "itensor/tensor/slicemat.h"
 #include "itensor/tensor/slicerange.h"
@@ -51,8 +62,7 @@ subTensor(Ten_ && T,
     static_assert(!std::is_same<Ten_&&,Tensor&&>::value,"Cannot pass temp/rvalue Tensor to subTensor");
     static_assert(!std::is_same<Ten_&&,Vector&&>::value,"Cannot pass temp/rvalue Vector to subTensor");
     static_assert(!std::is_same<Ten_&&,Matrix&&>::value,"Cannot pass temp/rvalue Matrix to subTensor");
-    using range_type = decltype(T.range());
-    auto r = T.r();
+    auto r = T.order();
 #ifdef DEBUG
     using stop_type = decltype(*stop.begin());
     if(r != decltype(r)(start.size())) throw std::runtime_error("subTensor: wrong size of start");
@@ -66,7 +76,7 @@ subTensor(Ten_ && T,
         }
 #endif
     size_t offset = 0;
-    auto rb = RangeBuilderT<range_type>(r);
+    auto rb = RangeBuilder(r);
     auto st = start.begin();
     auto sp = stop.begin();
     for(decltype(r) j = 0; j < r; ++j, ++st, ++sp) 
@@ -88,7 +98,7 @@ subIndex(Ten_ && T,
     static_assert(!std::is_same<Ten_&&,Vector&&>::value,"Cannot pass temp/rvalue Vector to subIndex");
     static_assert(!std::is_same<Ten_&&,Matrix&&>::value,"Cannot pass temp/rvalue Matrix to subIndex");
 #ifdef DEBUG
-    if(ind >= size_t(T.r())) throw std::runtime_error("subIndex: index out of range");
+    if(ind >= size_t(T.order())) throw std::runtime_error("subIndex: index out of range");
 #endif
     auto R = T.range();
     R[ind].ind = stop-start;

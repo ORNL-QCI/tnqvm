@@ -1,6 +1,17 @@
 //
-// Distributed under the ITensor Library License, Version 1.1.
-//    (See accompanying LICENSE file.)
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 #ifndef __ITENSOR_LAPACK_WRAP_h
 #define __ITENSOR_LAPACK_WRAP_h
@@ -37,6 +48,8 @@ namespace itensor {
 
 #include "cblas.h"
 #include "lapacke.h"
+#undef I //lapacke.h includes complex.h which defined an `I` macro
+         //that can cause problems, so best to undefine it
 
 namespace itensor {
 using LAPACK_INT = lapack_int;
@@ -284,6 +297,39 @@ void cblas_dscal(const LAPACK_INT N, const LAPACK_REAL alpha, LAPACK_REAL* X,con
 void F77NAME(dscal)(LAPACK_INT* N, LAPACK_REAL* alpha, LAPACK_REAL* X,LAPACK_INT* incX);
 #endif
 
+
+#ifdef PLATFORM_acml
+void F77NAME(dgesdd)(char *jobz, LAPACK_INT *m, LAPACK_INT *n, double *a, LAPACK_INT *lda, double *s, 
+             double *u, LAPACK_INT *ldu, double *vt, LAPACK_INT *ldvt, 
+             double *work, LAPACK_INT *lwork, LAPACK_INT *iwork, LAPACK_INT *info, int jobz_len);
+#else
+void F77NAME(dgesdd)(char *jobz, LAPACK_INT *m, LAPACK_INT *n, double *a, LAPACK_INT *lda, double *s, 
+             double *u, LAPACK_INT *ldu, double *vt, LAPACK_INT *ldvt, 
+             double *work, LAPACK_INT *lwork, LAPACK_INT *iwork, LAPACK_INT *info);
+#endif
+
+
+#ifdef PLATFORM_acml
+  void F77NAME(dgesvd)(char *jobz, char* jobv, LAPACK_INT *m, LAPACK_INT *n, double *a, LAPACK_INT *lda, double *s, 
+             double *u, LAPACK_INT *ldu, double *vt, LAPACK_INT *ldvt, 
+             double *work, LAPACK_INT *lwork, LAPACK_INT *info, int jobz_len);
+#else
+  void F77NAME(dgesvd)(char *jobz, char* jobv, LAPACK_INT *m, LAPACK_INT *n, double *a, LAPACK_INT *lda, double *s, 
+             double *u, LAPACK_INT *ldu, double *vt, LAPACK_INT *ldvt, 
+             double *work, LAPACK_INT *lwork, LAPACK_INT *info);
+#endif
+
+
+  #ifdef PLATFORM_acml
+  void F77NAME(zgesvd)(char *jobz, char* jobv, LAPACK_INT *m, LAPACK_INT *n, LAPACK_COMPLEX *a, LAPACK_INT *lda, LAPACK_REAL *s, 
+             LAPACK_COMPLEX *u, LAPACK_INT *ldu,  LAPACK_COMPLEX *vt, LAPACK_INT *ldvt, 
+             LAPACK_COMPLEX *work, LAPACK_INT *lwork, LAPACK_REAL * rwork, LAPACK_INT *info, int jobz_len);
+#else
+  void F77NAME(zgesvd)(char *jobz, char* jobv, LAPACK_INT *m, LAPACK_INT *n, LAPACK_COMPLEX *a, LAPACK_INT *lda, LAPACK_REAL *s, 
+             LAPACK_COMPLEX *u, LAPACK_INT *ldu, LAPACK_COMPLEX *vt, LAPACK_INT *ldvt, 
+		       LAPACK_COMPLEX *work, LAPACK_INT *lwork, LAPACK_REAL * rwork, LAPACK_INT *info);
+#endif
+
 #ifdef PLATFORM_acml
 void F77NAME(zgesdd)(char *jobz, int *m, int *n, LAPACK_COMPLEX *a, int *lda, double *s, 
              LAPACK_COMPLEX *u, int *ldu, LAPACK_COMPLEX *vt, int *ldvt, 
@@ -302,10 +348,46 @@ void F77NAME(dorgqr)(LAPACK_INT *m, LAPACK_INT *n, LAPACK_INT *k, double *a,
                      LAPACK_INT *lda, double *tau, double *work, LAPACK_INT *lwork, 
                      LAPACK_INT *info);
 
+  
+void F77NAME(zgeqrf)(LAPACK_INT *m, LAPACK_INT *n, LAPACK_COMPLEX *a, LAPACK_INT *lda, 
+                     LAPACK_COMPLEX *tau, LAPACK_COMPLEX *work, LAPACK_INT *lwork, LAPACK_INT *info);
+
+#ifdef PLATFORM_lapacke
+void LAPACKE_zungqr(int matrix_layout, LAPACK_INT *m, LAPACK_INT *n, LAPACK_INT *k, LAPACK_COMPLEX *a, 
+                     LAPACK_INT *lda, LAPACK_COMPLEX *tau, LAPACK_COMPLEX *work, LAPACK_INT *lwork, 
+                     LAPACK_INT *info);
+#else
+void F77NAME(zungqr)(LAPACK_INT *m, LAPACK_INT *n, LAPACK_INT *k, LAPACK_COMPLEX *a, 
+                     LAPACK_INT *lda, LAPACK_COMPLEX *tau, LAPACK_COMPLEX *work, LAPACK_INT *lwork, 
+                     LAPACK_INT *info);
+#endif
+
+void F77NAME(dgesv)(LAPACK_INT *n, LAPACK_INT *nrhs, LAPACK_REAL *a, LAPACK_INT *lda,
+					LAPACK_INT *ipiv, LAPACK_REAL *b, LAPACK_INT *ldb, LAPACK_INT *info);
+
+void F77NAME(zgesv)(LAPACK_INT *n, LAPACK_INT *nrhs, LAPACK_COMPLEX *a, LAPACK_INT * lda,
+					LAPACK_INT *ipiv, LAPACK_COMPLEX *b, LAPACK_INT *ldb, LAPACK_INT *info);
+
+#ifdef PLATFORM_lapacke
+double LAPACKE_dlange(int matrix_layout, char norm, lapack_int m, lapack_int n, const double* a, lapack_int lda);
+#elif defined PLATFORM_acml
+double F77NAME(dlange)(char* norm, LAPACK_INT* m, LAPACK_INT* n, double* a, LAPACK_INT* lda, double* work, LAPACK_INT norm_len);
+#else
+double F77NAME(dlange)(char* norm, LAPACK_INT* m, LAPACK_INT* n, double* a, LAPACK_INT* lda, double* work);
+#endif
+
+#ifdef PLATFORM_lapacke
+lapack_real LAPACKE_zlange(int matrix_layout, char norm, lapack_int m, lapack_int n, const lapack_complex_double* a, lapack_int lda);
+#elif defined PLATFORM_acml
+LAPACK_REAL F77NAME(zlange)(char* norm, LAPACK_INT* m, LAPACK_INT* n, LAPACK_COMPLEX* a, LAPACK_INT* lda, double* work, LAPACK_INT norm_len);
+#else
+LAPACK_REAL F77NAME(zlange)(char* norm, LAPACK_INT* m, LAPACK_INT* n, LAPACK_COMPLEX* a, LAPACK_INT* lda, double* work);
+#endif
+
 #ifdef PLATFORM_lapacke
 lapack_int LAPACKE_zheev(int matrix_order, char jobz, char uplo, lapack_int n,
                          lapack_complex_double* a, lapack_int lda, double* w);
-#elif PLATFORM_acml
+#elif defined PLATFORM_acml
 void F77NAME(zheev)(char *jobz, char *uplo, LAPACK_INT *n, LAPACK_COMPLEX *a, LAPACK_INT *lda, 
             double *w, LAPACK_COMPLEX *work, LAPACK_INT *lwork, double *rwork, 
             LAPACK_INT *info, LAPACK_INT jobz_len, LAPACK_INT uplo_len);
@@ -478,16 +560,52 @@ dscal_wrapper(LAPACK_INT N,
               LAPACK_REAL* data,
               LAPACK_INT inc = 1);
 
+
+void
+dgesdd_wrapper(char * jobz,           //char* specifying how much of U, V to compute
+                                    //choosing *jobz=='S' computes min(m,n) cols of U, V
+               LAPACK_INT* m,       //number of rows of input matrix *A
+               LAPACK_INT* n,       //number of cols of input matrix *A
+               LAPACK_REAL *A,       //contents of input matrix A
+               LAPACK_REAL *s,       //on return, singular values of A
+               LAPACK_REAL *u,       //on return, unitary matrix U
+               LAPACK_REAL *vt,      //on return, unitary matrix V transpose
+               LAPACK_INT *info);
+
 void
 zgesdd_wrapper(char *jobz,           //char* specifying how much of U, V to compute
                                      //choosing *jobz=='S' computes min(m,n) cols of U, V
                LAPACK_INT *m,        //number of rows of input matrix *A
                LAPACK_INT *n,        //number of cols of input matrix *A
-               LAPACK_COMPLEX *A,    //contents of input matrix A
+               Cplx *A,    //contents of input matrix A
                LAPACK_REAL *s,       //on return, singular values of A
-               LAPACK_COMPLEX *u,    //on return, unitary matrix U
-               LAPACK_COMPLEX *vt,   //on return, unitary matrix V transpose
+               Cplx *u,    //on return, unitary matrix U
+               Cplx *vt,   //on return, unitary matrix V transpose
                LAPACK_INT *info);
+
+
+  void
+dgesvd_wrapper(char * jobz,           //char* specifying how much of U, V to compute
+                                    //choosing *jobz=='S' computes min(m,n) cols of U, V
+               LAPACK_INT* m,       //number of rows of input matrix *A
+               LAPACK_INT* n,       //number of cols of input matrix *A
+               LAPACK_REAL *A,       //contents of input matrix A
+               LAPACK_REAL *s,       //on return, singular values of A
+               LAPACK_REAL *u,       //on return, unitary matrix U
+               LAPACK_REAL *vt,      //on return, unitary matrix V transpose
+               LAPACK_INT *info);
+
+void
+zgesvd_wrapper(char *jobz,           //char* specifying how much of U, V to compute
+                                     //choosing *jobz=='S' computes min(m,n) cols of U, V
+               LAPACK_INT *m,        //number of rows of input matrix *A
+               LAPACK_INT *n,        //number of cols of input matrix *A
+               Cplx *A,    //contents of input matrix A
+               LAPACK_REAL *s,       //on return, singular values of A
+               Cplx *u,    //on return, unitary matrix U
+               Cplx *vt,   //on return, unitary matrix V transpose
+               LAPACK_INT *info);
+
 
 //
 // dgeqrf
@@ -518,6 +636,84 @@ dorgqr_wrapper(LAPACK_INT* m,     //number of rows of A
                LAPACK_INT* lda,   //size of A (usually same as n)
                LAPACK_REAL* tau,  //scalar factors as returned by dgeqrf
                LAPACK_INT* info);  //error info
+
+
+  //
+// dgeqrf
+//
+// QR factorization of a complex matrix A
+//
+void
+zgeqrf_wrapper(LAPACK_INT* m,     //number of rows of A
+               LAPACK_INT* n,     //number of cols of A
+               Cplx* A,    //matrix A
+                                  //on return upper triangle contains R
+               LAPACK_INT* lda,   //size of A (usually same as n)
+               LAPACK_COMPLEX* tau,  //scalar factors of elementary reflectors
+                                  //length should be min(m,n)
+               LAPACK_INT* info);  //error info
+
+//
+// dorgqr
+//
+// Generates Q from output of QR factorization routine zgeqrf (see above)
+//
+void
+zungqr_wrapper(LAPACK_INT* m,     //number of rows of A
+               LAPACK_INT* n,     //number of cols of A
+               LAPACK_INT* k,     //number of elementary reflectors, typically min(m,n)
+               Cplx* A,    //matrix A, as returned from "A" argument of dgeqrf
+                                  //on return contains Q
+               LAPACK_INT* lda,   //size of A (usually same as n)
+               LAPACK_COMPLEX* tau,  //scalar factors as returned by zgeqrf
+               LAPACK_INT* info);  //error info
+
+// dgesv
+//
+// computes the solution to system of linear equations A*X = B
+// where A is a general real matrix
+//
+LAPACK_INT
+dgesv_wrapper(LAPACK_INT n,
+              LAPACK_INT nrhs,
+              LAPACK_REAL* a,
+              LAPACK_REAL* b);
+
+//
+// zgesv
+//
+// computes the solution to system of linear euqations A*X =B
+// where A is a general complex matrix
+//
+LAPACK_INT
+zgesv_wrapper(LAPACK_INT n,
+              LAPACK_INT nrhs,
+              Cplx* a,
+              Cplx* b);
+
+//
+// dlange
+//
+// returns the value of the 1-norm, Frobenius norm, infinity-norm, 
+// or the largest absolute value of any element of a general rectangular matrix.
+//
+double
+dlange_wrapper(char norm,
+               LAPACK_INT m,
+               LAPACK_INT n,
+               double* a);
+
+//
+// zlange
+//
+// returns the value of the 1-norm, Frobenius norm, infinity-norm, 
+// or the largest absolute value of any element of a general rectangular matrix.
+//
+LAPACK_REAL
+zlange_wrapper(char norm,
+               LAPACK_INT m,
+               LAPACK_INT n,
+               Cplx* a);
 
 //
 // zheev

@@ -14,6 +14,9 @@ set (SRC mps/ITensorMPSVisitor.cpp
          ITensorActivator.cpp
          tpls/itensor/util/args.cc
          tpls/itensor/util/input.cc
+         tpls/itensor/indexset.cc
+         tpls/itensor/tagset.cc
+         tpls/itensor/global.cc
          tpls/itensor/util/cputime.cc
          tpls/itensor/tensor/lapack_wrap.cc
          tpls/itensor/tensor/vec.cc
@@ -27,15 +30,10 @@ set (SRC mps/ITensorMPSVisitor.cpp
          tpls/itensor/itdata/qdense.cc
          tpls/itensor/itdata/qcombiner.cc
          tpls/itensor/itdata/qdiag.cc
-         tpls/itensor/itdata/qmixed.cc
          tpls/itensor/itdata/scalar.cc
          tpls/itensor/index.cc
-         tpls/itensor/itensor_interface.cc
-         tpls/itensor/itensor_operators.cc
          tpls/itensor/itensor.cc
          tpls/itensor/qn.cc
-         tpls/itensor/iqindex.cc
-         tpls/itensor/iqtensor.cc
          tpls/itensor/spectrum.cc
          tpls/itensor/decomp.cc
          tpls/itensor/svd.cc
@@ -51,6 +49,12 @@ usFunctionGenerateBundleInit(TARGET ${LIBRARY_NAME} OUT SRC)
 
 set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-result -O2 -DNDEBUG -DPLATFORM_lapack -D__ASSERT_MACROS_DEFINE_VERSIONS_WITHOUT_UNDERSCORES=0")
 add_library(${LIBRARY_NAME} SHARED ${SRC})
+
+find_package(OpenMP)
+if(OpenMP_CXX_FOUND)
+  target_compile_definitions(${LIBRARY_NAME} PUBLIC ITENSOR_USE_OMP)
+  target_link_libraries(${LIBRARY_NAME} PUBLIC OpenMP::OpenMP_CXX)
+endif()
 
 set(_bundle_name tnqvm_itensor)
 set_target_properties(${LIBRARY_NAME} PROPERTIES

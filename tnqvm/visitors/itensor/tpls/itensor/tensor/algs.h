@@ -1,11 +1,23 @@
 //
-// Distributed under the ITensor Library License, Version 1.2.
-//    (See accompanying LICENSE file.)
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 #ifndef __ITENSOR_MATRIX_ALGS__H_
 #define __ITENSOR_MATRIX_ALGS__H_
 
 #include "itensor/tensor/slicemat.h"
+#include "itensor/util/args.h"
 
 namespace itensor {
 
@@ -103,11 +115,69 @@ SVD(MatM && M,
     MatU && U, 
     VecD && D, 
     MatV && V,
-    Real thresh = SVD_THRESH);
+    const Args & args = Args::global() );
 
+  
+//
+// Compute QR decomposition of MxN A matrix such that 
+// norm(A-QR) < epsilon
+// where Q is MxM orthogonal (unitary) matrix
+// and R is MxN upper triangular.
+// If complete = false, instead compute "thin" QR: for M >= N
+//   Q is MxN matrix with orthonormal columns: Q^T Q = I
+//   R is NxN upper triangular
+template<class MatA, 
+         class MatQ,
+         class MatR>
+void
+QR(MatA && A,
+   MatQ && Q,
+   MatR && R,
+   const Args & args = Args::global());
+
+//
+// Hermitian Matrix exponentiate
+// by diagHermitian
+//
+template<class MatM,
+         class ScalarT,
+         class = stdx::require<hasMatRange<MatM>>>
+Mat<common_type<val_type<MatM>,ScalarT>>
+expHermitian(MatM && M,
+                   ScalarT t);
+
+template<class MatM,
+         class = stdx::require<hasMatRange<MatM>>>
+Mat<val_type<MatM>>
+expHermitian(MatM && M) { return expHermitian(M,1.); }
+
+//
+// expMatrix computes exp(tH),
+// where H is a general dense matrix,
+// and t can be real or complex.
+// Either of the two options can be used:
+// 1. the irreducible rational Pade approximation
+// to the exponential exp(z) = r(z) = (+/-)(I+2*(q(z)/p(z))),
+// combined with scaling and squaring;
+// 2. the uniform rational Chebyshev approximation to exp(-x) of type(14,14),
+// using which 14-digit accuracy is expected if tH is negative definite,
+// but may behave poorly otherwise.
+//
+template<class MatM,
+         class ScalarT,
+         class = stdx::require<hasMatRange<MatM>>>
+Mat<common_type<val_type<MatM>,ScalarT>>
+expMatrix(MatM && M,
+          ScalarT t,
+          int ideg = 6);
+
+template<class MatM,
+         class = stdx::require<hasMatRange<MatM>>>
+Mat<val_type<MatM>>
+expMatrix(MatM && M) { return expMatrix(M,1.); }
 
 } //namespace itensor
 
-#include "itensor/tensor/algs.ih"
+#include "itensor/tensor/algs_impl.h"
 
 #endif

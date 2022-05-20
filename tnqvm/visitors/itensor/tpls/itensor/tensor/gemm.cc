@@ -1,3 +1,18 @@
+//
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
 #include "itensor/tensor/lapack_wrap.h"
 #include "itensor/tensor/slicemat.h"
 #include "itensor/util/safe_ptr.h"
@@ -83,7 +98,7 @@ gemm_emulator(MatRefc<VA> A,
     auto Brd = SAFE_REINTERPRET(const Real,Bd);
     auto Crd = SAFE_REINTERPRET(Real,Cd);
 
-    auto d = std::vector<Real>(Abufsize+Bbufsize+Cbufsize);
+    auto d = vector_no_init<Real>(Abufsize+Bbufsize+Cbufsize);
     auto pd = MAKE_SAFE_PTR(d.data(),d.size());
     auto ab = pd;
     auto ae = ab+Abufsize;

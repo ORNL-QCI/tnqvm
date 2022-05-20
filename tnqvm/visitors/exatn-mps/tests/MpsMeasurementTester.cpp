@@ -34,6 +34,37 @@ TEST(MpsMeasurementTester, checkSimple)
     }
 }
 
+TEST(MpsMeasurementTester, checkRandomSeed) 
+{
+  std::vector<std::map<std::string, int>> results;
+  constexpr int NB_TESTS = 4;
+  for (int i = 0; i < NB_TESTS; i++) {
+    auto xasmCompiler = xacc::getCompiler("xasm");
+    auto ir = xasmCompiler->compile(R"(__qpu__ void test1(qbit q) {
+            H(q[0]);
+            for (int i = 0; i < 3; i++) {
+                CNOT(q[i], q[i + 1]);
+            }
+
+            Measure(q[0]);
+            Measure(q[1]);
+            Measure(q[2]);
+            Measure(q[3]);
+        })");
+
+    auto program = ir->getComposite("test1");
+    auto accelerator = xacc::getAccelerator(
+        "tnqvm",
+        {{"tnqvm-visitor", "exatn-mps"}, {"shots", 8192}, {"seed", 123}});
+    auto qreg = xacc::qalloc(4);
+    accelerator->execute(qreg, program);
+    qreg->print();
+    results.emplace_back(qreg->getMeasurementCounts());
+  }
+  EXPECT_TRUE(std::adjacent_find(results.begin(), results.end(),
+                                 std::not_equal_to<>()) == results.end());
+}
+
 int main(int argc, char **argv) 
 {
   xacc::Initialize();

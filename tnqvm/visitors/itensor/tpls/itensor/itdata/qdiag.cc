@@ -1,12 +1,24 @@
 //
-// Distributed under the ITensor Library License, Version 1.2
-//    (See accompanying LICENSE file.)
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
 //
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+#include "itensor/itdata/diag.h"
 #include "itensor/itdata/qdiag.h"
 #include "itensor/detail/gcounter.h"
 #include "itensor/tensor/contract.h"
 #include "itensor/itdata/qutil.h"
-#include "itensor/util/range.h"
+#include "itensor/util/iterate.h"
 
 using std::vector;
 using std::move;
@@ -21,21 +33,21 @@ typeNameOf(QDiagCplx const& d) { return "QDiagCplx"; }
 template<typename T, class F>
 void
 loopDiagBlocks(QDiag<T> const& D,
-               IQIndexSet const& is,
+               IndexSet const& is,
                F const& callback)
     {
-    auto r = rank(is);
+    auto r = order(is);
     auto block = IntArray(r,0);
     auto blockMinM = IntArray(r,0);
-    auto blockIndex = [&block,&is](long i)->Index 
+    auto blockSize = [&block,&is](long i)->long
         { 
-        return (is[i])[block[i]]; 
+        return (is[i]).blocksize0(block[i]); 
         };
     auto done = [&is,&block]()->bool
         {
         for(auto n : range(block)) 
             {
-            if(block[n] >= is[n].nindex()) return true;
+            if(block[n] >= is[n].nblock()) return true;
             }
         return false;
         };
@@ -50,10 +62,10 @@ loopDiagBlocks(QDiag<T> const& D,
             }
 
         //diag elems stop before ne
-        auto ne = blockMinM[0]+blockIndex(0).m();
+        auto ne = blockMinM[0]+blockSize(0);
         for(auto i : range(1,r))
             {
-            ne = std::min(ne,blockMinM[i]+blockIndex(i).m());
+            ne = std::min(ne,blockMinM[i]+blockSize(i));
             }
 
         if(nb < ne) callback(nb,ne,block);
@@ -61,9 +73,9 @@ loopDiagBlocks(QDiag<T> const& D,
         //advance block indices and blockMinM
         for(auto i : range(r))
             {
-            if(ne == blockMinM[i]+blockIndex(i).m())
+            if(ne == blockMinM[i]+blockSize(i))
                 {
-                blockMinM[i] += blockIndex(i).m();
+                blockMinM[i] += blockSize(i);
                 block[i] += 1;
                 }
             }
@@ -74,7 +86,7 @@ template<typename T>
 QN
 doTask(CalcDiv const& C, QDiag<T> const& D)
     {
-    if(rank(C.is)==0) return QN();
+    if(order(C.is)==0) return QN();
 
     auto d = QN();
     for(auto n : range(C.is))
@@ -93,7 +105,7 @@ doTask(CalcDiv const& C, QDiag<T> const& D)
             {
             q += C.is[n].qn(1+block[n])*C.is[n].dir();
             }
-        if(q != d) Error("Diagonal elements of QDiag IQTensor would have inconsistent divergence");
+        if(q != d) Error("Diagonal elements of QDiag ITensor would have inconsistent divergence");
         };
     loopDiagBlocks(D,C.is,checkBlock);
 #endif
@@ -104,14 +116,14 @@ template QN doTask(CalcDiv const& C, QDiag<Real> const& D);
 template QN doTask(CalcDiv const& C, QDiag<Cplx> const& D);
 
 size_t
-computeLength(IQIndexSet const& is)
+computeLength(IndexSet const& is)
     {
-    if(rank(is)==0) return 1ul;
+    if(order(is)==0) return 1ul;
 
-    auto length = is[0].m();
+    auto length = dim(is[0]);
     for(auto& I : is)
         {
-        if(length != I.m())
+        if(length != dim(I))
             Error("QDiag storage requires all IQIndices to be same size");
         }
     return length;
@@ -119,7 +131,7 @@ computeLength(IQIndexSet const& is)
 
 template<typename T>
 QDiag<T>::
-QDiag(IQIndexSet const& is)
+QDiag(IndexSet const& is)
   : length(computeLength(is))
     {
     store.assign(length,0);
@@ -127,12 +139,12 @@ QDiag(IQIndexSet const& is)
     doTask(CalcDiv{is},*this);
 #endif
     }
-template QDiag<Real>::QDiag(IQIndexSet const& is);
-template QDiag<Cplx>::QDiag(IQIndexSet const& is);
+template QDiag<Real>::QDiag(IndexSet const& is);
+template QDiag<Cplx>::QDiag(IndexSet const& is);
 
 template<typename T>
 QDiag<T>::
-QDiag(IQIndexSet const& is, T val_)
+QDiag(IndexSet const& is, T val_)
   : val(val_),
     length(computeLength(is))
     {
@@ -140,18 +152,18 @@ QDiag(IQIndexSet const& is, T val_)
     doTask(CalcDiv{is},*this);
 #endif
     }
-template QDiag<Real>::QDiag(IQIndexSet const& is, Real val_);
-template QDiag<Cplx>::QDiag(IQIndexSet const& is, Cplx val_);
+template QDiag<Real>::QDiag(IndexSet const& is, Real val_);
+template QDiag<Cplx>::QDiag(IndexSet const& is, Cplx val_);
 
 template<typename T>
 Cplx
-doTask(GetElt<IQIndex>& G, QDiag<T> const& D)
+doTask(GetElt& G, QDiag<T> const& D)
     {
-    auto r = G.is.r();
+    auto r = G.is.order();
 #ifdef DEBUG
-    if(G.is.r() != decltype(r)(G.inds.size())) 
+    if(G.is.order() != decltype(r)(G.inds.size())) 
         {
-        printfln("is.r() = %d, ind.size() = %d",G.is.r(),G.inds.size());
+        printfln("is.order() = %d, ind.size() = %d",G.is.order(),G.inds.size());
         Error("Wrong number of indices passed to .real or .cplx");
         }
 #endif
@@ -174,13 +186,13 @@ doTask(GetElt<IQIndex>& G, QDiag<T> const& D)
         }
     return D.store.at(n);
     }
-template Cplx doTask(GetElt<IQIndex>& G, QDiag<Real> const& D);
-template Cplx doTask(GetElt<IQIndex>& G, QDiag<Cplx> const& D);
+template Cplx doTask(GetElt& G, QDiag<Real> const& D);
+template Cplx doTask(GetElt& G, QDiag<Cplx> const& D);
 
 
 template<typename T>
 Cplx
-doTask(SumEls<IQIndex>, QDiag<T> const& d)
+doTask(SumEls, QDiag<T> const& d)
     {
     if(d.allSame())
         {
@@ -191,8 +203,8 @@ doTask(SumEls<IQIndex>, QDiag<T> const& d)
     for(auto& el : d) s += el;
     return s;
     }
-template Cplx doTask(SumEls<IQIndex>, QDiag<Real> const& d);
-template Cplx doTask(SumEls<IQIndex>, QDiag<Cplx> const& d);
+template Cplx doTask(SumEls, QDiag<Real> const& d);
+template Cplx doTask(SumEls, QDiag<Cplx> const& d);
 
 template<typename T>
 void
@@ -266,15 +278,15 @@ template Real doTask(NormNoScale, QDiag<Cplx> const& D);
 
 template<typename T>
 void
-doTask(PrintIT<IQIndex>& P, QDiag<T> const& d)
+doTask(PrintIT& P, QDiag<T> const& d)
     {
     P.s << format("QDiag%s%s\n",typeName<T>(),d.allSame()?" (all same)":"");
     Real scalefac = 1.0;
     if(!P.x.isTooBigForReal()) scalefac = P.x.real0();
     else P.s << "(omitting too large scale factor)\n";
 
-    auto rank = P.is.r();
-    if(rank == 0) 
+    auto ord = P.is.order();
+    if(ord == 0) 
         {
         P.s << "  ";
         auto val = d.allSame() ? d.val : d.store.front();
@@ -283,16 +295,16 @@ doTask(PrintIT<IQIndex>& P, QDiag<T> const& d)
         }
 
     //callback function to pass to loopDiagBlocks:
-    auto printBlock = [&P,&d,rank,scalefac]
+    auto printBlock = [&P,&d,ord,scalefac]
         (size_t nb, 
          size_t ne,
          IntArray const& block)
         {
         //print indices for this block
-        for(auto i : range(rank))
+        for(auto i : range(ord))
             {
             if(i > 0) P.s << ", ";
-            P.s << P.is[i][block[i]]
+            P.s << P.is[i].blocksize0(block[i])
                 << "<" << P.is[i].dir() << ">"
                 << P.is[i].qn(1+block[i]);
             }
@@ -307,10 +319,10 @@ doTask(PrintIT<IQIndex>& P, QDiag<T> const& d)
             if(std::norm(val) >= Global::printScale())
                 {
                 P.s << "(";
-                for(auto ii : range1(rank))
+                for(auto ii : range1(ord))
                     {
                     P.s << (1+j);
-                    if(ii < rank) P.s << ",";
+                    if(ii < ord) P.s << ",";
                     }
                 P.s << ") " << formatVal(val) << "\n";
                 }
@@ -319,8 +331,8 @@ doTask(PrintIT<IQIndex>& P, QDiag<T> const& d)
 
     loopDiagBlocks(d,P.is,printBlock);
     }
-template void doTask(PrintIT<IQIndex>& P, QDiag<Real> const& d);
-template void doTask(PrintIT<IQIndex>& P, QDiag<Cplx> const& d);
+template void doTask(PrintIT& P, QDiag<Real> const& d);
+template void doTask(PrintIT& P, QDiag<Cplx> const& d);
 
 template<typename T>
 class UnifVecWrapper
@@ -340,18 +352,18 @@ class UnifVecWrapper
 template<typename VD, typename VT>
 void
 blockDiagDense(QDiag<VD> const& D,
-               IQIndexSet const& Dis,
+               IndexSet const& Dis,
                Labels const& DL,
                QDense<VT> const& T,
-               IQIndexSet const& Tis,
+               IndexSet const& Tis,
                Labels const& TL,
-               IQIndexSet const& Cis,
+               IndexSet const& Cis,
                Labels const& CL,
                ManageStore & m)
     {
     using VC = common_type<VT,VD>;
 #ifdef DEBUG
-    if(Dis.r() == 0) Error("QDiag rank 0 case not handled");
+    if(Dis.order() == 0) Error("QDiag order 0 case not handled");
 #endif
 
     bool T_has_uncontracted = false;
@@ -371,9 +383,9 @@ blockDiagDense(QDiag<VD> const& D,
 
         auto do_contract =
             [&D,&Dis,&Tis,&Cis,&DL,&TL,&CL]
-            (DataRange<const VT> tblock, IntArray const& Tblockind,
-             DataRange<const VD> dblock, IntArray const& Dblockind,
-             DataRange<VC>       cblock, IntArray const& Cblockind)
+            (DataRange<const VT> tblock, Block const& Tblockind,
+             DataRange<const VD> dblock, Block const& Dblockind,
+             DataRange<VC>       cblock, Block const& Cblockind)
             {
             Range Trange,
                   Crange;
@@ -426,10 +438,10 @@ blockDiagDense(QDiag<VD> const& D,
         auto& C = *nd;
 
         auto do_contract =
-            [&D,&Dis,&Tis,&Cis,&DL,&TL,&CL]
-            (DataRange<const VT> tblock, IntArray const& Tblockind,
-             DataRange<const VD> dblock, IntArray const& Dblockind,
-             DataRange<VC>       cblock, IntArray const& Cblockind)
+            [&D,&Dis,&Tis,&DL,&TL,&CL]
+            (DataRange<const VT> tblock, Block const& Tblockind,
+             DataRange<const VD> dblock, Block const& Dblockind,
+             DataRange<VC>       cblock, Block const& Cblockind)
             {
             Range Trange;
             Trange.init(make_indexdim(Tis,Tblockind));
@@ -468,50 +480,170 @@ blockDiagDense(QDiag<VD> const& D,
         }
     }
 
-template<typename VA, typename VB>
+template<typename T>
+bool
+isReplaceDelta(QDiag<T> const& d, IndexSet const& dis, Labels const& l)
+    {
+    if( (order(dis) == 2) && d.allSame() 
+         && (d.val == 1.) && (dim(dis[0]) == dim(dis[1])) )
+        {
+        bool i1_is_contracted = (l[0] < 0);
+        bool i2_is_contracted = (l[1] < 0);
+        return (i1_is_contracted != i2_is_contracted);
+        }
+    return false;
+    }
+
+template<typename T1, typename T2>
 void
-doTask(Contract<IQIndex>& Con,
-       QDiag<VA> const& A,
-       QDense<VB> const& B,
+doTask(Contract& C,
+       QDiag<T1> const& d,
+       QDense<T2> const& t,
        ManageStore& m)
     {
-    Labels AL,
-           BL,
-           CL;
-    bool sortInds = false;
-    computeLabels(Con.Lis,Con.Lis.r(),Con.Ris,Con.Ris.r(),AL,BL);
-    contractIS(Con.Lis,AL,Con.Ris,BL,Con.Nis,CL,sortInds);
-    blockDiagDense(A,Con.Lis,AL,
-                   B,Con.Ris,BL,
-                   Con.Nis,CL,m);
-    }
-template void doTask(Contract<IQIndex>& Con,QDiag<Real> const& A,QDense<Real> const& B,ManageStore& m);
-template void doTask(Contract<IQIndex>& Con,QDiag<Cplx> const& A,QDense<Real> const& B,ManageStore& m);
-template void doTask(Contract<IQIndex>& Con,QDiag<Real> const& A,QDense<Cplx> const& B,ManageStore& m);
-template void doTask(Contract<IQIndex>& Con,QDiag<Cplx> const& A,QDense<Cplx> const& B,ManageStore& m);
+    Labels Lind,
+           Rind,
+           Nind;
+    computeLabels(C.Lis,C.Lis.order(),C.Ris,C.Ris.order(),Lind,Rind);
+    //TODO: add a case where there is a scaled delta function,
+    //so the data also gets scaled
+    if( isReplaceDelta(d,C.Lis,Lind) )
+        {
+        //println("doTask(Contract,Diag,Dense): isReplaceDelta = true");
+        // We are contracting with a delta function that is replacing
+        // a single index
+        contractISReplaceIndex(C.Ris,Rind,C.Lis,Lind,C.Nis);
 
-template<typename VA, typename VB>
+        // Output data is the dense storage
+        m.makeNewData<QDense<T2>>(t.offsets,t.begin(),t.end());
+        }
+    else
+        {
+        bool sortIndices = false;
+        contractIS(C.Lis,Lind,C.Ris,Rind,C.Nis,Nind,sortIndices);
+        blockDiagDense(d,C.Lis,Lind,
+                       t,C.Ris,Rind,
+                       C.Nis,Nind,m);
+        }
+    }
+template void doTask(Contract& Con,QDiag<Real> const& A,QDense<Real> const& B,ManageStore& m);
+template void doTask(Contract& Con,QDiag<Cplx> const& A,QDense<Real> const& B,ManageStore& m);
+template void doTask(Contract& Con,QDiag<Real> const& A,QDense<Cplx> const& B,ManageStore& m);
+template void doTask(Contract& Con,QDiag<Cplx> const& A,QDense<Cplx> const& B,ManageStore& m);
+
+template<typename T1, typename T2>
 void
-doTask(Contract<IQIndex>& Con,
-       QDense<VA> const& A,
-       QDiag<VB> const& B,
+doTask(Contract& C,
+       QDense<T1> const& t,
+       QDiag<T2> const& d,
        ManageStore& m)
     {
-    Labels AL,
-           BL,
-           CL;
-    bool sortInds = false;
-    computeLabels(Con.Lis,Con.Lis.r(),Con.Ris,Con.Ris.r(),AL,BL);
-    contractIS(Con.Lis,AL,Con.Ris,BL,Con.Nis,CL,sortInds);
-    blockDiagDense(B,Con.Ris,BL,
-                   A,Con.Lis,AL,
-                   Con.Nis,CL,m);
+    Labels Lind,
+           Rind,
+           Nind;
+    computeLabels(C.Lis,C.Lis.order(),C.Ris,C.Ris.order(),Lind,Rind);
+    //TODO: add a case where there is a scaled delta function,
+    //so the data also gets scaled
+    if( isReplaceDelta(d,C.Ris,Rind) )
+        {
+        //println("doTask(Contract,QDense,QDiag): isReplaceDelta = true");
+        // We are contracting with a delta function that is replacing
+        // a single index
+        contractISReplaceIndex(C.Lis,Lind,C.Ris,Rind,C.Nis);
+        }
+    else
+        {
+        bool sortInds = false;
+        contractIS(C.Lis,Lind,C.Ris,Rind,C.Nis,Nind,sortInds);
+        blockDiagDense(d,C.Ris,Rind,
+                       t,C.Lis,Lind,
+                       C.Nis,Nind,m);
+        }
     }
-template void doTask(Contract<IQIndex>& Con,QDense<Real> const& A,QDiag<Real> const& B,ManageStore& m);
-template void doTask(Contract<IQIndex>& Con,QDense<Cplx> const& A,QDiag<Real> const& B,ManageStore& m);
-template void doTask(Contract<IQIndex>& Con,QDense<Real> const& A,QDiag<Cplx> const& B,ManageStore& m);
-template void doTask(Contract<IQIndex>& Con,QDense<Cplx> const& A,QDiag<Cplx> const& B,ManageStore& m);
+template void doTask(Contract& Con,QDense<Real> const& A,QDiag<Real> const& B,ManageStore& m);
+template void doTask(Contract& Con,QDense<Cplx> const& A,QDiag<Real> const& B,ManageStore& m);
+template void doTask(Contract& Con,QDense<Real> const& A,QDiag<Cplx> const& B,ManageStore& m);
+template void doTask(Contract& Con,QDense<Cplx> const& A,QDiag<Cplx> const& B,ManageStore& m);
 
+template<typename T>
+bool
+doTask(IsDense,
+       QDiag<T> const& d)
+    {
+    return false;
+    }
+template bool doTask(IsDense,QDiag<Real> const& d);
+template bool doTask(IsDense,QDiag<Cplx> const& d);
+
+template<typename V>
+void
+doTask(RemoveQNs & R, 
+       QDiag<V> const& qd,
+       ManageStore & m)
+    {
+    //auto *pd = qd.data();
+    if(qd.allSame()) m.makeNewData<Diag<V>>(qd.length,qd.val);
+    else             m.makeNewData<Diag<V>>(qd.begin(),qd.end());
+    }
+template void doTask(RemoveQNs &, QDiag<Real> const&, ManageStore &);
+template void doTask(RemoveQNs &, QDiag<Cplx> const&, ManageStore &);
+
+template<typename V>
+void
+doTask(ToDense & R,
+       QDiag<V> const& d,
+       ManageStore & m)
+  {
+  auto ddiv = doTask(CalcDiv{R.is},d);
+  auto nd = m.makeNewData<QDense<V>>(R.is,ddiv);
+  auto ninds = length(R.is);
+
+  Range dense_range;
+  for(auto const& io : nd->offsets)
+    {
+    // Check that the current block
+    // is on the diagonal. If it is not,
+    // no diagonal elements need to be set.
+    auto diag_block = true;
+    for(auto i : range(1,ninds))
+      {
+      if(io.block[i] != io.block[0])
+        diag_block = false;
+      }
+
+    if(diag_block)
+      {
+      // Make a TenRef of the current block we want to assign to
+      dense_range.init(make_indexdim(R.is,io.block));
+      auto aref = makeTenRef(nd->data(),io.offset,nd->size(),&dense_range);
+
+      long tot_stride = 0; //total strides for this block
+      for(auto i : range(ninds))
+        tot_stride += dense_range.stride(i);
+
+      if( d.allSame() )
+        {
+        auto block_size = dense_range.extent(0); // Assume all dimensions of the block are
+                                                 // the same (maybe this is not always true?)
+        for(auto i : range(block_size))
+          aref[i*tot_stride] = d.val;
+        }
+      else
+        {
+        // Get the diagonal elements of the current
+        // block
+        auto pD = getBlock(d,R.is,io.block);
+        // Make a VecRef of the diagonal elements of the block to assign
+        // to the diagonal of the new QDense storage block
+        auto Dref = makeVecRef(pD.data(),pD.size());
+        for(auto i : range(Dref.size()))
+          aref[i*tot_stride] = Dref[i];
+        }
+      }
+    }
+  }
+template void doTask(ToDense &, QDiag<Real> const&, ManageStore &);
+template void doTask(ToDense &, QDiag<Cplx> const&, ManageStore &);
 
 } //namespace itensor
 

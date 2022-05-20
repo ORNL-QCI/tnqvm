@@ -51,13 +51,10 @@ public:
     return std::make_shared<ITensorMPSVisitor>();
   }
 
-  virtual const double getExpectationValueZ(std::shared_ptr<CompositeInstruction> function);
+  virtual const double getExpectationValueZ(std::shared_ptr<CompositeInstruction> function) override;
 
   virtual void initialize(std::shared_ptr<AcceleratorBuffer> buffer, int nbShots = 1) override;
-  virtual void finalize() {}
-
-  virtual const std::vector<std::complex<double>> getState();
-  
+  virtual void finalize() override;
   // Service name as defined in manifest.json
   virtual const std::string name() const { return "itensor-mps"; }
 
@@ -91,45 +88,32 @@ public:
   void visit(CZ &gate);
   // others
   void visit(Measure &gate);
-//   void visit(Circuit &f);
+  virtual bool supportVqeMode() const override { return true; }
 
 private:
-  double execTime = 0.0;
-  double singleQubitTime = 1e-8;
-  double twoQubitTime = 1e-7;
-  double svdCutoff = 1e-16;
+  void applySingleQubitGate(xacc::Instruction &in_gate);
+  void applyTwoQubitGate(itensor::ITensor &in_gateTensor, size_t in_siteId1,
+                         size_t in_siteId2);
+  itensor::Index getSiteIndex(size_t site_id);
 
-  itensor::ITensor wavefunc;
-  std::vector<int> iqbit2iind;
-  std::vector<int> cbits;
+  // Returns Up1, Dn1, Up2, Dn2, UpP1, DnP1, UpP2, DnP2
+  // indices to construct 2-q gate tensor.
+  std::tuple<itensor::IndexVal, itensor::IndexVal, itensor::IndexVal,
+             itensor::IndexVal, itensor::IndexVal, itensor::IndexVal,
+             itensor::IndexVal, itensor::IndexVal>
+  getTwoQubitOpInds(size_t in_siteId1, size_t in_siteId2);
+  itensor::ITensor createTwoQubitOpTensor(size_t in_siteId1, size_t in_siteId2);
+  double compute_expectation_z(const std::vector<size_t> &in_measureBits);
 
-  std::vector<ITensor> bondMats; // singular matricies
-  std::vector<ITensor> legMats;  // matricies with physical legs
-
-  std::vector<ITensor> bondMats_m; // the snapshot for measurement
-  std::vector<ITensor> legMats_m;
-
-  std::set<int> iqbits_m; // indecies of qbits to measure
-
-  itensor::IndexSet legs; // physical degree of freedom
-  int n_qbits;
-  bool snapped;
-
-  bool verbose = false;
-
-  /// init the wave function tensor
-  void initWavefunc(int n_qbits);
-  void initWavefunc_bysvd(int n_qbits);
-  void reduce_to_MPS();
-  Index ind_for_qbit(int iqbit) const;
-  void printWavefunc() const;
-  void permute_to(int iqbit, int iqbit_to);
-  void kickback_ind(ITensor &tensor, const Index &ind);
-  double wavefunc_inner();
-  double average(int iqbit, const ITensor &op_tensor);
-  itensor::ITensor tZ_measure_on(int iqbit_measured);
-  double averZs(std::set<int> iqbits);
-  void snap_wavefunc();
+private:
+  itensor::MPS m_mps;
+  std::vector<size_t> m_measureBits;
+  std::shared_ptr<AcceleratorBuffer> m_buffer;
+  // SVD options
+  double m_svdCutoff;
+  int m_maxDim;
+  std::shared_ptr<CompositeInstruction> m_conjCircuit;
+  bool m_logSvd = false;
 };
 
 } // namespace tnqvm

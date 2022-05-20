@@ -1,6 +1,17 @@
 //
-// Distributed under the ITensor Library License, Version 1.2.
-//    (See accompanying LICENSE file.)
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 #ifndef __ITENSOR_TEN_H_
 #define __ITENSOR_TEN_H_
@@ -148,10 +159,14 @@ class TenRefc : public TensorType
     ownRange() const { return prange_ == &range_; }
 
     size_type
-    r() const { return prange_->r(); }
+    order() const { return prange_->order(); }
+
+    // Deprecated
+    size_type
+    r() const { return this->order(); }
 
     size_type 
-    size() const { return area(*prange_); }
+    size() const { return dim(*prange_); }
 
     explicit operator bool() const { return bool(d_.data());}
 
@@ -177,6 +192,9 @@ class TenRefc : public TensorType
     template <typename... Inds>
     reference
     operator()(Inds&&... ii) const;
+
+    reference
+    operator[](size_t n) const;
 
     void
     clear() { d_.clear(); prange_ = nullptr; }
@@ -277,6 +295,9 @@ class TenRef : public TenRefc<range_type_,value_type_>
         { 
         return const_cast<reference>(parent::operator()(std::forward<Inds>(ii)...)); 
         }
+
+    reference
+    operator[](size_t n) const;
 
     iterator
     begin() const { return iterator(store(),parent::range()); }
@@ -523,6 +544,11 @@ class Ten : public TensorType
     explicit
     Ten(TenRefc<R,value_type> const& ref) { assignFromRef(ref); }
 
+    // To cover case like Mat<Cplx>(A) where A is Mat<Real>
+    template<typename R, typename T>
+    explicit
+    Ten(TenRefc<R,T> const& ref) { assignFromRef(ref); }
+
     template<typename R>
     Ten&
     operator=(TenRefc<R,value_type> const& ref) { assignFromRef(ref); return *this; }
@@ -530,7 +556,11 @@ class Ten : public TensorType
     explicit operator bool() const { return !data_.empty(); }
 
     size_type
-    r() const { return range_.r(); }
+    order() const { return range_.order(); }
+
+    // Deprecated
+    size_type
+    r() const { return this->order(); }
 
     size_type
     size() const { return data_.size(); }
@@ -557,6 +587,12 @@ class Ten : public TensorType
     template <typename... Inds>
     reference
     operator()(Inds&&... ii);
+
+    const_reference
+    operator[](size_t n) const;
+
+    reference
+    operator[](size_t n);
 
 
     //template<typename Indices>
@@ -610,7 +646,7 @@ class Ten : public TensorType
     resize(range_type const& newrange)
         {
         range_ = newrange;
-        data_.resize(area(range_));
+        data_.resize(dim(range_));
         }
 
     void
@@ -639,12 +675,12 @@ class Ten : public TensorType
     void
     init()
         {
-        auto len = area(range_);
+        auto len = dim(range_);
 #ifdef DEBUG
         if(!isContiguous(range_))
             throw std::runtime_error("Tensor can only be constructed from contiguous range");
         if(len == 0) 
-            throw std::runtime_error("Zero area in tensor");
+            throw std::runtime_error("Zero dim in tensor");
 #endif
         data_.assign(len,0.);
         }
@@ -654,9 +690,19 @@ class Ten : public TensorType
     assignFromRef(TenRefc<R,value_type> const& ref)
         {
         range_ = normalRange(ref.range());
-        data_.resize(area(range_));
+        data_.resize(dim(range_));
         makeRef(*this) &= ref;
         }
+
+    template<typename R, typename T>
+    void
+    assignFromRef(TenRefc<R,T> const& ref)
+        {
+        range_ = normalRange(ref.range());
+        data_.resize(dim(range_));
+        makeRef(*this) &= ref;
+        }
+
     };
 
 template<typename R, typename T, typename... VArgs>
@@ -766,20 +812,11 @@ makeRefc(Ten<R,T> && t, VArgs&&... args)
 
 template<typename R,typename T>
 auto
-rank(TenRefc<R,T> const& t) -> decltype(rank(t.range())) { return rank(t.range()); }
+order(TenRefc<R,T> const& t) -> decltype(order(t.range())) { return order(t.range()); }
 
 template<typename R,typename T>
 auto
-rank(Ten<R,T> const& t) -> decltype(rank(t.range())) { return rank(t.range()); }
-
-//order is alias for rank, preferred in applied math literature
-template<typename R,typename T>
-auto
-order(TenRefc<R,T> const& t) -> decltype(rank(t.range())) { return rank(t.range()); }
-
-template<typename R,typename T>
-auto
-order(Ten<R,T> const& t) -> decltype(rank(t.range())) { return rank(t.range()); }
+order(Ten<R,T> const& t) -> decltype(order(t.range())) { return order(t.range()); }
 
 template<typename R, typename V>
 Real
@@ -797,7 +834,7 @@ template<typename R, typename T>
 bool
 isContiguous(Ten<R,T> const& t) { return isContiguous(t.range()); }
 
-//Make a scalar (rank 0) tensor with value val
+//Make a scalar (order 0) tensor with value val
 Tensor
 scalarTen(Real val);
 
@@ -865,6 +902,6 @@ operator<<(std::ostream & s, Ten<R,V> const& T);
 
 } //namespace itensor
 
-#include "ten.ih"
+#include "ten_impl.h"
 
 #endif

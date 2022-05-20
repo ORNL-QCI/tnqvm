@@ -1,9 +1,21 @@
 //
-// Distributed under the ITensor Library License, Version 1.2
-//    (See accompanying LICENSE file.)
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 #ifndef __ITENSOR_TEVOLOBSERVER_H
 #define __ITENSOR_TEVOLOBSERVER_H
+#include "itensor/util/readwrite.h"
 #include "itensor/mps/observer.h"
 
 namespace itensor {
@@ -19,15 +31,15 @@ class TEvolObserver : public Observer
     {
     public:
     
-    TEvolObserver(const Args& args = Global::args());
+    TEvolObserver(Args const& args = Args::global());
 
     virtual ~TEvolObserver() { }
 
     void virtual
-    measure(const Args& args = Global::args());
+    measure(Args const& args = Args::global());
     
     bool virtual
-    checkDone(const Args& args = Global::args());
+    checkDone(Args const& args = Args::global());
 
     private:
 
@@ -76,7 +88,7 @@ checkDone(const Args& args)
     if(fileExists("STOP_TEVOL"))
         {
         println("File STOP_TEVOL found: stopping this time evolution run at time ",t);
-        system("rm -f STOP_TEVOL");
+        std::remove("STOP_TEVOL");
         return true;
         }
 
@@ -84,7 +96,7 @@ checkDone(const Args& args)
     if(fileExists("STOP_TEVOL_ALL"))
         {
         println("File STOP_TEVOL_ALL found: stopping this time evolution at time ",t);
-        system("rm -f STOP_TEVOL_ALL");
+        std::remove("STOP_TEVOL_ALL");
         done_ = true;
         return done_;
         }

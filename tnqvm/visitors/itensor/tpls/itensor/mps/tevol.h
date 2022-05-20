@@ -1,6 +1,17 @@
 //
-// Distributed under the ITensor Library License, Version 1.2
-//    (See accompanying LICENSE file.)
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 #ifndef __ITENSOR_TEVOL_H
 #define __ITENSOR_TEVOL_H
@@ -19,39 +30,39 @@ namespace itensor {
 // Arguments recognized:
 //    "Verbose": if true, print useful information to stdout
 //
-template <class Iterable, class Tensor>
+template <class Iterable>
 Real
-gateTEvol(const Iterable& gatelist, 
+gateTEvol(Iterable const& gatelist, 
           Real ttotal, 
           Real tstep, 
-          MPSt<Tensor>& psi, 
-          const Args& args = Global::args());
+          MPS & psi, 
+          Args const& args = Args::global());
 
-template <class Iterable, class Tensor>
+template <class Iterable>
 Real
-gateTEvol(const Iterable& gatelist, 
+gateTEvol(Iterable const& gatelist, 
           Real ttotal, 
           Real tstep, 
-          MPSt<Tensor>& psi, 
+          MPS & psi, 
           Observer& obs,
-          Args args = Global::args());
+          Args args = Args::global());
 
 //
 //
 // Implementations
 //
 
-template <class Iterable, class Tensor>
+template <class Iterable>
 Real
 gateTEvol(Iterable const& gatelist, 
           Real ttotal, 
           Real tstep, 
-          MPSt<Tensor>& psi, 
+          MPS & psi, 
           Observer& obs,
           Args args)
     {
     const bool verbose = args.getBool("Verbose",false);
-    const bool normalize = args.getBool("Normalize",true);
+    const bool do_normalize = args.getBool("Normalize",true);
 
     const int nt = int(ttotal/tstep+(1e-9*(ttotal/tstep)));
     if(fabs(nt*tstep-ttotal) > 1E-9)
@@ -59,22 +70,24 @@ gateTEvol(Iterable const& gatelist,
         Error("Timestep not commensurate with total time");
         }
 
-    Real tsofar = 0;
-    Real tot_norm = psi.normalize();
     if(verbose) 
         {
         printfln("Taking %d steps of timestep %.5f, total time %.5f",nt,tstep,ttotal);
         }
+
     psi.position(gatelist.front().i1());
-    for(int tt = 1; tt <= nt; ++tt)
+    Real tot_norm = norm(psi);
+
+    Real tsofar = 0;
+    for(auto tt : range1(nt))
         {
         auto g = gatelist.begin();
         while(g != gatelist.end())
             {
             auto i1 = g->i1();
             auto i2 = g->i2();
-            auto AA = psi.A(i1)*psi.A(i2)*g->gate();
-            AA.mapprime(1,0,Site);
+            auto AA = psi(i1)*psi(i2)*g->gate();
+            AA.replaceTags("Site,1","Site,0");
 
             ++g;
             if(g != gatelist.end())
@@ -102,7 +115,7 @@ gateTEvol(Iterable const& gatelist,
                 }
             }
 
-        if(normalize)
+        if(do_normalize)
             {
             tot_norm *= psi.normalize();
             }
@@ -123,13 +136,13 @@ gateTEvol(Iterable const& gatelist,
 
     } // gateTEvol
 
-template <class Iterable, class Tensor>
+template <class Iterable>
 Real
-gateTEvol(const Iterable& gatelist, 
+gateTEvol(Iterable const& gatelist, 
           Real ttotal, 
           Real tstep, 
-          MPSt<Tensor>& psi, 
-          const Args& args)
+          MPS & psi, 
+          Args const& args)
     {
     TEvolObserver obs(args);
     return gateTEvol(gatelist,ttotal,tstep,psi,obs,args);

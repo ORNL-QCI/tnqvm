@@ -1,6 +1,17 @@
 //
-// Distributed under the ITensor Library License, Version 1.1.
-//    (See accompanying LICENSE file.)
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 #ifndef __ITENSOR_TENSOR_TYPES_H
 #define __ITENSOR_TENSOR_TYPES_H
@@ -9,6 +20,7 @@
 #include <iostream>
 #include "itensor/util/infarray.h"
 #include "itensor/util/vararray.h"
+#include "itensor/util/vector_no_init.h"
 #include "itensor/util/timers.h"
 #include "itensor/types.h"
 
@@ -21,6 +33,11 @@ isReal() { return std::is_same<stdx::decay_t<T>,Real>::value; }
 template<typename T>
 bool inline constexpr
 isCplx() { return std::is_same<stdx::decay_t<T>,Cplx>::value; }
+
+// Singleton type for specifying in storage initializers
+// that the data is uninitialized
+class UndefInitializer { };
+auto const undef = UndefInitializer();
 
 using IntArray = InfArray<long,11ul>; //sizeof(InfArray<long,11ul>)==128
 using Labels = IntArray;
@@ -139,6 +156,18 @@ class DataRange
         }
     };
 
+
+template<typename T>
+std::ostream&
+operator<<(std::ostream & s, DataRange<T> const& d)
+    {
+    s << "DataRange" << "\n";
+    s << "Size: " << d.size() << "\n";
+    for(auto i : range(d.size()))
+      s << i << " " << d[i] << "\n";
+    return s;
+    }
+
 template<typename T>
 DataRange<T>
 makeDataRange(T * p, size_t size)
@@ -186,6 +215,40 @@ sliceData(DataRange<T> d, size_t begin, size_t end)
     return DataRange<T>(pb,size);
     }
 
+//
+// Types to help with block sparse data
+//
+
+using Block = InfArray<long,11ul>;
+// Maybe try this for better memory?
+//using Block = std::vector<unsigned short>;
+
+// Define a block ordering according to (reverse)
+// lexicographical order
+// Implemented in qdense.cc
+bool
+operator==(Block const& l1, Block const& l2);
+
+bool
+operator!=(Block const& l1, Block const& l2);
+
+bool
+operator<(Block const& l1, Block const& l2);
+
+bool
+operator>(Block const& l1, Block const& l2);
+
+struct BlOf
+    {
+    Block block;
+    long offset;
+    };
+
+using Blocks = std::vector<Block>;
+using BlockOffsets = std::vector<BlOf>;
+
+BlOf
+make_blof(Block const& b, long o);
 
 template<typename T, size_t N>
 std::ostream& 

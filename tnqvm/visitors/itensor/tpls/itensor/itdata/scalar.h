@@ -1,6 +1,17 @@
 //
-// Distributed under the ITensor Library License, Version 1.2
-//    (See accompanying LICENSE file.)
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 #ifndef __ITENSOR_SCALAR_H
 #define __ITENSOR_SCALAR_H
@@ -8,7 +19,6 @@
 #include "itensor/itdata/task_types.h"
 //#include "itensor/itdata/itdata.h"
 #include "itensor/itdata/dotask.h"
-#include "itensor/iqindex.h"
 #include "itensor/detail/call_rewrite.h"
 
 namespace itensor {
@@ -107,13 +117,13 @@ doTask(VisitIT<F>& V, Scalar<T> const& d)
     detail::call<void>(V.f,V.scale_fac * d.val);
     }
 
-template<typename I, typename T>
+template<typename T>
 Cplx 
-doTask(GetElt<I> const& g, Scalar<T> const& d) { return d.val; }
+doTask(GetElt const& g, Scalar<T> const& d) { return d.val; }
 
-template<typename E, typename I, typename T>
+template<typename E, typename T>
 void
-doTask(SetElt<E,I> const& S, Scalar<T> const& d, ManageStore & m)
+doTask(SetElt<E> const& S, Scalar<T> const& d, ManageStore & m)
     {
     if(not std::is_same<E,T>::value)
         {
@@ -198,9 +208,9 @@ template<typename T>
 bool constexpr
 doTask(CheckComplex, Scalar<T> const& d) { return isCplx(d); }
 
-template<typename I, typename T>
+template<typename T>
 void
-doTask(PrintIT<I>& P, Scalar<T> const& d)
+doTask(PrintIT& P, Scalar<T> const& d)
     {
     auto name = std::is_same<T,Real>::value ? "Scalar Real"
                                             : "Scalar Cplx";
@@ -211,9 +221,9 @@ doTask(PrintIT<I>& P, Scalar<T> const& d)
         }
     }
 
-template<typename I, typename T>
+template<typename T>
 Cplx
-doTask(SumEls<I>, Scalar<T> const& d) { return d.val; }
+doTask(SumEls, Scalar<T> const& d) { return d.val; }
 
 auto constexpr inline
 doTask(StorageType const& S, ScalarReal const& d) ->StorageType::Type { return StorageType::ScalarReal; }
@@ -224,7 +234,7 @@ doTask(StorageType const& S, ScalarCplx const& d) ->StorageType::Type { return S
 
 //
 // These Contract implementations are correct, but currently
-// not used due to rank==0 case caught by ITensorT operator*= function
+// not used due to order==0 case caught by ITensorT operator*= function
 //
 //template<typename I, typename T, typename StoreType,
 //         class = typename stdx::enable_if_t<containsType<StorageTypes,stdx::decay_t<StoreType>>{}> >
@@ -270,14 +280,14 @@ doTask(StorageType const& S, ScalarCplx const& d) ->StorageType::Type { return S
 //        }
 //    }
 
-template<typename I, typename T1, typename T2>
+template<typename T1, typename T2>
 void
-doTask(PlusEQ<I> const& P,
+doTask(PlusEQ const& P,
        Scalar<T1> const& d1,
        Scalar<T2> const& d2,
        ManageStore & m)
     {
-    auto s = d1.val + P.fac()*d2.val;
+    auto s = d1.val + P.alpha()*d2.val;
     if(isReal(d1) && isCplx(d2))
         {
         m.makeNewData<ScalarCplx>(s);

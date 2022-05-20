@@ -1,6 +1,17 @@
 //
-// Distributed under the ITensor Library License, Version 1.2
-//    (See accompanying LICENSE file.)
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 #include "itensor/mps/mps.h"
 #include "itensor/mps/mpo.h"
@@ -28,60 +39,56 @@ plussers(Index const& l1,
          ITensor    & first, 
          ITensor    & second)
     {
-    auto m = l1.m()+l2.m();
-    if(m <= 0) m = 1;
-    sumind = Index(sumind.rawname(),m);
+    if(not hasQNs(l1) && not hasQNs(l2))
+        {
+        auto m = dim(l1)+dim(l2);
+        if(m <= 0) m = 1;
+        sumind = Index(m,tags(sumind));
 
-    first = delta(l1,sumind);
-    auto S = Matrix(l2.m(),sumind.m());
-    for(auto i : range(l2.m()))
-        {
-        S(i,l1.m()+i) = 1;
+        first = delta(l1,sumind);
+        auto S = Matrix(dim(l2),dim(sumind));
+        for(auto i : range(dim(l2)))
+            {
+            S(i,dim(l1)+i) = 1;
+            }
+        second = matrixITensor(std::move(S),l2,sumind);
         }
-    second = matrixTensor(std::move(S),l2,sumind);
-    }
-
-void 
-plussers(IQIndex const& l1, 
-         IQIndex const& l2, 
-         IQIndex& sumind, 
-         IQTensor& first, IQTensor& second)
-    {
-    auto siq = stdx::reserve_vector<IndexQN>(l1.nindex()+l2.nindex());
-    for(auto iq1 : l1)
+    else
         {
-        auto s1 = Index(iq1.index.rawname(),iq1.m(),iq1.type());
-        siq.emplace_back(s1,iq1.qn);
-        }
-    for(auto iq2 : l2)
-        {
-        auto s2 = Index(iq2.index.rawname(),iq2.m(),iq2.type());
-        siq.emplace_back(s2,iq2.qn);
-        }
+        auto siq = stdx::reserve_vector<QNInt>(nblock(l1)+nblock(l2));
+        for(auto n : range1(nblock(l1)))
+            {
+            siq.emplace_back(qn(l1,n),blocksize(l1,n));
+            }
+        for(auto n : range1(nblock(l2)))
+            {
+            siq.emplace_back(qn(l2,n),blocksize(l2,n));
+            }
 #ifdef DEBUG
-    if(siq.empty()) Error("siq is empty in plussers");
+        if(siq.empty()) Error("siq is empty in plussers");
 #endif
-    sumind = IQIndex(sumind.rawname(),std::move(siq),sumind.dir(),sumind.primeLevel());
-    first = IQTensor(dag(l1),sumind);
-    int n = 1;
-    for(auto iq1 : l1)
-        {
-        auto s1 = sumind.index(n);
-        auto D = Matrix(iq1.index.m(),s1.m());
-        auto minsize = std::min(iq1.index.m(),s1.m());
-        for(auto i : range(minsize)) D(i,i) = 1.0;
-        first += matrixTensor(move(D),iq1.index,s1);
-        ++n;
-        }
-    second = IQTensor(dag(l2),sumind);
-    for(auto iq2 : l2)
-        {
-        auto s2 = sumind.index(n);
-        auto D = Matrix(iq2.index.m(),s2.m());
-        auto minsize = std::min(iq2.index.m(),s2.m());
-        for(auto i : range(minsize)) D(i,i) = 1.0;
-        second += matrixTensor(move(D),iq2.index,s2);
-        ++n;
+        sumind = Index(std::move(siq),
+                       dir(sumind),
+                       tags(sumind));
+        first = ITensor(dag(l1),sumind);
+        int n = 1;
+        for(auto j : range1(nblock(l1)))
+            {
+            auto D = Tensor(blocksize(l1,j),blocksize(sumind,n));
+            auto minsize = std::min(D.extent(0),D.extent(1));
+            for(auto i : range(minsize)) D(i,i) = 1.0;
+            getBlock<Real>(first,{j,n}) &= D;
+            ++n;
+            }
+        second = ITensor(dag(l2),sumind);
+        for(auto j : range1(nblock(l2)))
+            {
+            auto D = Tensor(blocksize(l2,j),blocksize(sumind,n));
+            auto minsize = std::min(D.extent(0),D.extent(1));
+            for(auto i : range(minsize)) D(i,i) = 1.0;
+            getBlock<Real>(second,{j,n}) &= D;
+            ++n;
+            }
         }
     }
 
@@ -95,79 +102,75 @@ addAssumeOrth(MPSType      & L,
               MPSType const& R, 
               Args const& args)
     {
-    using Tensor = typename MPSType::TensorT;
+    auto N = length(L);
+    if(length(R) != N) Error("Mismatched MPS sizes");
 
-    auto N = L.N();
-    if(R.N() != N) Error("Mismatched MPS sizes");
+    // Make sure there aren't link index clashes between L and R
+    // by priming by a random amount
+    // TODO: use L.simLinkInds() to avoid clashing insteda of priming
+    auto rand_plev = 1254313;
+    auto l = linkInds(L);
+    L.replaceLinkInds(prime(linkInds(L),rand_plev));
 
-    L.primelinks(0,4);
-
-    auto first = vector<Tensor>(N);
-    auto second = vector<Tensor>(N);
+    auto first = vector<ITensor>(N);
+    auto second = vector<ITensor>(N);
 
     for(auto i : range1(N-1))
         {
-        auto l1 = rightLinkInd(L,i);
-        auto l2 = rightLinkInd(R,i);
+        auto l1 = linkIndex(L,i);
+        auto l2 = linkIndex(R,i);
         auto r = l1;
         plussers(l1,l2,r,first[i],second[i]);
         }
 
-    L.Aref(1) = L.A(1) * first.at(1) + R.A(1) * second.at(1);
+    L.ref(1) = L(1) * first.at(1) + R(1) * second.at(1);
     for(auto i : range1(2,N-1))
         {
-        L.Aref(i) = dag(first.at(i-1)) * L.A(i) * first.at(i) 
-                     + dag(second.at(i-1)) * R.A(i) * second.at(i);
+        L.ref(i) = dag(first.at(i-1)) * L(i) * first.at(i) 
+                     + dag(second.at(i-1)) * R(i) * second.at(i);
         }
-    L.Aref(N) = dag(first.at(N-1)) * L.A(N) + dag(second.at(N-1)) * R.A(N);
+    L.ref(N) = dag(first.at(N-1)) * L(N) + dag(second.at(N-1)) * R(N);
 
-    L.noprimelink();
-
+    L.replaceLinkInds(prime(linkInds(L),-rand_plev));
     L.orthogonalize(args);
-
     return L;
     }
-template MPS& addAssumeOrth(MPS & L,MPS const& R, Args const& args);
-template IQMPS& addAssumeOrth(IQMPS & L,IQMPS const& R, Args const& args);
-template MPO& addAssumeOrth(MPO & L,MPO const& R, Args const& args);
-template IQMPO& addAssumeOrth(IQMPO & L,IQMPO const& R, Args const& args);
+template MPS& addAssumeOrth<MPS>(MPS & L,MPS const& R, Args const& args);
+template MPO& addAssumeOrth<MPO>(MPO & L,MPO const& R, Args const& args);
 
-template <class Tensor>
 void 
-fitWF(const MPSt<Tensor>& psi_basis, MPSt<Tensor>& psi_to_fit)
+fitWF(MPS const& psi_basis, MPS & psi_to_fit)
     {
     if(!itensor::isOrtho(psi_basis)) 
         Error("psi_basis must be orthogonolized.");
     if(orthoCenter(psi_basis) != 1) 
         Error("psi_basis must be orthogonolized to site 1.");
 
-    auto N = psi_basis.N();
-    if(psi_to_fit.N() != N) 
+    auto N = length(psi_basis);
+    if(length(psi_to_fit) != N) 
         Error("Wavefunctions must have same number of sites.");
 
-    auto A = psi_to_fit.A(N) * dag(prime(psi_basis.A(N),Link));
+    auto A = psi_to_fit(N) * dag(prime(psi_basis(N),"Link"));
     for(int n = N-1; n > 1; --n)
         {
-        A *= dag(prime(psi_basis.A(n),Link));
-        A *= psi_to_fit.A(n);
+        A *= dag(prime(psi_basis(n),"Link"));
+        A *= psi_to_fit(n);
         }
-    A = psi_to_fit.A(1) * A;
-    A.noprime();
+    A = psi_to_fit(1) * A;
+    A.noPrime();
 
     auto nrm = norm(A);
-    if(nrm == 0) Error("Zero overlap of psi_to_fit and psi_basis");
+    if(nrm == 0) Error("Zero inner of psi_to_fit and psi_basis");
     A /= nrm;
 
     psi_to_fit = psi_basis;
-    psi_to_fit.Anc(1) = A;
+    psi_to_fit.ref(1) = A;
     }
-template void fitWF(const MPSt<ITensor>& psi_basis, MPSt<ITensor>& psi_to_fit);
-template void fitWF(const MPSt<IQTensor>& psi_basis, MPSt<IQTensor>& psi_to_fit);
 
 bool 
-checkQNs(const IQMPS& psi)
+checkQNs(MPS const& psi)
     {
-    const int N = psi.N();
+    const int N = length(psi);
 
     QN Zero;
 
@@ -183,16 +186,16 @@ checkQNs(const IQMPS& psi)
     for(int i = 1; i <= N; ++i) 
         {
         if(i == center) continue;
-        if(!psi.A(i))
+        if(!psi(i))
             {
             println("A(",i,") null, QNs not well defined");
             return false;
             }
-        if(div(psi.A(i)) != Zero)
+        if(div(psi(i)) != Zero)
             {
             cout << "At i = " << i << "\n";
-            Print(psi.A(i));
-            cout << "IQTensor other than the ortho center had non-zero divergence\n";
+            Print(psi(i));
+            cout << "ITensor other than the ortho center had non-zero divergence\n";
             return false;
             }
         }
@@ -200,14 +203,14 @@ checkQNs(const IQMPS& psi)
     //Check arrows from left edge
     for(int i = 1; i < center; ++i)
         {
-        if(rightLinkInd(psi,i).dir() != In) 
+        if(dir(rightLinkIndex(psi,i)) != In) 
             {
             println("checkQNs: At site ",i," to the left of the OC, Right side Link not pointing In");
             return false;
             }
         if(i > 1)
             {
-            if(leftLinkInd(psi,i).dir() != Out) 
+            if(dir(leftLinkIndex(psi,i)) != Out) 
                 {
                 println("checkQNs: At site ",i," to the left of the OC, Left side Link not pointing Out");
                 return false;
@@ -219,12 +222,12 @@ checkQNs(const IQMPS& psi)
     for(int i = N; i > center; --i)
         {
         if(i < N)
-        if(rightLinkInd(psi,i).dir() != Out) 
+        if(dir(rightLinkIndex(psi,i)) != Out) 
             {
             println("checkQNs: At site ",i," to the right of the OC, Right side Link not pointing Out");
             return false;
             }
-        if(leftLinkInd(psi,i).dir() != In) 
+        if(dir(leftLinkIndex(psi,i)) != In) 
             {
             println("checkQNs: At site ",i," to the right of the OC, Left side Link not pointing In");
             return false;
@@ -236,12 +239,16 @@ checkQNs(const IQMPS& psi)
     }
 
 QN
-totalQN(const IQMPS& psi)
+totalQN(MPS const& psi)
     {
-    const int center = findCenter(psi);
-    if(center == -1)
-        Error("Could not find ortho. center");
-    return div(psi.A(center));
+    auto tq = QN();
+    auto sj = psi.leftLim()+1;
+    auto ej = psi.rightLim()-1;
+    for(int j = sj; j <= ej; ++j)
+        {
+        tq += flux(psi(j));
+        }
+    return tq;
     }
 
 } //namespace itensor

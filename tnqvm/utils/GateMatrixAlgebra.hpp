@@ -34,10 +34,9 @@
 #include<complex>
 #include<vector>
 #include <assert.h>
-#include <random>
 #include <chrono>
 #include <functional>
-
+#include "RandomEngine.hpp"
 typedef std::vector<std::complex<double>> StateVectorType;
 typedef std::vector<std::vector<std::complex<double>>> GateMatrixType;
 
@@ -57,9 +56,8 @@ std::vector<T> linspace(T a, T b, size_t N) {
 
 inline double generateRandomProbability()
 {
-  auto randFunc = std::bind(std::uniform_real_distribution<double>(0, 1),
-                            std::mt19937(std::chrono::high_resolution_clock::now().time_since_epoch().count()));
-  return randFunc();
+  auto& rng = tnqvm::randomEngine::get_instance();
+  return rng.randProb();
 }
 
 void ApplySingleQubitGate(StateVectorType& io_psi, size_t in_index, const GateMatrixType& in_gateMatrix)

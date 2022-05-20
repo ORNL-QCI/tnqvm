@@ -1,6 +1,17 @@
 //
-// Distributed under the ITensor Library License, Version 1.2
-//    (See accompanying LICENSE file.)
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 #ifndef __ITENSOR_INFARRAY_H
 #define __ITENSOR_INFARRAY_H
@@ -362,6 +373,28 @@ class InfArray
     const_iterator
     cend() const { return data_+size_; }
 
+    std::reverse_iterator<iterator>
+    rbegin() { return std::reverse_iterator<iterator>(end()); }
+
+    std::reverse_iterator<iterator>
+    rend() { return std::reverse_iterator<iterator>(begin()); }
+
+    std::reverse_iterator<const_iterator>
+    rbegin() const { return std::reverse_iterator<const_iterator>(end()); }
+
+    std::reverse_iterator<const_iterator>
+    rend() const { return std::reverse_iterator<const_iterator>(begin()); }
+
+    template<typename T2, size_t ArrSize2>
+    bool
+    operator==(InfArray<T2,ArrSize2> const& v2) const
+      {
+      if(size() != v2.size()) return false;
+      for(int i = 0; i < size(); ++i)
+        if(operator[](i) != v2[i]) return false;
+      return true;
+      }
+
     private:
     void
     setDataPtr()
@@ -380,6 +413,7 @@ class InfArray
         {
         if(size_==0) Error("InfArray is empty");
         }
+
     };
 
 //template<typename T, size_t ArrSize>

@@ -1,6 +1,17 @@
 //
-// Distributed under the ITensor Library License, Version 1.2
-//    (See accompanying LICENSE file.)
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 #ifndef __ITENSOR_SWEEPS_HEADER_H
 #define __ITENSOR_SWEEPS_HEADER_H
@@ -20,12 +31,12 @@ class SweepSetter;
 //
 // sweep_table_name
 //      {
-//      maxm   minm  cutoff  niter  noise
-//      20     20    1E-8    4      1E-8
-//      40     20    1E-8    3      1E-9
-//      80     20    1E-10   2      1E-10
-//      160    20    1E-12   2      0
-//      240    20    1E-12   2      0
+//      maxdim   mindim  cutoff  niter  noise
+//      20       20      1E-8    4      1E-8
+//      40       20      1E-8    3      1E-9
+//      80       20      1E-10   2      1E-10
+//      160      20      1E-12   2      0
+//      240      20      1E-12   2      0
 //      }
 //
 class Sweeps
@@ -37,9 +48,12 @@ class Sweeps
     Sweeps();
 
     Sweeps(int nsweeps, 
-           int minm = 1, 
-           int maxm = 500, 
-           Real cutoff = 1E-8);
+           int mindim = 1, 
+           int maxdim = 500, 
+           Real cutoff = 1E-8,
+           Real noise = 0.);
+
+    Sweeps(Args const& args);
 
     Sweeps(int nsweeps, InputGroup& sweep_table);
     
@@ -54,20 +68,24 @@ class Sweeps
     size() const { return nsweep_; }
 
     int 
-    minm(int sw) const { return minm_.at(sw); }
+    mindim(int sw) const { return mindim_.at(sw); }
     void 
-    setminm(int sw, int val) { minm_.at(sw) = val; }
+    setmindim(int sw, int val) { mindim_.at(sw) = val; }
 
-    //Use as sweeps.minm() = 20,20,10; (all remaining set to 10)
+    //Use as sweeps.mindim() = 20,20,10; (all remaining set to 10)
     SweepSetter<int> 
-    minm();
+    mindim();
 
     int 
-    maxm(int sw) const { return maxm_.at(sw); }
+    maxdim(int sw) const { return maxdim_.at(sw); }
     void 
-    setmaxm(int sw, int val) { maxm_.at(sw) = val; }
+    setmaxdim(int sw, int val) { maxdim_.at(sw) = val; }
 
-    //Use as sweeps.maxm() = 50,50,100,100,500; (all remaining set to 500)
+    //Use as sweeps.maxdim() = 50,50,100,100,500; (all remaining set to 500)
+    SweepSetter<int> 
+    maxdim();
+
+    // Deprecated, use maxdim() instead
     SweepSetter<int> 
     maxm();
 
@@ -113,13 +131,13 @@ class Sweeps
     private:
 
     void 
-    init(int min_m, int max_m, Real cut);
+    init(Args args);
 
     void 
     tableInit(InputGroup& table);
 
-    std::vector<int> maxm_,
-                     minm_,
+    std::vector<int> maxdim_,
+                     mindim_,
                      niter_;
     std::vector<Real> cutoff_,
                       noise_;
@@ -234,7 +252,7 @@ class SweepSetter
 struct RampM
     {
     RampM(int start_m, int end_m,
-          const Args& args = Global::args())
+          const Args& args = Args::global())
         :
         start_m_(start_m),
         end_m_(end_m),
@@ -261,7 +279,7 @@ struct RampM
 struct ExpM
     {
     ExpM(int start_m, int end_m,
-         const Args& args = Global::args())
+         Args const& args = Args::global())
         :
         start_m_(start_m),
         end_m_(end_m),
@@ -291,11 +309,24 @@ Sweeps()
     { }
 
 inline Sweeps::
-Sweeps(int nsw, int min_m, int max_m, Real cut)
-    :
-    nsweep_(nsw)
+Sweeps(int nsw, 
+       int min_dim, 
+       int max_dim, 
+       Real cut,
+       Real noise)
+  : nsweep_(nsw)
     {
-    init(min_m,max_m,cut);
+    init({"MinDim",min_dim,
+          "MaxDim",max_dim,
+          "Cutoff",cut,
+          "Noise",noise});
+    }
+
+inline Sweeps::
+Sweeps(Args const& args)
+    {
+    nsweep_ = args.getInt("Nsweep");
+    init(args);
     }
 
 inline Sweeps::
@@ -307,10 +338,17 @@ Sweeps(int nsw, InputGroup& sweep_table)
     }
 
 SweepSetter<int> inline Sweeps::
-minm() { return SweepSetter<int>(minm_); }
+mindim() { return SweepSetter<int>(mindim_); }
 
 SweepSetter<int> inline Sweeps::
-maxm() { return SweepSetter<int>(maxm_); }
+maxdim() { return SweepSetter<int>(maxdim_); }
+
+SweepSetter<int> inline Sweeps::
+maxm()
+  {
+  Global::warnDeprecated("maxm() is deprecated, use maxdim() instead.");
+  return SweepSetter<int>(maxdim_);
+  }
 
 SweepSetter<Real> inline Sweeps::
 cutoff() { return SweepSetter<Real>(cutoff_); }
@@ -331,21 +369,45 @@ nsweep(int val)
 
 
 void inline Sweeps::
-init(int min_m, int max_m, Real cut)
+init(Args args)
     {
-    minm_ = std::vector<int>(nsweep_+1,min_m);
-    maxm_ = std::vector<int>(nsweep_+1,max_m);
-    cutoff_ = std::vector<Real>(nsweep_+1,cut);
-    niter_ = std::vector<int>(nsweep_+1,2);
-    noise_ = std::vector<Real>(nsweep_+1,0);
-
-    //Set number of Davidson iterations
-    const int Max_niter = 9;
-    for(int s = 1; s <= std::min(4,nsweep_); ++s)
+    if( args.defined("Minm") )
+      {
+      if( args.defined("MinDim") )
         {
-        niter_.at(s) = std::max(Max_niter-s+1,2);
+        Global::warnDeprecated("Args Minm and MinDim are both defined. Minm is deprecated in favor of MinDim, MinDim will be used.");
         }
+      else
+        {
+        Global::warnDeprecated("Arg Minm is deprecated in favor of MinDim.");
+        args.add("MinDim",args.getInt("Minm"));
+        }
+      }
 
+    if( args.defined("Maxm") )
+      {
+      if( args.defined("MaxDim") )
+        {
+        Global::warnDeprecated("Args Maxm and MaxDim are both defined. Maxm is deprecated in favor of MaxDim, MaxDim will be used.");
+        }
+      else
+        {
+        Global::warnDeprecated("Arg Maxm is deprecated in favor of MaxDim.");
+        args.add("MaxDim",args.getInt("Maxm"));
+        }
+      }
+
+    auto min_dim = args.getInt("MinDim",1);
+    auto max_dim = args.getInt("MaxDim");
+    auto cutoff = args.getReal("Cutoff");
+    auto noise = args.getReal("Noise",0.);
+    auto niter = args.getInt("Niter",2);
+
+    mindim_ = std::vector<int>(nsweep_+1,min_dim);
+    maxdim_ = std::vector<int>(nsweep_+1,max_dim);
+    cutoff_ = std::vector<Real>(nsweep_+1,cutoff);
+    niter_ = std::vector<int>(nsweep_+1,niter);
+    noise_ = std::vector<Real>(nsweep_+1,noise);
     } //Sweeps::init
 
 void inline Sweeps::
@@ -356,8 +418,8 @@ tableInit(InputGroup& table)
         Error("Couldn't find table " + table.name());
         }
 
-    minm_ = std::vector<int>(nsweep_+1,0);
-    maxm_ = std::vector<int>(nsweep_+1,0);
+    mindim_ = std::vector<int>(nsweep_+1,0);
+    maxdim_ = std::vector<int>(nsweep_+1,0);
     cutoff_ = std::vector<Real>(nsweep_+1,0);
     niter_ = std::vector<int>(nsweep_+1,0);
     noise_ = std::vector<Real>(nsweep_+1,0);
@@ -367,11 +429,11 @@ tableInit(InputGroup& table)
     int n_last = nsweep_;
     for(int i = 1; i <= nsweep_; i++)
         {
-        table.file() >> maxm_[i] >> minm_[i] >> cutoff_[i] >> niter_[i] >> noise_[i];
-        //printfln("Line %d: %d %d %.2E %d %.2E",i,maxm_[i],minm_[i],cutoff_[i],niter_[i],noise_[i]);
-        if(maxm_[i] == 0)
+        table.file() >> maxdim_[i] >> mindim_[i] >> cutoff_[i] >> niter_[i] >> noise_[i];
+        //printfln("Line %d: %d %d %.2E %d %.2E",i,maxdim_[i],mindim_[i],cutoff_[i],niter_[i],noise_[i]);
+        if(maxdim_[i] == 0)
           {
-          //printfln("Got maxm_[i]==0 at line number i=%d",i);
+          //printfln("Got maxdim_[i]==0 at line number i=%d",i);
           n_last = i - 1 ;
           //printfln("Set n_last equal to n_last=%d",n_last);
           break ;
@@ -380,8 +442,8 @@ tableInit(InputGroup& table)
     //printfln("Filling n_last+1=%d to nsweep_=%d",n_last+1,nsweep_);
     for(int i = n_last + 1; i <= nsweep_; i++)
        {
-       maxm_[i] = maxm_[n_last];
-       minm_[i] = minm_[n_last];
+       maxdim_[i] = maxdim_[n_last];
+       mindim_[i] = mindim_[n_last];
        cutoff_[i] = cutoff_[n_last];
        niter_[i] = niter_[n_last];
        noise_[i] = noise_[n_last];
@@ -392,8 +454,8 @@ tableInit(InputGroup& table)
 void inline Sweeps::
 write(std::ostream& s) const
     {
-    itensor::write(s,maxm_);
-    itensor::write(s,minm_);
+    itensor::write(s,maxdim_);
+    itensor::write(s,mindim_);
     itensor::write(s,cutoff_);
     itensor::write(s,niter_);
     itensor::write(s,noise_);
@@ -403,8 +465,8 @@ write(std::ostream& s) const
 void inline Sweeps::
 read(std::istream& s)
     {
-    itensor::read(s,maxm_);
-    itensor::read(s,minm_);
+    itensor::read(s,maxdim_);
+    itensor::read(s,mindim_);
     itensor::read(s,cutoff_);
     itensor::read(s,niter_);
     itensor::read(s,noise_);
@@ -417,35 +479,38 @@ operator<<(std::ostream& s, const Sweeps& swps)
     s << "Sweeps:\n";
     for(int sw = 1; sw <= swps.nsweep(); ++sw)
         {
-        s << format("%d  Maxm=%d, Minm=%d, Cutoff=%.1E, Niter=%d, Noise=%.1E\n",
-              sw,swps.maxm(sw),swps.minm(sw),swps.cutoff(sw),swps.niter(sw),swps.noise(sw));
+        s << format("%d  MaxDim=%d, MinDim=%d, Cutoff=%.1E, Niter=%d, Noise=%.1E\n",
+              sw,swps.maxdim(sw),swps.mindim(sw),swps.cutoff(sw),swps.niter(sw),swps.noise(sw));
         }
     return s;
     }
 
 void inline
-sweepnext(int &b, int &ha, int N, int min_b = 1)
+sweepnext(int &b, int &ha, int N, Args const& args = Args::global())
     {
+    const int numCenter = args.getInt("NumCenter",2);
+    const int min_b = args.getInt("Minb",1);
     const int inc = (ha==1 ? +1 : -1);
     b += inc;
-    if(b == (ha==1 ? N : min_b-1))
+    if(b == (ha==1 ? N+2-numCenter : min_b-1))
         {
         b -= inc;
         ++ha;
         }
     }
 
-//one-site version of sweepnext
+void inline
+sweepnext(int &b, int &ha, int N, int min_b)
+    {
+    auto args = Args("NumCenter=",2,"Minb=",min_b);
+    sweepnext(b,ha,N,args);
+    }
+
 void inline
 sweepnext1(int &b, int &ha, int N, int min_b = 1)
     {
-    const int inc = (ha==1 ? +1 : -1);
-    b += inc;
-    if(b == (ha==1 ? N+1 : min_b-1))
-        {
-        b -= inc;
-        ++ha;
-        }
+	auto args = Args("NumCenter=",1,"Minb=",min_b);
+    sweepnext(b,ha,N,args);
     }
 
 } //namespace itensor

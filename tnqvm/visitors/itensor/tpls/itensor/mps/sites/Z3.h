@@ -1,10 +1,22 @@
 //
-// Distributed under the ITensor Library License, Version 1.2
-//    (See accompanying LICENSE file.)
+// Copyright 2018 The Simons Foundation, Inc. - All Rights Reserved.
 //
-#ifndef __ITENSOR_Z3_H
-#define __ITENSOR_Z3_H
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+#pragma once
+
 #include "itensor/mps/siteset.h"
+#include "itensor/util/str.h"
 
 namespace itensor {
 
@@ -14,25 +26,32 @@ using Z3 = BasicSiteSet<Z3Site>;
 
 class Z3Site
     {
-    IQIndex s;
+    Index s;
     public:
 
-    Z3Site() { }
+    Z3Site(Index I) : s(I) { }
 
-    Z3Site(IQIndex I) : s(I) { }
-
-    Z3Site(int n, Args const& args = Args::global())
+    Z3Site(Args const& args = Args::global())
         {
-        s = IQIndex{nameint("Z3 site=",n),
-        Index(nameint("0|site",n),1,Site),QN({0,3}),
-        Index(nameint("1|site",n),1,Site),QN({1,3}),
-        Index(nameint("2|site",n),1,Site),QN({2,3})};
+        auto ts = TagSet("Site,Z3");
+        if( args.defined("SiteNumber") )
+          ts.addTags("n="+str(args.getInt("SiteNumber")));
+        if(args.getBool("ConserveQNs",true))
+          {
+          s = Index(QN({"T",0,3}),1,
+                    QN({"T",1,3}),1,
+                    QN({"T",2,3}),1,Out,ts);
+          }
+        else
+          {
+          s = Index(3,ts);
+          }
         }
 
-    IQIndex
+    Index
     index() const { return s; }
 
-    IQIndexVal
+    IndexVal
     state(std::string const& state)
         {
         if(state == "0") { return s(1); }
@@ -42,12 +61,12 @@ class Z3Site
         if(state == "2") { return s(3); }
         else
             {
-            Error("State " + state + " not recognized");
+            throw ITError("State " + state + " not recognized");
             }
-        return IQIndexVal{};
+        return IndexVal{};
         }
 
-	IQTensor
+	ITensor
 	op(std::string const& opname,
 	   Args const& args) const
         {
@@ -60,7 +79,7 @@ class Z3Site
         auto Two = s(3);
         auto TwoP = sP(3);
 
-        auto Op = IQTensor(dag(s),sP);
+        auto Op = ITensor(dag(s),sP);
 
         if(opname == "N")
             {
@@ -112,13 +131,22 @@ class Z3Site
             }
         else
             {
-            Error("Operator \"" + opname + "\" name not recognized");
+            throw ITError("Operator \"" + opname + "\" name not recognized");
             }
 
         return Op;
         }
+
+    //
+    // Deprecated, for backwards compatibility
+    //
+
+    Z3Site(int n, Args const& args = Args::global())
+        {
+        *this = Z3Site({args,"SiteNumber=",n});
+        }
+
     };
 
 } //namespace itensor
 
-#endif
