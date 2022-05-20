@@ -58,8 +58,8 @@ public:
   // Update TNQVM configurations:
   // This is called post-initialize to add/update configurations.
   void updateConfiguration(const HeterogeneousMap &config) override {
-    if (config.keyExists<bool>("verbose") && config.get<bool>("verbose")) {
-      __verbose = 1;
+    if (config.keyExists<bool>("verbose")) {
+      if(config.get<bool>("verbose")) __verbose = 1;
     }
     if (config.keyExists<bool>("vqe-mode")) {
       vqeMode = config.get<bool>("vqe-mode");
@@ -69,7 +69,7 @@ public:
         config.stringExists("backend")) {
       // Get the specific TNQVM visitor, either using the `tnqvm-visitor` key
       // or the `backend` key.
-      // e.g., when users use the convention "tnqvm::exatn", "exatn" will be
+      // e.g., when users use the convention "tnqvm:exatn", "exatn" will be
       // parsed and passed in the "backend" field.
       const auto requestedBackend = config.stringExists("tnqvm-visitor")
                                         ? config.getString("tnqvm-visitor")
@@ -120,13 +120,11 @@ public:
   const std::vector<std::string> configurationKeys() override { return {}; }
 //   const std::string getSignature() override {return name()+":";}
 
-  void
-  execute(std::shared_ptr<AcceleratorBuffer> buffer,
-          const std::shared_ptr<xacc::CompositeInstruction> kernel) override;
+  void execute(std::shared_ptr<AcceleratorBuffer> buffer,
+               const std::shared_ptr<xacc::CompositeInstruction> kernel) override;
 
   void execute(std::shared_ptr<AcceleratorBuffer> buffer,
-               const std::vector<std::shared_ptr<CompositeInstruction>>
-                   functions) override;
+               const std::vector<std::shared_ptr<CompositeInstruction>> functions) override;
 
   const std::vector<std::complex<double>>
   getAcceleratorState(std::shared_ptr<CompositeInstruction> program) override;

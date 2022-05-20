@@ -1,0 +1,42 @@
+name: "Linux CI"
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  schedule:
+    # Daily run
+    - cron:  '30 1 * * *'  
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: "Linux CI"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Create Build Environment
+        run: cmake -E make_directory build
+      
+      - name: Install dependencies
+        run: sudo apt-get -y update && sudo apt-get install -y --no-install-recommends gfortran libopenmpi-dev ninja-build libssl-dev libcurl4-openssl-dev python3 libpython3-dev python3-pip libblas-dev liblapack-dev
+      
+      - name: Build XACC
+        run: cd $HOME && git clone --recursive https://github.com/eclipse/xacc && cd xacc && mkdir build && cd build && cmake .. -GNinja && cmake --build . --target install
+      
+      - name: Build ExaTN
+        run: cd $HOME && git clone --recursive https://github.com/ornl-qci/exatn && cd exatn && mkdir build && cd build && cmake .. -DBLAS_LIB=ATLAS -DBLAS_PATH=/usr/lib/x86_64-linux-gnu && make -j$(nproc) install
+
+      - name: Configure
+        working-directory: build/
+        run: cmake $GITHUB_WORKSPACE -DXACC_DIR=$HOME/.xacc -DTNQVM_BUILD_TESTS=TRUE -DEXATN_DIR=$HOME/.exatn
+    
+      - name: Build
+        working-directory: build/
+        run: cmake --build . --target install
+      
+      - name: Test
+        working-directory: build/
+        run: ctest --output-on-failure

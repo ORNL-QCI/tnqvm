@@ -9,7 +9,7 @@ class US_ABI_LOCAL ExaTnPmpsActivator : public BundleActivator {
 public:
   ExaTnPmpsActivator() {}
 
-  void Start(BundleContext context) 
+  void Start(BundleContext context)
   {
     context.RegisterService<tnqvm::TNQVMVisitor>(std::make_shared<tnqvm::ExaTnPmpsVisitor>());
   }

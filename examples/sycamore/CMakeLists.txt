@@ -29,4 +29,6 @@ add_executable(sycamore_circ_slice_samples sycamore_circ_slice_samples.cpp)
 target_link_libraries(sycamore_circ_slice_samples PRIVATE xacc::xacc tnqvm)
 target_compile_definitions(sycamore_circ_slice_samples PRIVATE RESOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/resources")
 
-
+add_executable(sycamore_circ_approx sycamore_circ_approx.cpp)
+target_link_libraries(sycamore_circ_approx PRIVATE xacc::xacc tnqvm)
+target_compile_definitions(sycamore_circ_approx PRIVATE RESOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/resources")

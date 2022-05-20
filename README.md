@@ -1,6 +1,6 @@
 | Branch | Status |
 |:-------|:-------|
-|master | [![pipeline status](https://code.ornl.gov/qci/tnqvm/badges/master/pipeline.svg)](https://code.ornl.gov/qci/tnqvm/commits/master) |
+|master | [![Linux CI](https://github.com/ORNL-QCI/tnqvm/actions/workflows/build.yml/badge.svg?branch=master)](https://github.com/ORNL-QCI/tnqvm/actions/workflows/build.yml) |
 
 
 # TNQVM Tensor Network XACC Accelerator

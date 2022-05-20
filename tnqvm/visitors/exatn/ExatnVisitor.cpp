@@ -14,8 +14,8 @@
  *     derived from this software without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- *AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- *IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
  * DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
  * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
@@ -26,7 +26,7 @@
  *
  * Contributors:
  *   Initial sketch - Mengsu Chen 2017/07/17;
- *   Implementation - Dmitry Lyakh 2017/10/05 - active;
+ *   Implementation - Thien Nguyen 2019 - active;
  *
  **********************************************************************************/
 #ifdef TNQVM_HAS_EXATN
@@ -383,7 +383,7 @@ ExatnVisitor<TNQVM_COMPLEX_TYPE>::ExatnVisitor()
 
 template<typename TNQVM_COMPLEX_TYPE>
 void ExatnVisitor<TNQVM_COMPLEX_TYPE>::initialize(std::shared_ptr<AcceleratorBuffer> buffer,
-                              int nbShots) {
+                                                  int nbShots) {
   int64_t talshHostBufferSizeInBytes = MAX_TALSH_MEMORY_BUFFER_SIZE_BYTES;
   if (!exatn::isInitialized()) {
 #ifdef TNQVM_EXATN_USES_MKL_BLAS
@@ -432,29 +432,29 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::initialize(std::shared_ptr<AcceleratorBuf
 // This is a flag from ExaTN indicating that ExaTN was compiled
 // w/ MPI enabled.
 #ifdef MPI_ENABLED
-  {
-    if (options.keyExists<void*>("mpi-communicator"))
     {
-      xacc::info("Setting ExaTN MPI_COMMUNICATOR...");
-      auto communicator = options.get<void*>("mpi-communicator");
-      exatn::MPICommProxy commProxy(communicator);
-      exatn::initialize(commProxy, exatnParams);
+      if (options.keyExists<void*>("mpi-communicator"))
+      {
+        xacc::info("Setting ExaTN MPI_COMMUNICATOR...");
+        auto communicator = options.get<void*>("mpi-communicator");
+        exatn::MPICommProxy commProxy(communicator);
+        exatn::initialize(commProxy, exatnParams);
+      }
+      else
+      {
+        // No specific communicator is specified,
+        // exaTN will automatically use MPI_COMM_WORLD.
+        exatn::initialize(exatnParams);
+      }
+      exatn::activateContrSeqCaching();
+      //exatn::resetExecutionSerialization(true,true); //validation
     }
-    else
-    {
-      // No specific communicator is specified,
-      // exaTN will automatically use MPI_COMM_WORLD.
-      exatn::initialize(exatnParams);
-    }
-    exatn::activateContrSeqCaching();
-    //exatn::resetExecutionSerialization(true,true); //validation
-  }
 #else
-  {
-    exatn::initialize(exatnParams);
-    exatn::activateContrSeqCaching();
-    //exatn::resetExecutionSerialization(true,true); //validation
-  }
+    {
+      exatn::initialize(exatnParams);
+      exatn::activateContrSeqCaching();
+      //exatn::resetExecutionSerialization(true,true); //validation
+    }
 #endif
 
     if (exatn::getDefaultProcessGroup().getSize() > 1)
@@ -481,12 +481,19 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::initialize(std::shared_ptr<AcceleratorBuf
 
     // ExaTN and XACC logging levels are always in-synced.
     // Note: If xacc::verbose is not set, we always set ExaTN logging level to 0.
-    exatn::resetClientLoggingLevel(xacc::verbose ? 1 : 0);
+    exatn::resetClientLoggingLevel(xacc::verbose ? xacc::getLoggingLevel() : 0);
     exatn::resetRuntimeLoggingLevel(xacc::verbose ? xacc::getLoggingLevel() : 0);
     xacc::subscribeLoggingLevel([](int level) {
-      exatn::resetClientLoggingLevel(xacc::verbose ? 1 : 0);
+      exatn::resetClientLoggingLevel(xacc::verbose ? level : 0);
       exatn::resetRuntimeLoggingLevel(xacc::verbose ? level : 0);
     });
+
+    //Set up ExaTN computational backend:
+    auto backends = exatn::queryComputationalBackends();
+    if(std::find(backends.cbegin(),backends.cend(),"cuquantum") != backends.cend()) {
+      exatn::switchComputationalBackend("cuquantum");
+      //std::cout << "#MSG(TN-QVM:ExaTN): Switched computational backend to cuQuantum\n"; //debug
+    }
   }
 
   m_hasEvaluated = false;
@@ -509,7 +516,7 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::initialize(std::shared_ptr<AcceleratorBuf
   // Note: this option is for *INTERNAL* use only.
   // e.g. purposely constraint the number of qubits to test all-reduce
   // wavefunction slices.
-  if (options.keyExists<int>("max-qubit")) 
+  if (options.keyExists<int>("max-qubit"))
   {
     m_maxQubit = options.get<int>("max-qubit");
     xacc::info("Set max qubit to " + m_maxQubit);
@@ -729,7 +736,7 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
       return;
     }
 
-    std::vector<TNQVM_COMPLEX_TYPE> waveFuncSlice = computeWaveFuncSlice(m_tensorNetwork, bitString, exatn::getDefaultProcessGroup()); 
+    std::vector<TNQVM_COMPLEX_TYPE> waveFuncSlice = computeWaveFuncSlice(m_tensorNetwork, bitString, exatn::getDefaultProcessGroup());
     assert(!waveFuncSlice.empty());
     if (waveFuncSlice.size() == 1)
     {
@@ -741,7 +748,7 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
       const auto normalizeWaveFnSlice = [](std::vector<TNQVM_COMPLEX_TYPE>& io_waveFn){
         const double normVal = std::accumulate(io_waveFn.begin(), io_waveFn.end(), 0.0, [](double sumVal, const TNQVM_COMPLEX_TYPE& val){
           return sumVal + std::norm(val);
-        }); 
+        });
         // The slice may have zero norm:
         if (normVal > 1e-12) {
           const TNQVM_COMPLEX_TYPE sqrtNorm = sqrt(normVal);
@@ -763,7 +770,7 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
         amplImag.emplace_back(val.imag());
       }
       m_buffer->addExtraInfo("amplitude-real-vec", amplReal);
-      m_buffer->addExtraInfo("amplitude-imag-vec", amplImag);  
+      m_buffer->addExtraInfo("amplitude-imag-vec", amplImag);
     }
 
     m_buffer.reset();
@@ -920,7 +927,7 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::visit(Tdg &in_TdgGate) {
 template<typename TNQVM_COMPLEX_TYPE>
 void ExatnVisitor<TNQVM_COMPLEX_TYPE>::visit(CPhase &in_CPhaseGate) {
   TNQVM_TELEMETRY_ZONE(__FUNCTION__, __FILE__, __LINE__);
-  appendGateTensor<CommonGates::CPhase>(in_CPhaseGate);
+  appendGateTensor<CommonGates::CPhase>(in_CPhaseGate, in_CPhaseGate.getParameter(0).as<double>());
 }
 
 template<typename TNQVM_COMPLEX_TYPE>
@@ -1582,6 +1589,7 @@ const double ExatnVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZ(
   }
   m_hasEvaluated = true;
   const double exp_val_z = (nbBasisChangeInsts > 0) ? calcExpValueZ(m_measureQbIdx, retrieveStateVector()) :  calcExpValueZ(m_measureQbIdx, m_cacheStateVec);
+  exatn::destroyTensorSync(m_tensorNetwork.getTensor(0)->getName());
   m_measureQbIdx.clear();
   return exp_val_z;
 }
@@ -1806,7 +1814,7 @@ ExatnVisitor<TNQVM_COMPLEX_TYPE>::getExpectationValueZByAppendingConjugate() {
   }
 
   const auto result = evaluateTerm(measureOps);
-  
+
   return static_cast<double>(result.real());
 }
 

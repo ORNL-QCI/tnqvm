@@ -66,6 +66,8 @@ void TNQVM::execute(
     // Initialize the visitor
     visitor->initialize(buffer, getShotCountOption(options));
     visitor->setKernelName(kernelDecomposed.getBase()->name());
+    xacc::info("Number of instructions: " +
+               std::to_string(kernelDecomposed.getBase()->nInstructions()));
     // Walk the base IR tree, and visit each node
     InstructionIterator it(kernelDecomposed.getBase());
     while (it.hasNext()) {
@@ -122,6 +124,8 @@ void TNQVM::execute(std::shared_ptr<xacc::AcceleratorBuffer> buffer,
   }
 
   // Walk the IR tree, and visit each node
+  xacc::info("Number of instructions: " +
+             std::to_string(kernel->nInstructions()));
   InstructionIterator it(kernel);
   while (it.hasNext()) {
     auto nextInst = it.next();

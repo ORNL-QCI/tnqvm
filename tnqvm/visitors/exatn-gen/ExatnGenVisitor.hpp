@@ -14,8 +14,8 @@
  *     derived from this software without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- *AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- *IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
  * DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
  * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
@@ -26,30 +26,30 @@
  *
  * Contributors:
  *   Implementation - Thien Nguyen
+ *   Implementation - Dmitry Lyakh
  *
  **********************************************************************************/
-// +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
-// |  Initialization Parameter   |                  Parameter Description                                 |    type     |         default          |
-// +=============================+========================================================================+=============+==========================+
-// | reconstruct-layers          | Perform reconstruction after this number of 2-q gates                  |    int      | -1 (no reconstruct)      |
-// +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
-// | reconstruct-tolerance       | Reconstruction convergence tolerance                                   |    double   | 1e-4                     |
-// +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
-// | max-bond-dim                | Reconstruction max bond dimension                                      |    int      | 512                      |
-// +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
-// | reconstruct-builder         | Reconstruction network builder (tensor network ansatz)                 |    string   | "MPS"                    |
-// +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
+// +-----------------------------+------------------------------------------------------------------------+-----------------+--------------------------+
+// |  Initialization Parameter   |                  Parameter Description                                 |    type         |         default          |
+// +=============================+========================================================================+=================+==========================+
+// | reconstruct-gates           | Perform reconstruction after this number of consecutive 2-q gates      |    int          | -1 (no reconstruct)      |
+// +-----------------------------+------------------------------------------------------------------------+-----------------+--------------------------+
+// | reconstruct-tolerance       | Reconstruction convergence tolerance                                   |    double       | 1e-4                     |
+// +-----------------------------+------------------------------------------------------------------------+-----------------+--------------------------+
+// | max-bond-dim                | Reconstruction max bond dimension (inside approximating tensor network)|    int          | 16                       |
+// +-----------------------------+------------------------------------------------------------------------+-----------------+--------------------------+
+// | reconstruct-builder         | Reconstruction network builder (builds the tensor network ansatz)      | string: MPS,TTN | "MPS"                    |
+// +-----------------------------+------------------------------------------------------------------------+-----------------+--------------------------+
 #pragma once
 
 #ifdef TNQVM_HAS_EXATN
 #include "TNQVMVisitor.hpp"
 #include "exatn.hpp"
-#include "base/Gates.hpp"
-#include "utils/GateMatrixAlgebra.hpp"
 
 namespace tnqvm {
 enum class ObsOpType { I, X, Y, Z, NA };
-
+// Forward declarations:
+enum class CommonGates: int;
 // Simple struct to identify a concrete quantum gate instance,
 // For example, parametric gates, e.g. Rx(theta), will have an instance for each
 // value of theta that is used to instantiate the gate matrix.
@@ -124,6 +124,7 @@ public:
   virtual bool supportVqeMode() const override { return true; }
   virtual const double getExpectationValueZ(
       std::shared_ptr<CompositeInstruction> in_function) override;
+
 private:
   template <tnqvm::CommonGates GateType, typename... GateParams>
   void appendGateTensor(const xacc::Instruction &in_gateInstruction,
@@ -132,11 +133,26 @@ private:
   analyzeObsSubCircuit(std::shared_ptr<CompositeInstruction> in_function) const;
   exatn::TensorOperator
   constructObsTensorOperator(const std::vector<ObsOpType> &in_obsOps) const;
-  void reconstructCircuitTensor();
+  void reconstructCircuitTensor(bool forced = false);
+  // Compute the wave-function slice or amplitude (if all bits are set):
+  std::vector<TNQVM_COMPLEX_TYPE>
+  computeWaveFuncSlice(const exatn::TensorNetwork &in_tensorNetwork,
+                       const std::vector<int> &in_bitString,
+                       const exatn::ProcessGroup &in_processGroup) const;
+  std::vector<uint8_t>
+  getMeasureSample(exatn::TensorNetwork &in_mps, TNQVM_COMPLEX_TYPE in_coeff,
+                   size_t in_nbQubits,
+                   const std::vector<size_t> &in_qubitIdx) const;
+
 private:
+  void updateLayerCounter(const xacc::Instruction &in_gateInstruction);
+  // std::set<std::pair<size_t, size_t>> m_layerTracker;
+  std::unordered_map<size_t, size_t> m_qubitToGateCount;
   std::shared_ptr<exatn::TensorNetwork> m_qubitNetwork;
   exatn::TensorExpansion m_tensorExpansion;
+  std::shared_ptr<exatn::TensorExpansion> m_previousOptExpansion;
   int m_layersReconstruct;
+  bool m_countByGates;
   double m_reconstructTol;
   int m_layerCounter;
   int m_maxBondDim;
@@ -145,14 +161,18 @@ private:
   std::shared_ptr<AcceleratorBuffer> m_buffer;
   std::unordered_map<std::string, std::vector<TNQVM_COMPLEX_TYPE>>
       m_gateTensorBodies;
-  std::set<int> m_measuredBits;
+  std::vector<size_t> m_measuredBits;
   std::shared_ptr<exatn::TensorOperator> m_obsTensorOperator;
   std::unordered_map<std::string, size_t> m_compositeNameToComponentId;
   std::shared_ptr<exatn::TensorExpansion> m_evaluatedExpansion;
+  double m_reconstructionFidelity;
+  bool m_initReconstructionRandom;
+  int m_shots;
 };
 
 template class ExatnGenVisitor<std::complex<double>>;
 template class ExatnGenVisitor<std::complex<float>>;
+
 class DoublePrecisionExatnGenVisitor : public ExatnGenVisitor<std::complex<double>> {
   virtual const std::string name() const override { return "exatn-gen:double"; }
   virtual exatn::TensorElementType getExatnElementType() const override {

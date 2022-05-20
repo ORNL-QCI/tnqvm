@@ -6,3 +6,6 @@ target_link_libraries(testMpi PRIVATE xacc::xacc)
 
 add_executable(qaoa_mpi qaoa_mpi.cpp)
 target_link_libraries(qaoa_mpi PRIVATE xacc::xacc)
+
+add_executable(deutsch_jozsa deutsch_jozsa.cpp)
+target_link_libraries(deutsch_jozsa PRIVATE xacc::xacc)

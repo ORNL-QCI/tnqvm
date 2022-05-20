@@ -26,6 +26,7 @@
  *
  * Contributors:
  *   Initial sketch - Mengsu Chen 2017/07/17;
+ *   Implementation - Thien Nguyen 2019 - active;
  *   Implementation - Dmitry Lyakh 2017/10/05 - active;
  *
  **********************************************************************************/
@@ -60,8 +61,8 @@ using TensorFunctor = talsh::TensorFunctor<exatn::Identifiable>;
 // | calc-contract-cost-flops    | Estimate the Flops and Memory requirements only (no tensor contraction)|    bool     | false                    |
 // |                             | If true, the following info will be added to the AcceleratorBuffer:    |             |                          |
 // |                             | - `contract-flops`: Flops count.                                       |             |                          |
-// |                             | - `max-node-bytes`: Max intermediate tensor size in memory.            |             |                          |
-// |                             | - `optimizer-elapsed-time-ms`: optimization walltime.                  |             |                          |
+// |                             | - `max-node-bytes`: Max intermediate tensor size in memory (Bytes).    |             |                          |
+// |                             | - `optimizer-elapsed-time-ms`: Optimization walltime.                  |             |                          |
 // +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
 // | bitstring                   | If provided, the output amplitude/partial state vector associated with | vector<int> | <unused>                 |
 // |                             | that `bitstring` will be computed.                                     |             |                          |
@@ -79,7 +80,7 @@ using TensorFunctor = talsh::TensorFunctor<exatn::Identifiable>;
 // | mpi-communicator            | The MPI communicator to initialize ExaTN runtime with.                 |    void*    | <unused>                 |
 // |                             | If not provided, by default, ExaTN will use `MPI_COMM_WORLD`.          |             |                          |
 // +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
-// | exp-val-by-conjugate        | If true, expectation value of *large* circuits (exceed memory limit)   |    bool     | false                    |
+// | exp-val-by-conjugate        | If true, expectation value of *large* circuits (exceeding memory limit)|    bool     | false                    |
 // |                             | is computed by closing the tensor network with its conjugate.          |             |                          |
 // +-----------------------------+------------------------------------------------------------------------+-------------+--------------------------+
 
@@ -88,36 +89,36 @@ namespace tnqvm {
     // For example, parametric gates, e.g. Rx(theta), will have an instance for each value of theta
     // that is used to instantiate the gate matrix.
     struct GateInstanceIdentifier
-    {  
+    {
         GateInstanceIdentifier(const std::string& in_gateName);
-        
+
         template<typename... GateParams>
         GateInstanceIdentifier(const std::string& in_gateName, const GateParams&... in_params);
-        
+
         template<typename GateParam>
         void addParam(const GateParam& in_param);
 
         template<typename GateParam, typename... MoreParams>
         void addParam(const GateParam& in_param, const MoreParams&... in_moreParams);
-        
+
         std::string toNameString() const;
 
         private:
             std::string m_gateName;
-            std::vector<std::string> m_gateParams; 
+            std::vector<std::string> m_gateParams;
     };
 
-    class DefaultTNQVMTensorFunctor : public TensorFunctor 
+    class DefaultTNQVMTensorFunctor : public TensorFunctor
     {
         const std::string name() const override { return "TNQVM Tensor Functor"; }
         const std::string description() const override { return "TNQVM Tensor Functor"; }
         virtual void pack(BytePacket& packet) override {};
         virtual void unpack(BytePacket& packet) override {};
-    }; 
+    };
 
     // Functor to inspect/print out tensor components
     template<typename TNQVM_COMPLEX_TYPE>
-    class TensorComponentPrintFunctor : public DefaultTNQVMTensorFunctor 
+    class TensorComponentPrintFunctor : public DefaultTNQVMTensorFunctor
     {
     public:
         virtual int apply(talsh::Tensor& local_tensor) override;
@@ -134,7 +135,7 @@ namespace tnqvm {
     private:
         int m_qubits;
         std::vector<TNQVM_COMPLEX_TYPE>& m_stateVec;
-    }; 
+    };
 
     // Functor to calculate the expected Z value across a list of qubit.
     template<typename TNQVM_COMPLEX_TYPE>
@@ -170,17 +171,17 @@ namespace tnqvm {
         virtual int apply(talsh::Tensor& local_tensor) override;
     private:
         const std::vector<TNQVM_COMPLEX_TYPE>& m_stateVec;
-    };  
+    };
 
     // Forward declarations:
     enum class CommonGates: int;
-   
+
     // ExaTN type alias:
     using TensorNetwork = exatn::numerics::TensorNetwork;
     using Tensor = exatn::numerics::Tensor;
     using TensorShape = exatn::numerics::TensorShape;
-    using TensorLeg = exatn::numerics::TensorLeg;    
-    
+    using TensorLeg = exatn::numerics::TensorLeg;
+
     template<typename TNQVM_COMPLEX_TYPE>
     class ExatnVisitor;
 
@@ -191,13 +192,13 @@ namespace tnqvm {
         public:
         // Called when the tensor network has been constructed, ready to be submitted.
         virtual void preEvaluate(ExatnVisitor<TNQVM_COMPLEX_TYPE>* in_backEnd) = 0;
-        // Called just before measurement is applied 
-        // i.e. collapse then normalize the state vector. 
+        // Called just before measurement is applied
+        // i.e. collapse then normalize the state vector.
         virtual void preMeasurement(ExatnVisitor<TNQVM_COMPLEX_TYPE>* in_backEnd, Measure& in_measureGate) = 0;
         // After measurement
         virtual void postMeasurement(ExatnVisitor<TNQVM_COMPLEX_TYPE>* in_backEnd, Measure& in_measureGate, bool in_bitResult, double in_expectedValue) = 0;
         // Called before finalization, i.e. destroy the tensors.
-        // Note: if there is no measurement in the circuit, 
+        // Note: if there is no measurement in the circuit,
         // this is where you can retrieve the final state vector.
         virtual void onEvaluateComplete(ExatnVisitor<TNQVM_COMPLEX_TYPE>* in_backEnd) = 0;
     };
@@ -212,15 +213,15 @@ namespace tnqvm {
             return &instance;
         }
 
-        virtual void preEvaluate(ExatnVisitor<TNQVM_COMPLEX_TYPE>* in_backEnd) override; 
+        virtual void preEvaluate(ExatnVisitor<TNQVM_COMPLEX_TYPE>* in_backEnd) override;
         virtual void preMeasurement(ExatnVisitor<TNQVM_COMPLEX_TYPE>* in_backEnd, Measure& in_measureGate) override;
-        virtual void postMeasurement(tnqvm::ExatnVisitor<TNQVM_COMPLEX_TYPE>* in_backEnd, xacc::quantum::Measure& in_measureGate, bool in_bitResult, double in_expectedValue) override; 
+        virtual void postMeasurement(tnqvm::ExatnVisitor<TNQVM_COMPLEX_TYPE>* in_backEnd, xacc::quantum::Measure& in_measureGate, bool in_bitResult, double in_expectedValue) override;
         virtual void onEvaluateComplete(tnqvm::ExatnVisitor<TNQVM_COMPLEX_TYPE>* in_backEnd) override {}
 
     private:
         ExatnDebugLogger() = default;
         ~ExatnDebugLogger() = default;
-    
+
         ExatnDebugLogger(const ExatnDebugLogger&) = delete;
         ExatnDebugLogger& operator=(const ExatnDebugLogger&) = delete;
         ExatnDebugLogger(ExatnDebugLogger&&) = delete;
@@ -236,17 +237,17 @@ namespace tnqvm {
         ExatnVisitor();
         typedef typename TNQVM_COMPLEX_TYPE::value_type TNQVM_FLOAT_TYPE;
         virtual exatn::TensorElementType getExatnElementType() const = 0;
-        // Virtual function impls:        
+        // Virtual function impls:
         virtual void initialize(std::shared_ptr<AcceleratorBuffer> buffer, int nbShots) override;
         virtual void finalize() override;
-        
+
         // Service name as defined in manifest.json
         virtual const std::string name() const override { return "exatn"; }
 
         virtual const std::string description() const override { return "ExaTN MPS Visitor"; }
-        
+
         virtual OptionPairs getOptions() override { /*TODO: define options */ return OptionPairs{}; }
-        
+
         virtual void setKernelName(const std::string& in_kernelName) override { m_kernelName = in_kernelName; }
 
         // one-qubit gates
@@ -290,7 +291,7 @@ namespace tnqvm {
         };
         // Note: the composite function is the *ORIGINAL* circuit (aka the ansatz), i.e. no change-of-basis or measurement is required.
         TNQVM_COMPLEX_TYPE observableExpValCalc(std::shared_ptr<AcceleratorBuffer>& in_buffer, std::shared_ptr<CompositeInstruction>& in_function, const std::vector<ObservableTerm>& in_observableExpression); 
-        
+
 
         // (2) Get the RDM for a subset of qubit,
         // e.g. to simulate samping (measurement) of those qubits.
@@ -303,7 +304,7 @@ namespace tnqvm {
         /////////////////////////////////////////////////////
         // Returns the *flatten* RDM (size = 2^(2N)), N = number of *open* qubit wires.
         std::vector<TNQVM_COMPLEX_TYPE> getReducedDensityMatrix(std::shared_ptr<AcceleratorBuffer>& in_buffer, std::shared_ptr<CompositeInstruction>& in_function, const std::vector<size_t>& in_qubitIdx);
-        
+
 
         // (3) Get a sample measurement bit string:
         // In this mode, we get RDM by opening one qubit line at a time (same order as the provided list).
@@ -314,11 +315,11 @@ namespace tnqvm {
     private:
         template<tnqvm::CommonGates GateType, typename... GateParams>
         void appendGateTensor(const xacc::Instruction& in_gateInstruction, GateParams&&... in_params);
-        void evaluateNetwork(); 
-        void resetExaTN(); 
+        void evaluateNetwork();
+        void resetExaTN();
         void resetNetwork();
-        TNQVM_COMPLEX_TYPE expVal(const std::vector<ObservableTerm>& in_observableExpression); 
-        TNQVM_COMPLEX_TYPE evaluateTerm(const std::vector<std::shared_ptr<Instruction>>& in_observableTerm); 
+        TNQVM_COMPLEX_TYPE expVal(const std::vector<ObservableTerm>& in_observableExpression);
+        TNQVM_COMPLEX_TYPE evaluateTerm(const std::vector<std::shared_ptr<Instruction>>& in_observableTerm);
         void applyInverse();
         std::vector<uint8_t> generateMeasureSample(const TensorNetwork& in_tensorNetwork, const std::vector<int>& in_qubitIdx);
         // Calculate the flops and memory requirements to generate a full sample (all qubits) for the input tensor network.
@@ -327,7 +328,7 @@ namespace tnqvm {
         std::vector<std::pair<double, double>> calcFlopsAndMemoryForSample(const TensorNetwork& in_tensorNetwork);
         // Validates tensor network contraction: tensor network + its conjugate.
         // Returns true if the result is 1.
-        bool validateTensorNetworkContraction(TensorNetwork in_network) const; 
+        bool validateTensorNetworkContraction(TensorNetwork in_network) const;
         // Returns the number of MPI processes in the process group if using MPI.
         // (returns 1 if not using MPI)
         size_t getNumMpiProcs() const;
@@ -336,7 +337,7 @@ namespace tnqvm {
         computeWaveFuncSlice(const TensorNetwork &in_tensorNetwork,
                              const std::vector<int> &in_bitString,
                              const exatn::ProcessGroup &in_processGroup) const;
-        
+
         // Compute exp-val-z for large circuits:
         // Select the appropriate method based on user config:
         double internalComputeExpectationValueZ(
