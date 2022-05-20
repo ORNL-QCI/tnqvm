@@ -34,6 +34,7 @@
 #include "xacc.hpp"
 #include "xacc_service.hpp"
 #include "TNQVMVisitor.hpp"
+#include "RandomEngine.hpp"
 #include <cassert>
 
 // Documentation: https://xacc.readthedocs.io/en/latest/extensions.html#tnqvm
@@ -108,6 +109,11 @@ public:
       if (nbShots > 1 && backendName == "itensor-mps") {
         xacc::warning("Multi-shot simulation is not available for 'itensor-mps' backend. This option will be ignored. \nPlease use 'exatn' backend if you want to run multi-shot simulation.");
       }
+    }
+
+    if (config.keyExists<int>("seed")) {
+      const auto seed = config.get<int>("seed");
+      randomEngine::setSeed(seed);
     }
 
     // Updated the cached configurations (to be sent on to visitor)

@@ -29,7 +29,7 @@ usFunctionEmbedResources(TARGET ${LIBRARY_NAME}
     manifest.json
     )
 
-target_include_directories(${LIBRARY_NAME} PUBLIC . visitors)
+target_include_directories(${LIBRARY_NAME} PUBLIC . visitors utils)
 
 target_link_libraries(${LIBRARY_NAME} PUBLIC xacc::xacc xacc::quantum_gate xacc::pauli)
 
