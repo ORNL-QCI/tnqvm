@@ -489,10 +489,12 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::initialize(std::shared_ptr<AcceleratorBuf
     });
 
     //Set up ExaTN computational backend:
+    const std::string backend = "cuquantum";
     auto backends = exatn::queryComputationalBackends();
-    if(std::find(backends.cbegin(),backends.cend(),"cuquantum") != backends.cend()) {
-      exatn::switchComputationalBackend("cuquantum");
-      //std::cout << "#MSG(TN-QVM:ExaTN): Switched computational backend to cuQuantum\n"; //debug
+    if(std::find(backends.cbegin(),backends.cend(),backend) != backends.cend()) {
+      exatn::switchComputationalBackend(backend);
+      //std::cout << "#MSG(TN-QVM:ExaTN): Switched computational backend to "
+      //          << backend << std::endl << std::flush; //debug
     }
   }
 

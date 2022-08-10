@@ -87,23 +87,24 @@ int benchmarkExaTnGen2()
 
 int benchmarkExaTnGen3()
 {
- constexpr int NB_QUBITS = 16;
+ constexpr int NB_QUBITS = 8;
  auto xasmCompiler = xacc::getCompiler("xasm");
  auto ir = xasmCompiler->compile(R"(__qpu__ void bell(qbit q) {
             H(q[0]);
-            for (int i = 0; i < 15; i++) {
+            for (int i = 0; i < 7; i++) {
              CNOT(q[i], q[i + 1]);
             }
            })");
- std::vector<int> bitstring(NB_QUBITS, 0);
+ std::vector<int> bitstring(NB_QUBITS, 0); // -1: Open qubits
  auto program = ir->getComposite("bell");
  auto accelerator =
-      xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-gen"},
+      xacc::getAccelerator("tnqvm", {{"tnqvm-visitor", "exatn-gen:float"},
                                      {"exatn-buffer-size-gb", 2},
-                                     {"reconstruct-layers", 4},
+                                     {"reconstruct-layers", 2},
                                      {"reconstruct-tolerance", 1e-4},
-                                     {"max-bond-dim", 1},
-                                     {"bitstring", bitstring}});
+                                     {"max-bond-dim", 4},
+                                     {"bitstring", bitstring},
+                                     {"exatn-contract-seq-optimizer", "metis"}});
  auto qreg = xacc::qalloc(NB_QUBITS);
  accelerator->execute(qreg, program);
  qreg->print();
