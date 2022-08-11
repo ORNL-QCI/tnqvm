@@ -822,19 +822,10 @@ void ExatnVisitor<TNQVM_COMPLEX_TYPE>::finalize() {
       // Shots
       if (m_shots > 0) {
         const auto cachedStateVec = retrieveStateVector();
-        for (int i = 0; i < m_shots; ++i) {
-          auto stateVecCopy = cachedStateVec;
-          for (const auto &idx : m_measureQbIdx) {
-            // Append the boolean true/false as bit value
-            m_resultBitString.append(
-                std::to_string(ApplyMeasureOp(stateVecCopy, idx)));
-          }
-          // Finish measuring all qubits, append the bit-string measurement
-          // result.
-          m_buffer->appendMeasurement(m_resultBitString);
-          // Clear the result bit string after appending (to be constructed in
-          // the next shot)
-          m_resultBitString.clear();
+        const auto measBitStrs =
+            GenerateSamples(cachedStateVec, m_shots, m_measureQbIdx);
+        for (const auto &sample : measBitStrs) {
+          m_buffer->appendMeasurement(sample);
         }
       }
       // No-shots, just add expectation value:

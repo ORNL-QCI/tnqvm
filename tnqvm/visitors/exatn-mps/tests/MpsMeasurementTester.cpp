@@ -37,7 +37,7 @@ TEST(MpsMeasurementTester, checkSimple)
 TEST(MpsMeasurementTester, checkRandomSeed) 
 {
   std::vector<std::map<std::string, int>> results;
-  constexpr int NB_TESTS = 4;
+  constexpr int NB_TESTS = 20;
   for (int i = 0; i < NB_TESTS; i++) {
     auto xasmCompiler = xacc::getCompiler("xasm");
     auto ir = xasmCompiler->compile(R"(__qpu__ void test1(qbit q) {

@@ -259,7 +259,7 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
     if (options.keyExists<double>("svd-cutoff"))
     {
         m_svdCutoff = options.get<double>("svd-cutoff");
-        std::cout << "[DEBUG] SVD Cut-off = " << m_svdCutoff << "\n";
+        // std::cout << "[DEBUG] SVD Cut-off = " << m_svdCutoff << "\n";
     }
 
     // Max bond dimension: take precedent over svd-cutoff
@@ -267,7 +267,7 @@ void ExatnMpsVisitor::initialize(std::shared_ptr<AcceleratorBuffer> buffer, int 
     if (options.keyExists<int>("max-bond-dim"))
     {
         m_maxBondDim = options.get<int>("max-bond-dim");
-        std::cout << "[DEBUG] Max bond dimension = " << m_maxBondDim << "\n";
+        // std::cout << "[DEBUG] Max bond dimension = " << m_maxBondDim << "\n";
     }
 
     m_buffer = std::move(buffer);
@@ -2202,60 +2202,10 @@ void ExatnMpsVisitor::evaluateTensorNetwork(exatn::numerics::TensorNetwork& io_t
 
 void ExatnMpsVisitor::addMeasureBitStringProbability(const std::vector<size_t>& in_bits, const std::vector<std::complex<double>>& in_stateVec, int in_shotCount)
 {
-    // Factor to determine if we should spawn threads to simulate bitstring sampling.
-    const int MULT_FACTOR = 100;
-    if (getNumberOfThreads() < 2 || in_shotCount < MULT_FACTOR * getNumberOfThreads())
-    {
-        // Sequential execution
-        for (int i = 0; i < in_shotCount; ++i)
-        {
-            std::string bitString;
-            auto stateVecCopy = in_stateVec;
-            for (const auto& bit : in_bits)
-            {
-                bitString.append(std::to_string(ApplyMeasureOp(stateVecCopy, bit)));
-            }
-
-            m_buffer->appendMeasurement(bitString);
-        }
-    }
-    else
-    {
-        // Parallel execution
-        std::vector<std::string> bitStringArray(in_shotCount);
-        assert(bitStringArray.size() == in_shotCount);
-        std::vector<std::thread> threads(getNumberOfThreads());
-        std::mutex critical;
-        for(int t = 0; t < getNumberOfThreads(); ++t)
-        {
-            threads[t] = std::thread(std::bind([&](int beginIdx, int endIdx, int threadIdx) {
-                for(int i = beginIdx; i < endIdx; ++i)
-                {
-                    std::string bitString;
-                    auto stateVecCopy = in_stateVec;
-                    for (const auto& bit : in_bits)
-                    {
-                        bitString.append(std::to_string(ApplyMeasureOp(stateVecCopy, bit)));
-                    }
-                    bitStringArray[i] = bitString;
-                }
-                {
-                    // Add measurement bitstring to the buffer:
-                    std::lock_guard<std::mutex> lock(critical);
-                    for(int i = beginIdx; i < endIdx; ++i)
-                    {
-                        m_buffer->appendMeasurement(bitStringArray[i]);
-                    }
-                }
-            },
-            t * in_shotCount / getNumberOfThreads(),
-            (t+1) == getNumberOfThreads() ? in_shotCount: (t+1) * in_shotCount/getNumberOfThreads(),
-            t));
-        }
-        std::for_each(threads.begin(),threads.end(),[](std::thread& x){
-            x.join();
-        });
-    }
+  const auto measBitStrs = GenerateSamples(in_stateVec, in_shotCount, in_bits);
+  for (const auto &sample : measBitStrs) {
+    m_buffer->appendMeasurement(sample);
+  }
 }
 
 std::vector<uint8_t> ExatnMpsVisitor::getMeasureSample(const std::vector<size_t>& in_qubitIdx, exatn::ProcessGroup *in_processGroup)
