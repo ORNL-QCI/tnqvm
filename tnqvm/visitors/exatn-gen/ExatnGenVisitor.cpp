@@ -766,11 +766,18 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::reconstructCircuitTensor(bool forced) 
     // Run the reconstructor:
     bool reconstructSuccess = exatn::sync();
     assert(reconstructSuccess);
-    exatn::TensorNetworkReconstructor::resetDebugLevel(1,0); //debug
-    reconstructor.resetLearningRate(1.0);
+
+    /*exatn::resetLoggingLevel(2,2); //debug
+    exatn::activateSanitizer(); //debug
+    exatn::resetExecutionSerialization(true,true); //debug
+    reconstructSuccess = exatn::sync();
+    assert(reconstructSuccess);*/
+
+    //exatn::TensorNetworkReconstructor::resetDebugLevel(1,0); //debug
+    //reconstructor.resetLearningRate(1.0);
     double residual_norm, fidelity;
     const auto startOpt = std::chrono::system_clock::now();
-    bool reconstructed = reconstructor.reconstruct(&residual_norm, &fidelity, true);
+    bool reconstructed = reconstructor.reconstruct(&residual_norm, &fidelity, true, true);
     reconstructSuccess = exatn::sync(); assert(reconstructSuccess);
     if (reconstructed) {
       const auto endOpt = std::chrono::system_clock::now();
