@@ -48,8 +48,8 @@ int main(int argc, char **argv)
     auto qpu = xacc::getAccelerator("tnqvm", {
         std::make_pair("tnqvm-visitor", "exatn:float"),
         std::make_pair("bitstring", BIT_STRING),
-        std::make_pair("exatn-buffer-size-gb", 64)
-        //std::make_pair("exatn-contract-seq-optimizer", "cotengra")
+        std::make_pair("exatn-buffer-size-gb", 64),
+        std::make_pair("exatn-contract-seq-optimizer", "cutnn") //use "cutnn" when building with cuQuantum
     });
 
     // Allocate a register of 53 qubits

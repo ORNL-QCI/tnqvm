@@ -729,8 +729,7 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::reconstructCircuitTensor(bool forced) 
             exatn::makeSharedTensorNetwork("Approx", rootTensor, *builder);
         for (auto iter = approximantTensorNetwork->cbegin();
              iter != approximantTensorNetwork->cend(); ++iter) {
-          const auto &tensorName = iter->second.getTensor()->getName();
-          if (tensorName != "ROOT") {
+          if (iter->first != 0) { //ignore output tensor
             auto tensor = iter->second.getTensor();
             const bool created =
                 exatn::createTensorSync(tensor, getExatnElementType());

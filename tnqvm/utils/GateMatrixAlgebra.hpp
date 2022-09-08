@@ -122,6 +122,39 @@ void ApplyCNOTGate(StateVectorType& io_psi, size_t in_controlIndex, size_t in_ta
   }
 }
 
+template <typename ElementType, typename IndexType>
+std::vector<std::string>
+GenerateSamples(const std::vector<ElementType> &state, uint64_t num_samples,
+                const std::vector<IndexType> &meas_bits) {
+  const auto toBitString = [&](uint64_t val) -> std::string {
+    std::string result(meas_bits.size(), '0');
+    for (size_t i = 0; i < meas_bits.size(); ++i) {
+      if (val & (1ULL << meas_bits[i])) {
+        result[i] = '1';
+      }
+    }
+    return result;
+  };
+  std::vector<std::string> bitstrings;
+  if (num_samples > 0) {
+    const uint64_t size = state.size();
+    const auto rs =
+        tnqvm::randomEngine::get_instance().sortedRandProbs(num_samples);
+    bitstrings.reserve(num_samples);
+    double csum = 0.0;
+    uint64_t m = 0;
+    for (uint64_t k = 0; k < size; ++k) {
+      csum += std::norm(state[k]);
+      while (rs[m] < csum && m < num_samples) {
+        bitstrings.emplace_back(toBitString(k));
+        ++m;
+      }
+    }
+  }
+
+  return bitstrings;
+}
+
 template<typename ElementType>
 bool ApplyMeasureOp(std::vector<ElementType>& io_psi, size_t in_qubitIndex)
 {

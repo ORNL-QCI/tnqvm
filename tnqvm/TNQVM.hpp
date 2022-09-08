@@ -113,7 +113,7 @@ public:
 
     if (config.keyExists<int>("seed")) {
       const auto seed = config.get<int>("seed");
-      randomEngine::setSeed(seed);
+      randomEngine::get_instance().setSeed(seed);
     }
 
     // Updated the cached configurations (to be sent on to visitor)
