@@ -722,7 +722,10 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::reconstructCircuitTensor(bool forced) 
     auto &networkBuildFactory = *(exatn::numerics::NetworkBuildFactory::get());
     auto builder = networkBuildFactory.createNetworkBuilderShared(m_reconstructBuilder);
     builder->setParameter("max_bond_dim", m_maxBondDim);
-    if(m_reconstructBuilder == "TTN") builder->setParameter("arity", 2);
+    if(m_reconstructBuilder == "TTN"){
+      builder->setParameter("arity", 2);
+      builder->setParameter("isometric", 1);
+    }
     auto approximant = [&]() {
       if (m_initReconstructionRandom || !m_previousOptExpansion) {
         auto approximantTensorNetwork =
@@ -755,8 +758,8 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::reconstructCircuitTensor(bool forced) 
 
     bool success = exatn::balanceNormalizeNorm2Sync(*target, 1.0, 1.0, false);
     assert(success);
-    success = exatn::balanceNormalizeNorm2Sync(*approximant, 1.0, 1.0, true);
-    assert(success);
+    //success = exatn::balanceNormalizeNorm2Sync(*approximant, 1.0, 1.0, true);
+    //assert(success);
     exatn::TensorNetworkReconstructor reconstructor(target, approximant,
                                                     m_reconstructTol);
     // std::cout << "Target: \n";
@@ -766,11 +769,18 @@ void ExatnGenVisitor<TNQVM_COMPLEX_TYPE>::reconstructCircuitTensor(bool forced) 
     // Run the reconstructor:
     bool reconstructSuccess = exatn::sync();
     assert(reconstructSuccess);
-    exatn::TensorNetworkReconstructor::resetDebugLevel(1,0); //debug
-    reconstructor.resetLearningRate(1.0);
+    //exatn::TensorNetworkReconstructor::resetDebugLevel(1,0); //debug
+    bool nesterov = true, iso_solver = false;
+    if(m_reconstructBuilder == "TTN"){
+      nesterov = false;
+      iso_solver = true;
+      reconstructor.resetLearningRate(1e3);
+    }else{
+      reconstructor.resetLearningRate(1.0);
+    }
     double residual_norm, fidelity;
     const auto startOpt = std::chrono::system_clock::now();
-    bool reconstructed = reconstructor.reconstruct(&residual_norm, &fidelity, true);
+    bool reconstructed = reconstructor.reconstruct(&residual_norm, &fidelity, true, nesterov, iso_solver);
     reconstructSuccess = exatn::sync(); assert(reconstructSuccess);
     if (reconstructed) {
       const auto endOpt = std::chrono::system_clock::now();

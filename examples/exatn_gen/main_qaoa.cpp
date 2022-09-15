@@ -13,18 +13,20 @@ int main(int argc, char **argv) {
     // Initialize:
     xacc::Initialize(argc, argv);
     xacc::set_verbose(true);
-    //xacc::logToFile(true);
-    //xacc::setLoggingLevel(1);
+    xacc::logToFile(true);
+    xacc::setLoggingLevel(1);
 
     // Get Accelerator backend:
     auto accelerator_qpp = xacc::getAccelerator("qpp");
     auto accelerator_tnqvm_gen = xacc::getAccelerator("tnqvm",
-                                 {{"tnqvm-visitor", "exatn-gen:float"},
-                                  {"exatn-buffer-size-gb", 2},
-                                  {"reconstruct-layers", 4},
-                                  {"reconstruct-tolerance", 1e-5},
-                                  {"max-bond-dim", 32}});
-    auto accelerator = accelerator_qpp;
+                                 {{"tnqvm-visitor", "exatn-gen:double"},
+                                  {"exatn-buffer-size-gb", 4},
+                                  {"reconstruct-layers", 8},
+                                  {"reconstruct-tolerance", 1e-6},
+                                  {"max-bond-dim", 32},
+                                  {"reconstruct-builder", "TTN"},
+                                  {"exatn-contract-seq-optimizer", "cutnn"}});
+    auto accelerator = accelerator_tnqvm_gen;
 
     // Read Source file:
     std::ifstream inFile;
