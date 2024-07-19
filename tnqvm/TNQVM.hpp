@@ -132,6 +132,11 @@ public:
   void execute(std::shared_ptr<AcceleratorBuffer> buffer,
                const std::vector<std::shared_ptr<CompositeInstruction>> functions) override;
 
+  virtual void
+  execute(std::shared_ptr<AcceleratorBuffer> buffer,
+          const std::shared_ptr<CompositeInstruction> baseCircuit,
+          const std::vector<std::shared_ptr<CompositeInstruction>> basisRotations) override;
+
   const std::vector<std::complex<double>>
   getAcceleratorState(std::shared_ptr<CompositeInstruction> program) override;
 
