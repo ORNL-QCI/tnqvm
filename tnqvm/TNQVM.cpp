@@ -138,6 +138,67 @@ void TNQVM::execute(std::shared_ptr<xacc::AcceleratorBuffer> buffer,
   visitor->finalize();
 }
 
+void TNQVM::execute(
+std::shared_ptr<AcceleratorBuffer> buffer,
+          const std::shared_ptr<CompositeInstruction> baseCircuit,
+          const std::vector<std::shared_ptr<CompositeInstruction>> basisRotations) {
+
+  auto provider = xacc::getIRProvider("quantum");
+  visitor = xacc::getService<TNQVMVisitor>(getVisitorName())->clone();
+  // If in VQE mode and there are more than one kernels
+  if (vqeMode && basisRotations.size() > 1 && visitor->supportVqeMode()) {
+
+    visitor->setOptions(options);
+    // Nearest neighbor transform:
+    if (visitor->name() == "itensor-mps" || visitor->name() == "exatn-mps" ||
+        visitor->name() == "exatn-pmps") {
+      auto opt = xacc::getService<xacc::IRTransformation>("nnizer");
+      opt->apply(baseCircuit, nullptr,
+                 {std::make_pair("max-distance", 1)});
+    }
+    // Initialize the visitor
+    visitor->initialize(buffer, getShotCountOption(options));
+    visitor->setKernelName(baseCircuit->name());
+    xacc::info("Number of instructions: " +
+               std::to_string(baseCircuit->nInstructions()));
+    // Walk the base IR tree, and visit each node
+    InstructionIterator it(baseCircuit);
+    while (it.hasNext()) {
+      auto nextInst = it.next();
+      if (nextInst->isEnabled() && !nextInst->isComposite()) {
+        nextInst->accept(visitor);
+      }
+    }
+
+    // Now we have a wavefunction that represents execution of the ansatz.
+    // Run the observable sub-circuits (change of basis + measurements)
+    for (int i = 0; i < basisRotations.size(); ++i) {
+      auto tmpBuffer = std::make_shared<xacc::AcceleratorBuffer>(
+          basisRotations[i]->name(), buffer->size());
+      auto obsCircuit = provider->createComposite(basisRotations[i]->name());
+      obsCircuit->addInstructions(basisRotations[i]->getInstructions());
+      double e = visitor->getExpectationValueZ(obsCircuit);
+      tmpBuffer->addExtraInfo("exp-val-z", e);
+      buffer->appendChild(obsCircuit->name(), tmpBuffer);
+    }
+    // Finalize the visitor
+    visitor->finalize();
+  }
+  // Normal execution mode
+  else {
+    for (auto b : basisRotations) {
+      auto tmpBuffer =
+          std::make_shared<xacc::AcceleratorBuffer>(b->name(), buffer->size());
+      auto obsCircuit = provider->createComposite(b->name());
+      obsCircuit->addInstructions(b->getInstructions());
+      execute(tmpBuffer, obsCircuit);
+      buffer->appendChild(b->name(), tmpBuffer);
+    }
+  }
+
+  return;
+}
+
 const std::vector<std::complex<double>>
 TNQVM::getAcceleratorState(std::shared_ptr<CompositeInstruction> program) {
   // Get the visitor backend
