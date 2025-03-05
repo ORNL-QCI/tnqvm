@@ -79,6 +79,9 @@ if (EXATN_DIR)
  set(ExaTN_DIR ${EXATN_DIR})
 endif()
 
+# We need this in case XACC is built without support for remote accelerators
+add_compile_definitions(REMOTE_DISABLED)
+
 add_subdirectory(tnqvm)
 
 # Build example programs if enabled
